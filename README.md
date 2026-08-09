@@ -1,212 +1,243 @@
 # AI Auto Clipper
 
-Tool lokal berbasis AI untuk otomatis mengextract klip viral dari video panjang (YouTube, Podcast, Interview, dll).
-Menggunakan Python + FastAPI + PostgreSQL + FFmpeg + Whisper + LLM.
+Tool lokal berbasis AI untuk otomatis mengekstrak klip viral dari video panjang (YouTube, podcast, interview, dll). Menjalankan pipeline penuh: upload/download → transcribe (Whisper) → analisis multi-analyzer → scoring → pilih candidate → render clip + subtitle.
+
+**Dibangun dengan:** Python 3.14 + FastAPI + PostgreSQL + FFmpeg + Faster-Whisper + OpenAI-compatible LLM + MediaPipe/OpenCV + librosa.
+
+> **Catatan versi:** project ini diuji di **Python 3.14** (Windows). Beberapa dependency (mediapipe) punya wheel khusus untuk Python 3.14 yang berbeda perilakunya dari versi lama — lihat [Troubleshooting](#troubleshooting).
 
 ## Fitur
 
 - ✅ Upload video lokal atau download dari URL (YouTube, TikTok, dll)
-- ✅ Transcription otomatis dengan Whisper (Faster-Whisper)
-- ✅ Analisis video dengan LLM (OpenAI/GPT)
-- ✅ Video analysis (FFmpeg metadata extraction)
-- ✅ Score engine dengan weighted scoring
-- ✅ Candidate clip generation & selection
-- ✅ Preview candidate tanpa render
-- ✅ Final clip generation dengan FFmpeg
-- ✅ Subtitle generation (SRT/VTT)
+- ✅ Speech-to-text dengan Faster-Whisper (large-v3)
+- ✅ 7 analyzer plugin: LLM content, face emotion, voice emotion, gesture, eye contact, scene change, audio quality
+- ✅ Weighted scoring engine (bobot 100%) + non-overlap candidate selection
+- ✅ Sliding window menyapu seluruh video (bukan potongan linear)
+- ✅ Preview candidate tanpa render penuh
+- ✅ Final clip render dengan FFmpeg (9:16 / 16:9 / 1:1)
+- ✅ Subtitle generation (SRT/VTT, word-level)
+- ✅ Progress tracker realtime per-job step
 - ✅ Audit trail & history
 
 ## Tech Stack
 
 | Layer | Tech |
 |-------|------|
-| Backend | Python 3.12+, FastAPI, Jinja2 |
+| Backend | Python 3.14+, FastAPI, Jinja2, SQLAlchemy |
 | Database | PostgreSQL 16 |
-| Audio/Video | FFmpeg, ffprobe |
+| Audio/Video | FFmpeg, ffprobe, OpenCV, MediaPipe, librosa |
 | Speech-to-Text | Faster-Whisper |
-| AI | OpenAI API (LLM), optional yt-dlp |
+| AI | OpenAI-compatible LLM API (default gpt-4o-mini) |
+| Download | yt-dlp + curl_cffi + yt-dlp-ejs |
 | Frontend | Bootstrap 5, vanilla JS |
 | Testing | pytest |
 
-## Installasi
+## Prasyarat
 
-### Prasyarat
+1. **Python 3.14+** — [python.org](https://www.python.org/downloads/)
+2. **PostgreSQL 16** — [postgresql.org](https://www.postgresql.org/download/) atau Docker:
+   ```bash
+   docker run -d -p 5432:5432 -e POSTGRES_PASSWORD=yourpass -e POSTGRES_DB=ai_auto_clipper postgres:16-alpine
+   ```
+3. **FFmpeg + ffprobe** — [ffmpeg.org](https://ffmpeg.org/download.html)
+   - Windows: pastikan `ffmpeg` dan `ffprobe` di PATH, atau set `FFMPEG_PATH`/`FFPROBE_PATH` di `.env`
+   - macOS: `brew install ffmpeg` | Linux: `sudo apt install ffmpeg`
+4. **Node.js 18+** — [nodejs.org](https://nodejs.org/) — **WAJIB** untuk download YouTube (n-challenge solver). Verifikasi: `node --version`.
 
-1. **Python 3.12+**  
-   Download dari [python.org](https://www.python.org/downloads/)
-
-2. **PostgreSQL 16**  
-   Download dari [postgresql.org](https://www.postgresql.org/download/)  
-   Atau gunakan Docker: `docker run -p 5432:5432 -e POSTGRES_PASSWORD=yourpass postgres:16-alpine`
-
-3. **FFmpeg**  
-   Windows: Download dari [ffmpeg.org](https://ffmpeg.org/download.html)  
-   macOS: `brew install ffmpeg`  
-   Linux: `sudo apt install ffmpeg`
-
-### Setup Project
+## Setup Project
 
 ```bash
-# Clone repository
+# 1. Clone
 git clone https://github.com/yourusername/ai-auto-clipper.git
 cd ai-auto-clipper
 
-# Buat dan aktivasi virtual environment
+# 2. Buat & aktivasi venv
 python -m venv .venv
-.venv\Scripts\activate           # Windows
-# source .venv/bin/activate      # macOS/Linux
+.venv\Scripts\activate        # Windows
+# source .venv/bin/activate   # macOS/Linux
 
-# Install dependencies
+# 3. Install dependencies
 pip install -r requirements.txt
 
-# Copy environment template
+# 4. Copy .env & isi
 cp .env.example .env
 ```
 
-### Konfigurasi Database
+### Konfigurasi `.env`
 
-Edit file `.env`:
+Wajib minimal: `DATABASE_URL` (PostgreSQL) dan `LLM_API_KEY` (kalau mau scoring LLM aktif).
 
 ```env
-DATABASE_URL=postgresql+psycopg://username:password@localhost:5432/ai_auto_clipper
+DATABASE_URL=postgresql+psycopg://postgres:yourpass@localhost:5432/ai_auto_clipper
+LLM_API_KEY=sk-...                # kosong = LLM pakai mock (skor netral)
+WHISPER_MODEL=base                # kecil = cepat; large-v3 = akurat tapi butuh GPU
 ```
 
-Jika pakai Docker, user/password default:
-```
-DATABASE_URL=postgresql+psycopg://app:app@localhost:5432/ai_auto_clipper
-```
+Lihat [.env.example](.env.example) untuk semua variabel + default.
 
-### Jalankan Migration
+### Database Migration
 
 ```bash
 alembic upgrade head
-.\.venv\Scripts\alembic upgrade head #(kalau tidak punya alembic di global)
+# atau .venv\Scripts\alembic upgrade head
 ```
 
-### Jalankan Aplikasi
+### Menjalankan App
 
 ```bash
-# --no-access-log: matikan access log per-request agar terminal fokus
-# pada log.debug proses (download process, analyze process, dst).
+# --no-access-log: terminal fokus ke log.debug proses, bukan request per-halaman
 uvicorn app.main:app --reload --no-access-log
-.\.venv\Scripts\uvicorn app.main:app --reload --no-access-log #(kalau tidak punya uvicorn di global)
+# atau .venv\Scripts\uvicorn app.main:app --reload --no-access-log
 ```
 
-Buka browser: `http://127.0.0.1:8000`
+Buka browser: **http://127.0.0.1:8000**
+
+## Model AI (auto-download)
+
+- **Whisper model** — di-download otomatis saat pertama transcribe (cache di `~/.cache/huggingface`). `WHISPER_MODEL` di `.env`.
+- **MediaPipe CV models** (face_landmarker, hand_landmarker) — di-download otomatis ke `data/models/` saat pertama analyze.
+
+## Download dari URL (YouTube & anti-bot)
+
+YouTube sering memblokir dengan error `Sign in to confirm you're not a bot`. Project menangani ini berlapis:
+
+1. **`COOKIES_FILE`** (rekomendasi) — export cookies login dari browser:
+   - Install ekstensi **"Get cookies.txt LOCALLY"** di Chrome
+   - Buka `youtube.com`, login, klik ekstensi → **Export** → simpan sebagai `data/cookies.txt`
+   - Set `COOKIES_FILE=data/cookies.txt` di `.env`
+   - **Penting:** cookies harus dari sesi LOGIN (bukan guest — cek `SID` value tidak berawal `g.a000BAnon`)
+2. **Fallback otomatis** — kalau `COOKIES_FILE` kosong, app coba `cookiesfrombrowser` berurutan: Chrome → Firefox → Edge → tanpa cookies.
+3. **Node.js** — wajib terpasang; tanpanya format video disembunyikan (error `n challenge solving failed`).
+
+`data/cookies.txt` dan `data/models/` sudah di-`.gitignore` — tidak akan ter-push.
 
 ## Cara Menggunakan
 
-### 1. Upload Video
-- Buka halaman upload
-- Pilih file video lokal (mp4/mov/mkv/avi), maks 2GB
-- Atau masukkan URL YouTube/TikTok
+### 1. Upload / Download
+- **Upload file:** pilih video lokal (mp4/mov/mkv/avi, maks 2GB).
+- **Download URL:** masukkan URL YouTube/TikTok → progress bar persen realtime.
 
-### 2. Configure Pipeline
-Setelah upload, Anda bisa:
-- Pilih bahasa transcription
-- Tentukan durasi klip (min/max)
-- Tentukan jumlah klip yang diinginkan
-- Masukkan content type (podcast/interview/gaming/dll)
-- Pilih clip style (viral/educational/funny/dll)
-- Masukkan keyword boost/skip keywords
+### 2. Atur Pipeline
+Bahasa, content type, clip style, jumlah clip, durasi min/max, keyword boost, skip keywords. Setting tersimpan per-session browser (tidak reset saat pindah halaman).
 
 ### 3. Proses Pipeline
-Pipeline otomatis menjalankan:
-1. Extract metadata video (FFmpeg)
-2. Extract audio
-3. Transcribe (Whisper)
-4. LLM analysis (content scoring)
-5. Score aggregation
-6. Candidate generation
+Tombol **Proses** → job berjalan di background dengan progress step realtime (`extract → transcribe → analyze → score → complete` + 7 sub-step analyzer). Video yang sudah pernah diproses (status `ready`) diminta konfirmasi sebelum diproses ulang.
 
-### 4. Preview & Select
-- Lihat daftar candidate clips dengan skor
-- Preview tiap kandidat (tanpa render penuh)
-- Pilih mana yang ingin di-render final
+### 4. Review Candidate
+- **Candidates** → tabel skor. Klik **Detail** → breakdown per analyzer (skor + kontribusi), preview video, generate clip.
+- Window tersebar di seluruh video (sliding window), top-N dipilih non-overlap.
 
-### 5. Generate Final Clip
-- Klik "Generate" pada candidate terpilih
-- Pilih aspect ratio (9:16, 16:9, 1:1)
-- Enable/disable subtitle
-- Tunggu proses FFmpeg rendering
-- Download hasil akhir
+### 5. Generate Final Clip & Subtitle
+- Generate clip (FFmpeg, pilih aspect ratio).
+- Generate subtitle (SRT/VTT, style minimal/tiktok/youtube).
 
 ## Struktur Folder
 
 ```
 ai-auto-clipper/
 ├── app/
-│   ├── core/              # config, logging, exceptions, DI
-│   ├── db/                # database connection
-│   ├── models/            # SQLAlchemy ORM
-│   ├── repositories/      # data access layer
-│   ├── schemas/           # Pydantic DTO
-│   ├── services/          # business logic
-│   ├── routers/           # API endpoints
-│   ├── middleware/        # logging, timing
-│   ├── templates/         # Jinja2 HTML
-│   ├── static/            # CSS/JS
+│   ├── ai_modules/          # Analyzer plugin (plugin-ready, registrasi via registry.py)
+│   │   ├── base/            #   AnalyzerInterface + AnalysisResult
+│   │   ├── registry.py      #   daftar analyzer aktif
+│   │   ├── speech_to_text/  #   whisper
+│   │   ├── llm_analysis/    #   llm_content
+│   │   ├── face_analysis/   #   face_emotion, eye_contact
+│   │   ├── gesture_analysis/#   gesture
+│   │   ├── scene_analysis/  #   scene
+│   │   └── voice_analysis/  #   voice_emotion, audio
+│   ├── core/                # config, logging (console + error.log), exceptions, DI
+│   ├── db/                  # koneksi DB (PostgreSQL)
+│   ├── models/              # SQLAlchemy ORM
+│   ├── repositories/        # data access layer
+│   ├── schemas/             # Pydantic DTO
+│   ├── services/            # business logic (analysis, score, process, dll)
+│   ├── routers/             # FastAPI endpoints
+│   ├── templates/           # Jinja2 HTML
+│   ├── static/              # CSS/JS
 │   └── main.py
+├── alembic/                 # DB migrations
 ├── data/
-│   ├── uploads/           # video input
-│   ├── outputs/           # final clips
-│   ├── cache/             # intermediate results
-│   └── temp/
-├── logs/
-│   ├── app.log
-│   ├── error.log
-│   └── performance.log
-├── alembic/               # DB migrations
-├── tests/
-├── .env
+│   ├── uploads/             # video input
+│   ├── outputs/             # final clips + subtitle
+│   ├── cache/               # audio hasil extract
+│   ├── models/              # CV .tflite (auto-download, git-ignored)
+│   ├── cookies.txt          # cookies YouTube (git-ignored)
+│   └── ...
+├── logs/                    # error.log saja (progress di terminal via log.debug)
+├── tests/                   # pytest (46 test)
 ├── .env.example
 ├── requirements.txt
 └── README.md
 ```
 
-## Testing
+## Menambah Analyzer Baru (plugin-ready)
 
-```bash
-.venv\Scripts\pytest
-```
+Tambah analyzer baru **tanpa mengubah pipeline**:
 
-## Development
+1. Buat `app/ai_modules/<nama>/<nama>_analyzer.py`:
+   ```python
+   from app.ai_modules.base.analyzer_interface import AnalyzerInterface, AnalysisResult
+   from app.ai_modules.registry import register_analyzer
 
-### Tambah Model/Service Baru
+   @register_analyzer
+   class XAnalyzer(AnalyzerInterface):
+       analyzer_type = "x_type"
+       def analyze(self, input):  # input: dict (path video/audio/teks)
+           return AnalysisResult(score=8.0, result_data={"reason": "..."})
+   ```
+2. Import di `app/ai_modules/__init__.py` (agar auto-register).
+3. Tambahkan ke `input_builders` di `app/services/analysis_service.py`.
+4. Set bobot di `settings.py` (`SCORE_WEIGHT_*`).
 
-Ikuti clean architecture pattern:
-1. `models/<name>_model.py`
-2. `repositories/<name>_repository.py`
-3. `schemas/<name>_schema.py`
-4. `services/<name>_service.py`
-5. `routers/<name>_router.py`
+`process_service.py` dan orchestration **tidak berubah**.
 
-### Environment Variables
+## Environment Variables
 
 | Variable | Default | Description |
 |----------|---------|-------------|
 | DATABASE_URL | postgresql://app:app@localhost:5432/ai_auto_clipper | PostgreSQL connection |
-| FFMPEG_PATH | ffmpeg | Path to FFmpeg binary |
-| WHISPER_MODEL | large-v3 | Whisper model name |
-| LLM_MODEL | gpt-4o-mini | OpenAI model name |
-| LLM_API_KEY | (empty) | OpenAI API key |
+| LLM_API_KEY | (empty) | API key LLM (kosong = mock, skor netral) |
+| LLM_MODEL | gpt-4o-mini | Nama model LLM |
+| LLM_BASE_URL | https://api.openai.com/v1 | Base URL (OpenAI-compatible) |
+| WHISPER_MODEL | large-v3 | Model whisper (base/small/large-v3) |
+| WHISPER_DEVICE | auto | auto/cuda/cpu |
+| FFMPEG_PATH | ffmpeg | Path FFmpeg binary |
+| FFPROBE_PATH | ffprobe | Path ffprobe binary |
+| COOKIES_FILE | data/cookies.txt | Cookies YouTube (kosong = cookiesfrombrowser) |
 | MAX_UPLOAD_SIZE_MB | 2048 | Max upload size |
-| LOG_LEVEL | INFO | Logging level |
+| LOG_LEVEL | INFO | Level log |
+
+## Testing
+
+```bash
+.venv\Scripts\pytest          # Windows
+# pytest                      # macOS/Linux
+```
+
+Semua test mock dependency berat (whisper, mediapipe, cv2) — tidak perlu GPU/FFmpeg untuk unit test.
 
 ## Troubleshooting
 
-**Error koneksi database:**
-- Pastikan PostgreSQL berjalan di port 5432
-- Cek `DATABASE_URL` di `.env`
-- Untuk password dengan karakter khusus, URL-encode
+**`Sign in to confirm you're not a bot` (YouTube)**
+- Cookies tidak valid/guest. Re-export cookies saat login (cek `SID` tidak berawal `BAnon`), atau coba browser lain.
 
-**FFmpeg not found:**
-- Tambahkan path FFmpeg ke PATH Windows
-- Atau set `FFMPEG_PATH` di `.env`
+**`Could not copy Chrome cookie database`**
+- Browser target sedang berjalan (DB terkunci). Tutup browser sepenuhnya, atau pakai browser lain.
 
-**Whisper lambat:**
-- Gunakan model lebih kecil: `base` atau `small`
-- Pastikan CUDA tersedia jika pakai GPU
+**`n challenge solving failed: Some formats may be missing`**
+- Node.js tidak terdeteksi. Pastikan `node --version` jalan; project force `js_runtimes: {"node": {}}`.
+
+**`module 'mediapipe' has no attribute 'solutions'`**
+- Python 3.14 wheel mediapipe hanya punya **Tasks API**, bukan `mp.solutions`. Project sudah pakai Tasks API (`FaceLandmarker`/`HandLandmarker`) — pastikan `mediapipe==0.10.35` (pin di requirements).
+
+**`cublas64_12.dll not found` (GPU whisper)**
+- Install `nvidia-cublas-cu12` (sudah di requirements). Kalau tak pakai GPU, set `WHISPER_DEVICE=cpu`.
+
+**Koneksi DB gagal**
+- Pastikan PostgreSQL jalan di port 5432. Password berkarakter khusus → URL-encode.
+
+**LLM skor semua netral**
+- `LLM_API_KEY` kosong → analyzer llm_content pakai mock. Isi key di `.env`.
 
 ## License
 
