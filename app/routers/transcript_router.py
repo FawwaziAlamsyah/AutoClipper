@@ -3,9 +3,8 @@
 import logging
 
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy.orm import Session
 
-from app.db.session import get_db
+from app.core.di.dependencies import get_transcript_service
 from app.schemas.transcript_schema import TranscriptDetail, TranscriptSegmentDetail
 from app.services.transcript_service import TranscriptService
 
@@ -14,17 +13,13 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/transcript", tags=["transcript"])
 
 
-def _get_service(db: Session = Depends(get_db)) -> TranscriptService:
-    return TranscriptService(db)
-
-
 @router.post("/videos/{video_id}", response_model=TranscriptDetail)
 def create_transcript(
     video_id: int,
     language: str | None = Query(None, description="id, en, or omit for auto"),
     force: bool = Query(False, description="Re-run even if cached"),
     job_id: int | None = Query(None),
-    service: TranscriptService = Depends(_get_service),
+    service: TranscriptService = Depends(get_transcript_service),
 ) -> TranscriptDetail:
     """Extract audio + transcribe video. Reuses cache unless force=true."""
     transcript = service.transcribe(video_id, job_id=job_id, language=language, force=force)
@@ -34,7 +29,7 @@ def create_transcript(
 @router.get("/videos/{video_id}", response_model=TranscriptDetail)
 def get_transcript_by_video(
     video_id: int,
-    service: TranscriptService = Depends(_get_service),
+    service: TranscriptService = Depends(get_transcript_service),
 ) -> TranscriptDetail:
     """Get latest transcript for a video."""
     return _to_detail(service, service.get_by_video(video_id))
@@ -43,7 +38,7 @@ def get_transcript_by_video(
 @router.get("/jobs/{job_id}", response_model=TranscriptDetail)
 def get_transcript_by_job(
     job_id: int,
-    service: TranscriptService = Depends(_get_service),
+    service: TranscriptService = Depends(get_transcript_service),
 ) -> TranscriptDetail:
     """Get transcript for a specific job."""
     return _to_detail(service, service.get_by_job(job_id))

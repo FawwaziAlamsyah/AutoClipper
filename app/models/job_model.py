@@ -8,7 +8,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base import Base, TimestampMixin
 
 
-class Job(Base, TimestampMixin):
+class JobModel(Base, TimestampMixin):
     """Satu kali eksekusi pipeline untuk satu video."""
 
     __tablename__ = "jobs"
@@ -22,9 +22,9 @@ class Job(Base, TimestampMixin):
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     error_message: Mapped[str | None] = mapped_column(Text)
 
-    video: Mapped["Video"] = relationship(back_populates="jobs")
-    steps: Mapped[list["JobStep"]] = relationship(back_populates="job")
-    transcripts: Mapped[list["Transcript"]] = relationship(back_populates="job")
-    analysis_results: Mapped[list["AnalysisResult"]] = relationship(back_populates="job")
-    candidates: Mapped[list["Candidate"]] = relationship(back_populates="job")
-    history_entries: Mapped[list["History"]] = relationship(back_populates="job")
+    video: Mapped["VideoModel"] = relationship(back_populates="jobs")
+    steps: Mapped[list["JobStepModel"]] = relationship(back_populates="job")
+    transcripts: Mapped[list["TranscriptModel"]] = relationship(back_populates="job")
+    analysis_results: Mapped[list["AnalysisResultModel"]] = relationship(back_populates="job")
+    candidates: Mapped[list["CandidateModel"]] = relationship(back_populates="job")
+    history_entries: Mapped[list["HistoryModel"]] = relationship(back_populates="job")

@@ -7,14 +7,15 @@ from pathlib import Path
 
 from sqlalchemy.orm import Session
 
-from app.models.clip_model import Clip
-from app.models.candidate_model import Candidate
-from app.models.history_model import History
-from app.models.video_model import Video
+from app.models.clip_model import ClipModel
+from app.models.candidate_model import CandidateModel
+from app.models.history_model import HistoryModel
+from app.models.video_model import VideoModel
 from app.repositories.clip_repository import ClipRepository
 from app.repositories.candidate_repository import CandidateRepository
 from app.repositories.video_repository import VideoRepository
 from app.services.ffmpeg_service import FFmpegService
+from app.services.job_service import JobService
 
 logger = logging.getLogger(__name__)
 
@@ -29,6 +30,7 @@ class ClipService:
         self.candidate_repo = CandidateRepository(db)
         self.clip_repo = ClipRepository(db)
         self.ffmpeg = FFmpegService()
+        self.job_service = JobService(db)
 
     def generate_clip(
         self,
@@ -36,7 +38,7 @@ class ClipService:
         aspect_ratio: str = "9:16",
         subtitle_enabled: bool = False,
         subtitle_style: str = "minimal",
-    ) -> Clip:
+    ) -> ClipModel:
         """Generate a final clip using FFmpeg from a candidate."""
         candidate = self.candidate_repo.get(candidate_id)
         if candidate is None:
@@ -52,13 +54,21 @@ class ClipService:
         output_dir.mkdir(parents=True, exist_ok=True)
         output_path = output_dir / f"clip_{video.id}_{candidate.id}_{unique_id}.mp4"
 
-        # Extract audio + generate subtitle if needed (placeholder)
-        # Full FFmpeg command: ffmpeg -i input.mp4 -ss START -to END -vf "scale=1080:1920" -c:a aac output.mp4
+        # Step opsional "generate" — catat job_steps TANPA ubah status job
+        # (job sudah completed, tak boleh jadi running lagi).
+        job_id = candidate.job_id
+        logger.debug("Generate process: render clip untuk candidate %d (%s)", candidate_id, aspect_ratio)
+        self.job_service.start_optional_step(job_id, "generate")
+        try:
+            self._extract_clip(video.file_path, str(output_path), candidate.start_time, candidate.end_time, aspect_ratio)
+        except Exception:
+            self.job_service.finish_optional_step(job_id, "generate", success=False, error="FFmpeg render gagal")
+            logger.debug("Generate process: error - FFmpeg render gagal")
+            raise
+        self.job_service.finish_optional_step(job_id, "generate", success=True)
+        logger.debug("Generate process: success - clip %s", output_path.name)
 
-        # Run FFmpeg to extract clip
-        self._extract_clip(video.file_path, str(output_path), candidate.start_time, candidate.end_time, aspect_ratio)
-
-        clip = Clip(
+        clip = ClipModel(
             candidate_id=candidate_id,
             video_id=candidate.video_id,
             file_path=str(output_path),
@@ -75,7 +85,7 @@ class ClipService:
         self.db.commit()
 
         # Log to history
-        self.db.add(History(
+        self.db.add(HistoryModel(
             video_id=candidate.video_id,
             job_id=candidate.job_id,
             action="clip_exported",

@@ -1,45 +1,38 @@
 """Analysis service: run validators on transcript windows, persist results, build candidates.
 
-This is the real "review" layer. For each candidate window we run all
-text-based validators (hook, story, emotion, educational, viral, context,
-ending, keyword boost, penalty) and store both the raw per-analyzer scores
-(analysis_results) and the final weighted candidate with score_breakdown
-including human-readable reasons.
+Text validators (hook, story, context, ending, viral, keyword boost, penalty)
+tetap dijalankan via `run_all_validators`. Analyzer AI (llm_content, face_emotion)
+dipanggil lewat registry plugin — menambah analyzer baru berarti daftar di
+`app/ai_modules/registry.py` + satu entry di PLUGIN_ANALYZERS di bawah ini.
 """
 
 import logging
 
 from sqlalchemy.orm import Session
 
+from app.ai_modules.base.analyzer_interface import AnalyzerUnavailable
+from app.ai_modules.registry import get_analyzer
 from app.core.config.settings import settings
-from app.models.analysis_result_model import AnalysisResult
-from app.models.candidate_model import Candidate
-from app.models.history_model import History
-from app.models.transcript_model import Transcript
+from app.models.analysis_result_model import AnalysisResultModel
+from app.models.candidate_model import CandidateModel
+from app.models.history_model import HistoryModel
+from app.models.transcript_model import TranscriptModel
 from app.repositories.analysis_result_repository import AnalysisResultRepository
+from app.repositories.cache_entry_repository import CacheEntryRepository
 from app.repositories.candidate_repository import CandidateRepository
 from app.repositories.transcript_repository import (
     TranscriptRepository,
     TranscriptSegmentRepository,
 )
+from app.repositories.video_repository import VideoRepository
+from app.services.job_service import JobService
 from app.services.validators import run_all_validators
 
 logger = logging.getLogger(__name__)
 
-WEIGHTS = {
-    "hook": settings.SCORE_WEIGHT_HOOK,
-    "story": settings.SCORE_WEIGHT_STORY,
-    "llm_content": settings.SCORE_WEIGHT_LLM_CONTENT,
-    "voice_emotion": settings.SCORE_WEIGHT_VOICE_EMOTION,
-    "face_emotion": settings.SCORE_WEIGHT_FACE_EMOTION,
-    "gesture": settings.SCORE_WEIGHT_GESTURE,
-    "eye_contact": settings.SCORE_WEIGHT_EYE_CONTACT,
-    "scene": settings.SCORE_WEIGHT_SCENE,
-    "audio": settings.SCORE_WEIGHT_AUDIO,
-    "context": settings.SCORE_WEIGHT_CONTEXT,
-    "ending": settings.SCORE_WEIGHT_ENDING,
-    "keyword_boost": 0.0,
-}
+# Cap jumlah window per job — sliding window video panjang bisa menghasilkan
+# ratusan window; downsampled merata agar tetap men-scan seluruh durasi.
+MAX_WINDOWS_PER_JOB = 150
 
 
 class AnalysisService:
@@ -52,12 +45,15 @@ class AnalysisService:
         self.segment_repo = TranscriptSegmentRepository(db)
         self.analysis_repo = AnalysisResultRepository(db)
         self.candidate_repo = CandidateRepository(db)
+        self.video_repo = VideoRepository(db)
+        self.cache_repo = CacheEntryRepository(db)
+        self.job_service = JobService(db)
 
     def analyze_job(
         self,
         job_id: int,
         video_id: int,
-        transcript: Transcript,
+        transcript: TranscriptModel,
         num_clips: int = 5,
         min_duration: int | None = None,
         max_duration: int | None = None,
@@ -65,12 +61,19 @@ class AnalysisService:
         skip_keywords: list[str] | None = None,
         analyze_start_time: float | None = None,
         analyze_end_time: float | None = None,
-    ) -> list[Candidate]:
+    ) -> list[CandidateModel]:
         """Slice transcript into windows, validate, and create candidates."""
         min_dur = min_duration or settings.DEFAULT_MIN_CLIP_DURATION
         max_dur = max_duration or settings.DEFAULT_MAX_CLIP_DURATION
         keywords = keywords or []
         skip_keywords = skip_keywords or []
+
+        video = self.video_repo.get(video_id)
+        video_path = video.file_path if video else None
+
+        # Audio hasil extract disimpan di cache (key sama dengan transcript_service)
+        audio_entry = self.cache_repo.get_by_key(f"video:{video_id}:audio")
+        audio_path = audio_entry.file_path if audio_entry else None
 
         segments = self.segment_repo.get_by_transcript(transcript.id)
         if not segments:
@@ -85,16 +88,21 @@ class AnalysisService:
                 logger.warning("Analyze range memfilter semua segmen untuk transcript %d", transcript.id)
                 return []
 
-        windows = self._build_windows(segments, num_clips, min_dur, max_dur)
+        # Sliding window menyapu SELURUH durasi video dengan overlap — semua
+        # kandidat dihasilkan, lalu score_engine.select_top_n() yang memilih
+        # top-N non-overlap setelah scoring.
+        windows = self._build_windows(segments, min_dur, max_dur)
 
+        # Text validators (per window) + buat candidates
         candidates = []
+        window_texts = []
         for window in windows:
             text = " ".join(seg.text for seg in window["segments"])
+            window_texts.append(text)
             scores = run_all_validators(text, keywords, skip_keywords)
-            final_score, breakdown = self._merge_scores(scores)
 
             for analyzer_type, payload in scores.items():
-                self.analysis_repo.add(AnalysisResult(
+                self.analysis_repo.add(AnalysisResultModel(
                     video_id=video_id,
                     job_id=job_id,
                     analyzer_type=analyzer_type,
@@ -104,82 +112,159 @@ class AnalysisService:
                     result_data={"reason": payload["reason"]},
                 ))
 
-            candidate = self.candidate_repo.add(Candidate(
+            # Candidate tanpa final_score/score_breakdown — score_engine yang akan isi nanti
+            candidate = self.candidate_repo.add(CandidateModel(
                 video_id=video_id,
                 job_id=job_id,
                 start_time=window["start"],
                 end_time=window["end"],
-                final_score=final_score,
-                score_breakdown=breakdown,
+                final_score=0.0,
+                score_breakdown={},
                 hook_text=window["segments"][0].text.strip()[:120],
                 status="candidate",
             ))
             candidates.append(candidate)
 
+        # Plugin analyzer: tiap analyzer di-start sekali, jalankan semua windows,
+        # lalu di-finish. Pencatatan job step per-analyzer.
+        self._run_plugin_analyzers(windows, window_texts, video_path, audio_path, video_id, job_id)
+
         logger.info("Created %d candidates for job %d", len(candidates), job_id)
         return candidates
+
+    def _run_plugin_analyzers(
+        self,
+        windows: list[dict],
+        window_texts: list[str],
+        video_path: str | None,
+        audio_path: str | None,
+        video_id: int,
+        job_id: int,
+    ) -> None:
+        """Jalankan semua plugin analyzer lewat registry.
+
+        Untuk tiap analyzer: catat start_step (job step), jalankan di semua
+        window, lalu finish_step. Analyzer yang tak tersedia di-skip.
+        """
+        input_builders = {
+            "llm_content": lambda w, i: {"transcript_text": window_texts[i]},
+            "face_emotion": (
+                lambda w, i: {"video_path": video_path, "start": w["start"], "end": w["end"]}
+                if video_path
+                else None
+            ),
+            "gesture": (
+                lambda w, i: {"video_path": video_path, "start": w["start"], "end": w["end"]}
+                if video_path
+                else None
+            ),
+            "eye_contact": (
+                lambda w, i: {"video_path": video_path, "start": w["start"], "end": w["end"]}
+                if video_path
+                else None
+            ),
+            "scene": (
+                lambda w, i: {"video_path": video_path, "start": w["start"], "end": w["end"]}
+                if video_path
+                else None
+            ),
+            "voice_emotion": (
+                lambda w, i: {"audio_path": audio_path, "start": w["start"], "end": w["end"]}
+                if audio_path
+                else None
+            ),
+            "audio": (
+                lambda w, i: {"audio_path": audio_path, "start": w["start"], "end": w["end"]}
+                if audio_path
+                else None
+            ),
+        }
+
+        for analyzer_type, build in input_builders.items():
+            analyzer = get_analyzer(analyzer_type)
+            if analyzer is None:
+                continue
+
+            logger.debug("Analyze process: step %s start", analyzer_type)
+            self.job_service.start_step(job_id, analyzer_type)
+            success_count = 0
+            total_windows = 0
+
+            for i, window in enumerate(windows):
+                input_data = build(window, i)
+                if input_data is None:
+                    continue
+                total_windows += 1
+                try:
+                    result = analyzer.analyze(input_data)
+                except AnalyzerUnavailable as e:
+                    logger.warning("Skip analyzer %s di window %d: %s", analyzer_type, i, e)
+                    continue
+                self.analysis_repo.add(AnalysisResultModel(
+                    video_id=video_id,
+                    job_id=job_id,
+                    analyzer_type=analyzer_type,
+                    start_time=window["start"],
+                    end_time=window["end"],
+                    score=result.score,
+                    result_data=result.result_data,
+                ))
+                success_count += 1
+
+            self.job_service.finish_step(job_id, analyzer_type, success=success_count > 0)
+            logger.info(
+                "Analyzer %s: %d/%d window berhasil untuk job %d",
+                analyzer_type, success_count, total_windows, job_id,
+            )
 
     def _build_windows(
         self,
         segments: list,
-        num_clips: int,
         min_dur: float,
         max_dur: float,
+        stride_ratio: float = 0.5,
     ) -> list[dict]:
-        """Group transcript segments into candidate time windows.
+        """Scan seluruh transcript dengan sliding window yang overlap.
 
-        Simple sliding-window: pick the N segments-sets spread across the
-        transcript, each sized to the target duration.
+        Window duration = max_dur (durasi target terpanjang). Stride = stride_ratio
+        × window duration, sehingga window saling overlap dan tidak ada bagian
+        video yang terlewat hanya karena posisinya di tengah/akhir.
+
+        Tidak dibatasi num_clips di sini — semua window kandidat dihasilkan,
+        lalu score_engine.select_top_n() yang memilih & menghapus non-top setelah
+        scoring. Video sangat panjang di-downsample merata ke MAX_WINDOWS_PER_JOB.
         """
-        total_duration = segments[-1].end_time - segments[0].start_time
-        if total_duration <= 0:
-            total_duration = 60.0
+        if not segments:
+            return []
 
-        target = min(max_dur, max(min_dur, total_duration / max(num_clips, 1)))
+        video_start = segments[0].start_time
+        video_end = segments[-1].end_time
+        window_dur = max_dur
+        stride = max(window_dur * stride_ratio, 1.0)
+
         windows = []
-        cursor = segments[0].start_time
-
-        while len(windows) < num_clips and cursor < segments[-1].end_time:
+        cursor = video_start
+        while cursor < video_end:
             win_start = cursor
-            win_end = min(cursor + target, segments[-1].end_time)
+            win_end = min(cursor + window_dur, video_end)
+
+            # Buang window terakhir yang kepotong terlalu pendek (< min_dur),
+            # kecuali itu satu-satunya window yang ada.
+            if (win_end - win_start) < min_dur and windows:
+                break
+
             win_segments = [
                 s for s in segments
-                if s.start_time >= win_start and s.start_time < win_end
+                if s.start_time < win_end and s.end_time > win_start
             ]
             if win_segments:
-                windows.append({
-                    "start": win_start,
-                    "end": win_end,
-                    "segments": win_segments,
-                })
-            cursor = win_end
+                windows.append({"start": win_start, "end": win_end, "segments": win_segments})
+
+            cursor += stride
+
+        # Safety limit: video panjang → banyak window. Downsample merata.
+        if len(windows) > MAX_WINDOWS_PER_JOB:
+            step = len(windows) / MAX_WINDOWS_PER_JOB
+            windows = [windows[int(i * step)] for i in range(MAX_WINDOWS_PER_JOB)]
 
         return windows
-
-    def _merge_scores(self, scores: dict[str, dict]) -> tuple[float, dict]:
-        """Weighted merge of validator scores into 0-100 final score."""
-        breakdown: dict[str, dict] = {}
-        total = 0.0
-        weight_sum = 0.0
-
-        for name, payload in scores.items():
-            weight = WEIGHTS.get(name, 0.0)
-            contribution = payload["score"] * weight
-            breakdown[name] = {
-                "score": payload["score"],
-                "reason": payload["reason"],
-                "weight": weight,
-                "contribution": round(contribution, 2),
-            }
-            total += contribution
-            weight_sum += weight
-
-        # keyword boost & penalty handled inside validators; add raw bonus
-        if "keyword_boost" in scores:
-            bonus = (scores["keyword_boost"]["score"] - 5.0) * 0.02
-            total += bonus
-        if "penalty" in scores:
-            total += scores["penalty"]["score"] * 0.1
-
-        final = max(0.0, min(100.0, total * 10.0))
-        return round(final, 2), breakdown

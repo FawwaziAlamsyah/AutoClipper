@@ -3,7 +3,7 @@
 from datetime import datetime, UTC
 from unittest.mock import MagicMock, patch
 
-from app.models.clip_model import Clip
+from app.models.clip_model import ClipModel
 from app.services.clip_service import ClipService
 
 
@@ -19,7 +19,7 @@ def test_generate_clip_success() -> None:
     mock_candidate.end_time = 45.0
     mock_candidate.status = "selected"
 
-    mock_clip = Clip(
+    mock_clip = ClipModel(
         id=99,
         video_id=1,
         candidate_id=1,
@@ -54,6 +54,7 @@ def test_generate_clip_success() -> None:
         service.clip_repo = mock_repo
         service.candidate_repo = mock_repo
         service.video_repo = mock_video_repo
+        service.job_service = MagicMock()
 
         clip = service.generate_clip(1, "9:16", subtitle_enabled=False, subtitle_style="minimal")
 

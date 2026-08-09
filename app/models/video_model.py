@@ -6,7 +6,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base import Base, TimestampMixin
 
 
-class Video(Base, TimestampMixin):
+class VideoModel(Base, TimestampMixin):
     """Video sumber (hasil upload atau download)."""
 
     __tablename__ = "videos"
@@ -23,11 +23,11 @@ class Video(Base, TimestampMixin):
     file_size_bytes: Mapped[int | None] = mapped_column(Integer)
     status: Mapped[str] = mapped_column(Text, nullable=False, default="uploaded")
 
-    jobs: Mapped[list["Job"]] = relationship(back_populates="video")
-    transcripts: Mapped[list["Transcript"]] = relationship(back_populates="video")
-    speakers: Mapped[list["Speaker"]] = relationship(back_populates="video")
-    analysis_results: Mapped[list["AnalysisResult"]] = relationship(back_populates="video")
-    candidates: Mapped[list["Candidate"]] = relationship(back_populates="video")
-    clips: Mapped[list["Clip"]] = relationship(back_populates="video")
-    history_entries: Mapped[list["History"]] = relationship(back_populates="video")
-    cache_entries: Mapped[list["CacheEntry"]] = relationship(back_populates="video")
+    jobs: Mapped[list["JobModel"]] = relationship(back_populates="video")
+    transcripts: Mapped[list["TranscriptModel"]] = relationship(back_populates="video")
+    speakers: Mapped[list["SpeakerModel"]] = relationship(back_populates="video")
+    analysis_results: Mapped[list["AnalysisResultModel"]] = relationship(back_populates="video")
+    candidates: Mapped[list["CandidateModel"]] = relationship(back_populates="video")
+    clips: Mapped[list["ClipModel"]] = relationship(back_populates="video")
+    history_entries: Mapped[list["HistoryModel"]] = relationship(back_populates="video")
+    cache_entries: Mapped[list["CacheEntryModel"]] = relationship(back_populates="video")

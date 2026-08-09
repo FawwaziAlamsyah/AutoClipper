@@ -1,13 +1,13 @@
-"""Tests for LLMService."""
+"""Tests for LLMAnalyzer plugin."""
 
 import json
 
-from app.services.llm_service import LLMService
+from app.ai_modules.llm_analysis.llm_analyzer import LLMAnalyzer
 
 
 def test_llm_parse_analysis_response() -> None:
     """_parse_analysis_response should convert JSON string to dict."""
-    service = LLMService()
+    analyzer = LLMAnalyzer()
 
     mock_raw = json.dumps({
         "hook_score": 8,
@@ -19,7 +19,7 @@ def test_llm_parse_analysis_response() -> None:
         "key_points": ["Point A", "Point B"],
     })
 
-    result = service._parse_analysis_response(mock_raw)
+    result = analyzer._parse_analysis_response(mock_raw)
 
     assert result["hook_score"] == 8.0
     assert result["story_score"] == 9.0
@@ -28,11 +28,11 @@ def test_llm_parse_analysis_response() -> None:
 
 
 def test_llm_no_api_key_fallback() -> None:
-    """LLMService should return mock analysis when no API key."""
-    service = LLMService()
-    service.api_key = ""
+    """LLMAnalyzer should return mock analysis when no API key."""
+    analyzer = LLMAnalyzer()
+    analyzer.api_key = ""
 
-    result = service.analyze_video("any")
+    result = analyzer.analyze({"transcript_text": "any"})
 
-    assert result["hook_score"] == 6.5
-    assert result["summary"] == "Content analyzed (mock mode - no API key)"
+    assert result.score == 6.5  # rata-rata mock: (6.5+7.0+6.0+7.5+5.5)/5 = 6.5
+    assert "summary" in result.result_data

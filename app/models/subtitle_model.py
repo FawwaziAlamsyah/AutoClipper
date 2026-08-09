@@ -6,7 +6,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base import Base, TimestampMixin
 
 
-class Subtitle(Base, TimestampMixin):
+class SubtitleModel(Base, TimestampMixin):
     """Subtitle per clip (bisa multi-bahasa/multi-format)."""
 
     __tablename__ = "subtitles"
@@ -17,4 +17,4 @@ class Subtitle(Base, TimestampMixin):
     language: Mapped[str] = mapped_column(Text, nullable=False)
     file_path: Mapped[str] = mapped_column(Text, nullable=False)
 
-    clip: Mapped["Clip"] = relationship(back_populates="subtitles")
+    clip: Mapped["ClipModel"] = relationship(back_populates="subtitles")

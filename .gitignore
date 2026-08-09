@@ -17,6 +17,9 @@ data/outputs/*
 data/cache/*
 data/history/*
 data/temp/*
+data/models/*
+# Cookies export — rahasia, jangan pernah ke git
+data/cookies.txt
 !data/**/.gitkeep
 
 logs/*

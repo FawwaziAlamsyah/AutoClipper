@@ -7,7 +7,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base import Base, TimestampMixin
 
 
-class Candidate(Base, TimestampMixin):
+class CandidateModel(Base, TimestampMixin):
     """Hasil Score Engine + Candidate Generator — kandidat klip sebelum di-render."""
 
     __tablename__ = "candidates"
@@ -22,6 +22,6 @@ class Candidate(Base, TimestampMixin):
     hook_text: Mapped[str | None] = mapped_column(Text)
     status: Mapped[str] = mapped_column(Text, nullable=False, default="candidate")
 
-    video: Mapped["Video"] = relationship(back_populates="candidates")
-    job: Mapped["Job"] = relationship(back_populates="candidates")
-    clips: Mapped[list["Clip"]] = relationship(back_populates="candidate")
+    video: Mapped["VideoModel"] = relationship(back_populates="candidates")
+    job: Mapped["JobModel"] = relationship(back_populates="candidates")
+    clips: Mapped[list["ClipModel"]] = relationship(back_populates="candidate")

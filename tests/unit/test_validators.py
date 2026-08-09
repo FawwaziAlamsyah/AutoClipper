@@ -34,7 +34,8 @@ def test_run_all_validators_shape():
     result = run_all_validators("Bayangkan! Pertama kita investasi, akhirnya kita sukses.", ["investasi"])
     assert "hook" in result
     assert "story" in result
-    assert "llm_content" in result
     assert "ending" in result
     assert "keyword_boost" in result
     assert all({"score", "reason"} <= set(v) for v in result.values())
+    # llm_content sekarang dihasilkan LLMService, bukan run_all_validators
+    assert "llm_content" not in result

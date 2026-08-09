@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 
 from app.repositories.clip_repository import ClipRepository
 from app.repositories.transcript_repository import TranscriptRepository
+from app.services.job_service import JobService
 
 logger = logging.getLogger(__name__)
 
@@ -32,6 +33,7 @@ class SubtitleService:
         self.db = db
         self.clip_repo = ClipRepository(db)
         self.transcript_repo = TranscriptRepository(db)
+        self.job_service = JobService(db)
 
     def generate_subtitle(
         self,
@@ -69,10 +71,20 @@ class SubtitleService:
         lines = len(cues)
 
         output_path = f"data/outputs/clip_{clip.id}_sub_{style}.{format}"
-        with open(output_path, "w", encoding="utf-8") as f:
-            f.write(content)
 
-        logger.info("Generated %s subtitle (%s) for clip %d, %d cues", format.upper(), style, clip_id, lines)
+        # Step opsional "subtitle" — catat job_steps TANPA ubah status job
+        job_id = clip.job_id
+        logger.debug("Subtitle process: generate %s (%s) untuk clip %d", format, style, clip_id)
+        self.job_service.start_optional_step(job_id, "subtitle")
+        try:
+            with open(output_path, "w", encoding="utf-8") as f:
+                f.write(content)
+        except Exception:
+            self.job_service.finish_optional_step(job_id, "subtitle", success=False, error="Gagal menulis file subtitle")
+            logger.debug("Subtitle process: error menulis file")
+            raise
+        self.job_service.finish_optional_step(job_id, "subtitle", success=True)
+        logger.debug("Subtitle process: success (%d cues)", lines)
 
         return {
             "format": format,

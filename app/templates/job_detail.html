@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+
+{% block title %}Job #{{ status.job_id }} - {{ app_name }}{% endblock %}
+
+{% block content %}
+<div class="card shadow-sm p-4 mb-4">
+  <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+    <div>
+      <h3 class="mb-1">Job #{{ status.job_id }}</h3>
+      <div class="d-flex flex-wrap gap-2 align-items-center">
+        <span class="badge bg-{{ 'success' if status.status == 'completed' else ('danger' if status.status in ('failed', 'cancelled') else ('warning' if status.status == 'running' else 'secondary')) }}">{{ status.status }}</span>
+        {% if status.current_step %}<span class="badge bg-info">Step aktif: {{ status.current_step }}</span>{% endif %}
+        <small class="text-muted">{{ status.completed_steps }} / {{ status.total_steps }} step selesai</small>
+      </div>
+      {% if status.error_message %}<div class="alert alert-danger mt-2 mb-0">{{ status.error_message }}</div>{% endif %}
+    </div>
+    <button class="btn btn-sm btn-warning" id="cancelJobBtn">Cancel Job</button>
+  </div>
+
+  <div class="progress mt-3" style="height: 25px;">
+    <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar"
+         style="width: {{ status.progress_percent }}%">{{ status.progress_percent }}%</div>
+  </div>
+</div>
+
+<div class="card shadow-sm p-4">
+  <h5>Step Pipeline</h5>
+  <div class="table-responsive mt-2">
+    <table class="table table-striped align-middle">
+      <thead>
+        <tr><th>Step</th><th>Status</th><th>Mulai</th><th>Selesai</th><th>Durasi</th><th>Error</th></tr>
+      </thead>
+      <tbody>
+        {% for s in steps %}
+        <tr>
+          <td><span class="badge bg-light text-dark fw-normal">{{ s.step_name }}</span></td>
+          <td>
+            <span class="badge bg-{{ 'success' if s.status == 'success' else ('danger' if s.status == 'failed' else ('primary' if s.status == 'running' else 'secondary')) }}">{{ s.status }}</span>
+          </td>
+          <td>{{ s.started_at or '-' }}</td>
+          <td>{{ s.finished_at or '-' }}</td>
+          <td>{{ '%d ms'|format(s.duration_ms) if s.duration_ms is not none else '-' }}</td>
+          <td class="text-danger">{{ s.error_message or '-' }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="6" class="text-center text-muted">Belum ada step tercatat.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+document.getElementById('cancelJobBtn')?.addEventListener('click', async () => {
+  if (!confirm('Batalkan job {{ status.job_id }}?')) return;
+  const res = await fetch('/jobs/{{ status.job_id }}/cancel', { method: 'POST' });
+  if (res.ok) location.reload();
+  else alert('Gagal cancel job.');
+});
+
+// Auto-refresh saat job masih berjalan
+const running = {{ 'true' if status.status in ('pending', 'running') else 'false' }};
+if (running) setTimeout(() => location.reload(), 3000);
+</script>
+{% endblock %}
