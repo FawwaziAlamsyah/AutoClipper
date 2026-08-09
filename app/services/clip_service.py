@@ -1,0 +1,132 @@
+"""Clip generation service (final FFmpeg render)."""
+
+import logging
+import subprocess
+import uuid
+from pathlib import Path
+
+from sqlalchemy.orm import Session
+
+from app.models.clip_model import Clip
+from app.models.candidate_model import Candidate
+from app.models.history_model import History
+from app.models.video_model import Video
+from app.repositories.clip_repository import ClipRepository
+from app.repositories.candidate_repository import CandidateRepository
+from app.repositories.video_repository import VideoRepository
+from app.services.ffmpeg_service import FFmpegService
+
+logger = logging.getLogger(__name__)
+
+
+class ClipService:
+    """Generate final clip from candidate using FFmpeg."""
+
+    def __init__(self, db: Session) -> None:
+        """Initialize with DB session and tool services."""
+        self.db = db
+        self.video_repo = VideoRepository(db)
+        self.candidate_repo = CandidateRepository(db)
+        self.clip_repo = ClipRepository(db)
+        self.ffmpeg = FFmpegService()
+
+    def generate_clip(
+        self,
+        candidate_id: int,
+        aspect_ratio: str = "9:16",
+        subtitle_enabled: bool = False,
+        subtitle_style: str = "minimal",
+    ) -> Clip:
+        """Generate a final clip using FFmpeg from a candidate."""
+        candidate = self.candidate_repo.get(candidate_id)
+        if candidate is None:
+            raise ValueError(f"Candidate {candidate_id} not found")
+
+        video = self.video_repo.get(candidate.video_id)
+        if video is None:
+            raise ValueError(f"Video {candidate.video_id} not found")
+
+        # Generate output filename
+        unique_id = str(uuid.uuid4())[:8]
+        output_dir = Path("data/outputs")
+        output_dir.mkdir(parents=True, exist_ok=True)
+        output_path = output_dir / f"clip_{video.id}_{candidate.id}_{unique_id}.mp4"
+
+        # Extract audio + generate subtitle if needed (placeholder)
+        # Full FFmpeg command: ffmpeg -i input.mp4 -ss START -to END -vf "scale=1080:1920" -c:a aac output.mp4
+
+        # Run FFmpeg to extract clip
+        self._extract_clip(video.file_path, str(output_path), candidate.start_time, candidate.end_time, aspect_ratio)
+
+        clip = Clip(
+            candidate_id=candidate_id,
+            video_id=candidate.video_id,
+            file_path=str(output_path),
+            start_time=candidate.start_time,
+            end_time=candidate.end_time,
+            aspect_ratio=aspect_ratio,
+            has_subtitle=subtitle_enabled,
+            status="completed",
+        )
+        clip = self.clip_repo.add(clip)
+
+        # Update candidate status
+        candidate.status = "selected"
+        self.db.commit()
+
+        # Log to history
+        self.db.add(History(
+            video_id=candidate.video_id,
+            job_id=candidate.job_id,
+            action="clip_exported",
+            description=f"Clip {clip.id} exported: {aspect_ratio}",
+        ))
+        self.db.commit()
+
+        logger.info("Generated clip %d for candidate %d", clip.id, candidate_id)
+        return clip
+
+    def _extract_clip(self, input_path: str, output_path: str, start: float, end: float, aspect_ratio: str) -> None:
+        """Extract clip using FFmpeg with optional reframing."""
+        width, height = self._parse_aspect_ratio(aspect_ratio)
+        duration = end - start
+
+        # Build FFmpeg command
+        # -ss before -i for fast seek, -c:v libx264 -preset fast
+        vf = (
+            f"scale={width}:{height}:force_original_aspect_ratio=decrease,"
+            f"pad={width}:{height}:(ow-iw)/2:(oh-ih)/2:black"
+        )
+        cmd = [
+            self.ffmpeg.ffmpeg_path,
+            "-y",
+            "-ss", str(start),
+            "-i", input_path,
+            "-t", str(duration),
+            "-vf", vf,
+            "-c:v", "libx264",
+            "-preset", "fast",
+            "-crf", "23",
+            "-c:a", "aac",
+            "-b:a", "128k",
+            output_path,
+        ]
+
+        logger.info("Running FFmpeg: %s", " ".join(cmd))
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
+        if result.returncode != 0:
+            logger.error("FFmpeg failed: %s", result.stderr)
+            raise RuntimeError(f"FFmpeg error: {result.stderr}")
+
+        logger.info("Clip saved: %s", output_path)
+
+    def _parse_aspect_ratio(self, ratio: str) -> tuple[int, int]:
+        """Parse aspect ratio string to (width, height)."""
+        if ratio == "9:16":
+            return (1080, 1920)
+        if ratio == "16:9":
+            return (1920, 1080)
+        if ratio == "1:1":
+            return (1080, 1080)
+        # Default: 16:9
+        return (1920, 1080)

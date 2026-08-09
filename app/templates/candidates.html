@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+
+{% block title %}Candidates - {{ app_name }}{% endblock %}
+
+{% block content %}
+<div class="card shadow-sm p-4">
+  <h3>Candidate Clips</h3>
+  <p class="text-muted">Klik Generate untuk render candidate jadi file clip final.</p>
+  <div class="table-responsive">
+    <table class="table table-striped align-middle">
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Video</th>
+          <th>Job</th>
+          <th>Start</th>
+          <th>End</th>
+          <th>Score</th>
+          <th>Status</th>
+          <th>Aksi</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for c in candidates %}
+        <tr>
+          <td>{{ c.id }}</td>
+          <td>{{ c.video_id }}</td>
+          <td>{{ c.job_id }}</td>
+          <td>{{ c.start_time }}s</td>
+          <td>{{ c.end_time }}s</td>
+          <td>{{ c.final_score }}</td>
+          <td><span class="badge bg-{{ 'success' if clip_by_candidate.get(c.id) else 'secondary' }}" id="status-{{ c.id }}">{{ 'ready' if clip_by_candidate.get(c.id) else c.status }}</span></td>
+          <td>
+            {% set clip = clip_by_candidate.get(c.id) %}
+            {% if clip %}
+            <a class="btn btn-sm btn-success" target="_blank" href="/data/outputs/{{ clip.file_path.split('/')[-1].split('\\')[-1] }}">Open Clip</a>
+            {% else %}
+            <button class="btn btn-sm btn-primary generate-btn" data-candidate-id="{{ c.id }}">Generate Clip</button>
+            {% endif %}
+            <button class="btn btn-sm btn-outline-info" type="button" data-bs-toggle="collapse" data-bs-target="#breakdown-{{ c.id }}">Review</button>
+            <a class="btn btn-sm btn-outline-secondary" target="_blank" href="/preview/candidates/{{ c.id }}">Preview JSON</a>
+          </td>
+        </tr>
+        <tr class="collapse" id="breakdown-{{ c.id }}">
+          <td colspan="8">
+            <div class="p-3 bg-light rounded">
+              {% set bd = c.score_breakdown or {} %}
+              {% for name, item in bd.items() %}
+                <div class="mb-2">
+                  <strong>{{ name }}</strong>
+                  <span class="badge bg-{{ 'danger' if item.score < 0 else ('success' if item.score >= 7 else 'warning') }}">{{ item.score }}</span>
+                  <small class="text-muted d-block">{{ item.reason }}</small>
+                </div>
+              {% else %}
+              <small class="text-muted">Belum ada breakdown score.</small>
+              {% endfor %}
+            </div>
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="8" class="text-center text-muted">Belum ada candidate. Klik Proses di halaman Upload.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+document.querySelectorAll('.generate-btn').forEach(btn => {
+  btn.addEventListener('click', async () => {
+    const candidateId = btn.dataset.candidateId;
+    btn.disabled = true;
+    btn.textContent = 'Generating...';
+
+    const res = await fetch('/clips', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        candidate_id: Number(candidateId),
+        aspect_ratio: '9:16',
+        subtitle_enabled: false,
+        subtitle_style: 'minimal'
+      })
+    });
+    const data = await res.json();
+
+    if (res.ok) {
+      document.getElementById(`status-${candidateId}`).textContent = 'selected';
+      btn.outerHTML = `<a class="btn btn-sm btn-success" target="_blank" href="/${data.file_path.replaceAll('\\\\', '/').replaceAll('\\', '/')}">Open Clip</a>`;
+    } else {
+      alert(data.detail || 'Gagal generate clip.');
+      btn.disabled = false;
+      btn.textContent = 'Generate Clip';
+    }
+  });
+});
+</script>
+{% endblock %}

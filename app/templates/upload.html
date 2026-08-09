@@ -1,0 +1,531 @@
+{% extends "base.html" %}
+
+{% block title %}Upload / Download Video - {{ app_name }}{% endblock %}
+
+{% block content %}
+<div class="row g-4 justify-content-center">
+  <!-- Card Upload File -->
+  <div class="col-md-6">
+    <div class="card shadow-sm h-100 p-4">
+      <h3>Upload File Video</h3>
+      <p class="text-muted">Pilih file video lokal dari komputer Anda.</p>
+
+      <div class="mb-4">
+        <label for="videoFile" class="form-label">Pilih file video ({{ allowed_extensions | join(', ') }})</label>
+        <input class="form-control" type="file" id="videoFile" accept=".mp4,.mov,.mkv,.avi">
+        <div class="form-text">Maksimal ukuran file: {{ max_size_mb }} MB.</div>
+      </div>
+
+      <div class="progress mb-3 d-none" id="uploadProgressContainer">
+        <div class="progress-bar progress-bar-striped progress-bar-animated" id="uploadProgressBar" role="progressbar" style="width: 0%">0%</div>
+      </div>
+
+      <div class="alert alert-danger d-none" id="uploadError"></div>
+      <div class="alert alert-success d-none" id="uploadSuccess"></div>
+
+      <button class="btn btn-primary w-100 mt-auto" id="uploadBtn">Upload Video</button>
+    </div>
+  </div>
+
+  <!-- Card Download URL -->
+  <div class="col-md-6">
+    <div class="card shadow-sm h-100 p-4">
+      <h3>Download dari URL</h3>
+      <p class="text-muted">Masukkan link URL video (YouTube, TikTok, dll).</p>
+
+      <div class="mb-4">
+        <label for="videoUrl" class="form-label">URL Video</label>
+        <input class="form-control" type="url" id="videoUrl" placeholder="https://www.youtube.com/watch?v=...">
+        <div class="form-text">Video akan di-download secara otomatis dan di-import.</div>
+      </div>
+
+      <div class="d-none" id="downloadSpinner">
+        <div class="d-flex align-items-center mb-3">
+          <div class="spinner-border text-primary me-2" role="status"></div>
+          <span>Sedang mengunduh video... Mohon tunggu.</span>
+        </div>
+      </div>
+
+      <div class="alert alert-danger d-none" id="downloadError"></div>
+      <div class="alert alert-success d-none" id="downloadSuccess"></div>
+
+      <button class="btn btn-dark w-100 mt-auto" id="downloadBtn">Download & Import</button>
+    </div>
+  </div>
+</div>
+
+<div class="card shadow-sm p-4 mt-4">
+  <h3>Pengaturan Pipeline</h3>
+  <p class="text-muted">Parameter ini dipakai saat tombol Proses di tabel video diklik.</p>
+  <div class="row g-3">
+    <div class="col-md-3">
+      <label class="form-label">Bahasa</label>
+      <select class="form-select" id="pl-language">
+        <option value="">Auto Detect</option>
+        <option value="id">Indonesia</option>
+        <option value="en">English</option>
+      </select>
+    </div>
+    <div class="col-md-3">
+      <label class="form-label">Content Type</label>
+      <select class="form-select" id="pl-content-type">
+        <option>podcast</option>
+        <option>interview</option>
+        <option>gaming</option>
+        <option>education</option>
+        <option>streaming</option>
+        <option>news</option>
+        <option>motivation</option>
+        <option>custom</option>
+      </select>
+    </div>
+    <div class="col-md-3">
+      <label class="form-label">Clip Style</label>
+      <select class="form-select" id="pl-clip-style">
+        <option>viral</option>
+        <option>educational</option>
+        <option>funny</option>
+        <option>emotional</option>
+        <option>storytelling</option>
+        <option>controversial</option>
+      </select>
+    </div>
+    <div class="col-md-3">
+      <label class="form-label">Jumlah Clip</label>
+      <input class="form-control" type="number" id="pl-num-clips" value="5" min="1" max="20">
+    </div>
+    <div class="col-md-3">
+      <label class="form-label">Durasi Min (detik)</label>
+      <input class="form-control" type="number" id="pl-min-duration" value="30" min="5">
+    </div>
+    <div class="col-md-3">
+      <label class="form-label">Durasi Maks (detik)</label>
+      <input class="form-control" type="number" id="pl-max-duration" value="60" min="10">
+    </div>
+    <div class="col-md-3">
+      <label class="form-label">Keyword Boost (koma)</label>
+      <input class="form-control" type="text" id="pl-keywords" placeholder="bitcoin, ai, investasi">
+    </div>
+    <div class="col-md-3">
+      <label class="form-label">Skip Keywords (koma)</label>
+      <input class="form-control" type="text" id="pl-skip-keywords" placeholder="sponsor, subscribe, iklan">
+    </div>
+  </div>
+</div>
+
+<div class="card shadow-sm p-4 mt-4">
+  <h3>Video Terupload</h3>
+  <div class="table-responsive">
+    <table class="table table-striped align-middle">
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Nama File</th>
+          <th>Status</th>
+          <th>Tipe</th>
+          <th>Durasi</th>
+          <th>Aksi</th>
+        </tr>
+      </thead>
+      <tbody id="videoTableBody">
+        {% for video in videos %}
+        {% set rj = running_jobs.get(video.id) %}
+        <tr id="video-row-{{ video.id }}">
+          <td>{{ video.id }}</td>
+          <td>{{ video.original_filename }}</td>
+          <td><span class="badge bg-{{ 'success' if video.status == 'ready' else ('warning' if rj else 'secondary') }}">{{ 'processing' if rj else video.status }}</span></td>
+          <td>{{ video.source_type }}</td>
+          <td>{{ '{}m {:.0f}s'.format((video.duration_seconds // 60)|int, video.duration_seconds % 60) if video.duration_seconds else '-' }}</td>
+          <td class="d-flex gap-2 align-items-center">
+            {% if rj %}
+            <button class="btn btn-sm btn-outline-success process-btn" data-video-id="{{ video.id }}" data-job-id="{{ rj.job_id }}" disabled>
+              <span class="spinner-border spinner-border-sm me-1"></span>Proses: {{ rj.current_step }}...
+            </button>
+            <button class="btn btn-sm btn-warning cancel-btn" data-job-id="{{ rj.job_id }}">Cancel</button>
+            {% else %}
+            <button class="btn btn-sm btn-success process-btn" data-video-id="{{ video.id }}">Proses</button>
+            {% endif %}
+            <button class="btn btn-sm btn-danger delete-btn" data-video-id="{{ video.id }}">Delete</button>
+          </td>
+        </tr>
+        {% else %}
+        <tr id="empty-row"><td colspan="6" class="text-center text-muted">Belum ada video.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+function esc(str) {
+  const div = document.createElement('div');
+  div.textContent = str == null ? '' : str;
+  return div.innerHTML;
+}
+
+function formatDuration(sec) {
+  if (sec == null) return '-';
+  const m = Math.floor(sec / 60);
+  const s = Math.round(sec % 60);
+  return `${m}m ${s}s`;
+}
+
+function rowHtml(v) {
+  const statusBadge = `<span class="badge bg-${v.status === 'ready' ? 'success' : 'secondary'}">${esc(v.status)}</span>`;
+  return `
+  <tr id="video-row-${v.id}">
+    <td>${v.id}</td>
+    <td>${esc(v.original_filename)}</td>
+    <td>${statusBadge}</td>
+    <td>${esc(v.source_type)}</td>
+    <td>${formatDuration(v.duration_seconds)}</td>
+    <td class="d-flex gap-2 align-items-center">
+      <button class="btn btn-sm btn-success process-btn" data-video-id="${v.id}">Proses</button>
+      <button class="btn btn-sm btn-danger delete-btn" data-video-id="${v.id}">Delete</button>
+    </td>
+  </tr>`;
+}
+
+function addRow(video) {
+  const tbody = document.getElementById('videoTableBody');
+  const empty = document.getElementById('empty-row');
+  if (empty) empty.remove();
+  tbody.insertAdjacentHTML('beforeend', rowHtml(video));
+  bindRowActions(document.querySelector(`#video-row-${video.id}`));
+}
+
+function setProcessing(btn, jobId) {
+  btn.disabled = true;
+  btn.classList.remove('btn-success');
+  btn.classList.add('btn-outline-success');
+  btn.dataset.jobId = jobId;
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Proses: memulai...';
+
+  // Add Cancel button
+  const cell = btn.parentNode;
+  let cancelBtn = cell.querySelector('.cancel-btn');
+  if (!cancelBtn) {
+    cancelBtn = document.createElement('button');
+    cancelBtn.className = 'btn btn-sm btn-warning cancel-btn';
+    cancelBtn.textContent = 'Cancel';
+    cancelBtn.addEventListener('click', () => cancelJob(cancelBtn));
+    cell.appendChild(cancelBtn);
+  }
+  cancelBtn.dataset.jobId = jobId;
+  cancelBtn.disabled = false;
+}
+
+function showAlert(el, msg, ok) {
+  el.textContent = msg;
+  el.classList.remove('d-none', 'alert-danger', 'alert-success');
+  el.classList.add(ok ? 'alert-success' : 'alert-danger');
+}
+
+function bindRowActions(row) {
+  const procBtn = row.querySelector('.process-btn');
+  const delBtn = row.querySelector('.delete-btn');
+  const cancelBtn = row.querySelector('.cancel-btn');
+  if (procBtn) procBtn.addEventListener('click', () => processVideo(procBtn));
+  if (delBtn) delBtn.addEventListener('click', () => deleteVideo(delBtn));
+  if (cancelBtn) cancelBtn.addEventListener('click', () => cancelJob(cancelBtn));
+}
+
+async function cancelJob(btn) {
+  const jobId = btn.dataset.jobId;
+  if (!jobId) return;
+  if (!confirm(`Cancel job ${jobId}? Proses ini akan dihentikan.`)) return;
+  btn.disabled = true;
+  btn.textContent = 'Membatalkan...';
+  const res = await fetch(`/jobs/${jobId}/cancel`, { method: 'POST' });
+  if (res.ok) {
+    const row = btn.closest('tr');
+    if (row) {
+      const videoId = row.querySelector('.process-btn')?.dataset.videoId;
+      btn.outerHTML = '';
+      const procBtn = row.querySelector('.process-btn');
+      if (procBtn) {
+        procBtn.disabled = false;
+        procBtn.classList.remove('btn-outline-success');
+        procBtn.classList.add('btn-success');
+        procBtn.innerHTML = 'Proses';
+        delete procBtn.dataset.jobId;
+      }
+      const badge = row.querySelector('td:nth-child(3) .badge');
+      if (badge) {
+        badge.textContent = 'uploaded';
+        badge.classList.remove('bg-warning');
+        badge.classList.add('bg-secondary');
+      }
+    }
+  } else {
+    alert('Gagal cancel job.');
+    btn.disabled = false;
+    btn.textContent = 'Cancel';
+  }
+}
+
+async function processVideo(btn) {
+  const videoId = btn.dataset.videoId;
+  btn.disabled = true;
+  const oldText = btn.textContent;
+  btn.textContent = 'Memulai...';
+
+  const params = {
+    language: document.getElementById('pl-language').value || null,
+    content_type: document.getElementById('pl-content-type').value,
+    clip_style: document.getElementById('pl-clip-style').value,
+    num_clips: parseInt(document.getElementById('pl-num-clips').value) || 5,
+    min_clip_duration: parseInt(document.getElementById('pl-min-duration').value) || 30,
+    max_clip_duration: parseInt(document.getElementById('pl-max-duration').value) || 60,
+    keyword_boost: document.getElementById('pl-keywords').value.split(',').map(s => s.trim()).filter(Boolean),
+    skip_keywords: document.getElementById('pl-skip-keywords').value.split(',').map(s => s.trim()).filter(Boolean),
+  };
+
+  try {
+    const res = await fetch(`/upload/videos/${videoId}/process`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(params)
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      alert(data.detail || 'Gagal memulai proses.');
+      btn.disabled = false;
+      btn.textContent = oldText;
+      return;
+    }
+
+    // Poll job status
+    const jobId = data.job_id;
+    setProcessing(btn, jobId);
+    const done = await pollJob(jobId, (step) => {
+      btn.innerHTML = `<span class="spinner-border spinner-border-sm me-1"></span>Proses: ${step}...`;
+    });
+
+    const row = document.getElementById(`video-row-${videoId}`);
+    const cancelBtn = row ? row.querySelector('.cancel-btn') : null;
+    if (done === 'completed') {
+      if (cancelBtn) cancelBtn.remove();
+      btn.textContent = 'Selesai';
+      btn.disabled = true;
+      btn.classList.add('btn-outline-success');
+      const badge = row.querySelector('td:nth-child(3) .badge');
+      if (badge) {
+        badge.textContent = 'ready';
+        badge.classList.remove('bg-warning', 'bg-secondary');
+        badge.classList.add('bg-success');
+      }
+    } else if (done === 'cancelled') {
+      if (cancelBtn) cancelBtn.remove();
+      btn.disabled = false;
+      btn.classList.remove('btn-outline-success');
+      btn.classList.add('btn-success');
+      btn.textContent = oldText;
+      const badge = row.querySelector('td:nth-child(3) .badge');
+      if (badge) {
+        badge.textContent = 'uploaded';
+        badge.classList.remove('bg-warning', 'bg-success');
+        badge.classList.add('bg-secondary');
+      }
+    } else {
+      if (cancelBtn) cancelBtn.remove();
+      alert(`Proses gagal. ${done}`);
+      btn.disabled = false;
+      btn.classList.remove('btn-outline-success');
+      btn.classList.add('btn-success');
+      btn.textContent = oldText;
+    }
+  } catch (e) {
+    btn.disabled = false;
+    btn.textContent = oldText;
+    alert('Terjadi kesalahan sistem.');
+  }
+}
+
+async function pollJob(jobId, onStep) {
+  for (let i = 0; i < 6000; i++) {
+    await new Promise(r => setTimeout(r, 2000));
+    const res = await fetch(`/jobs/${jobId}`);
+    if (!res.ok) return 'HTTP error';
+    const data = await res.json();
+    onStep(data.current_step || data.status);
+    if (data.status === 'completed') return 'completed';
+    if (data.status === 'cancelled') return 'cancelled';
+    if (data.status === 'failed') return data.error_message || 'unknown error';
+  }
+  return 'timeout';
+}
+
+async function deleteVideo(btn) {
+  const videoId = btn.dataset.videoId;
+  if (!confirm(`Delete video ID ${videoId}? File dan semua data terkait akan dihapus.`)) return;
+  btn.disabled = true;
+  const res = await fetch(`/upload/videos/${videoId}`, { method: 'DELETE' });
+  if (res.ok) {
+    document.getElementById(`video-row-${videoId}`)?.remove();
+    const tbody = document.getElementById('videoTableBody');
+    if (!tbody.querySelector('tr')) {
+      tbody.innerHTML = '<tr id="empty-row"><td colspan="6" class="text-center text-muted">Belum ada video.</td></tr>';
+    }
+  } else {
+    const data = await res.json();
+    alert(data.detail || 'Gagal delete video.');
+    btn.disabled = false;
+  }
+}
+
+// Upload file
+document.getElementById('uploadBtn').addEventListener('click', async () => {
+  const fileInput = document.getElementById('videoFile');
+  const btn = document.getElementById('uploadBtn');
+  const errDiv = document.getElementById('uploadError');
+  const succDiv = document.getElementById('uploadSuccess');
+  const progressContainer = document.getElementById('uploadProgressContainer');
+  const progressBar = document.getElementById('uploadProgressBar');
+
+  errDiv.classList.add('d-none');
+  succDiv.classList.add('d-none');
+
+  if (!fileInput.files.length) {
+    showAlert(errDiv, 'Pilih file video terlebih dahulu.', false);
+    return;
+  }
+
+  const file = fileInput.files[0];
+  const formData = new FormData();
+  formData.append('file', file);
+
+  btn.disabled = true;
+  progressContainer.classList.remove('d-none');
+
+  const xhr = new XMLHttpRequest();
+  xhr.open('POST', '/upload', true);
+
+  xhr.upload.onprogress = (e) => {
+    if (e.lengthComputable) {
+      const pct = Math.round((e.loaded / e.total) * 100);
+      progressBar.style.width = pct + '%';
+      progressBar.textContent = pct + '%';
+    }
+  };
+
+  xhr.onload = () => {
+    btn.disabled = false;
+    progressContainer.classList.add('d-none');
+    if (xhr.status >= 200 && xhr.status < 300) {
+      const res = JSON.parse(xhr.responseText);
+      showAlert(succDiv, `File berhasil diunggah! ID Video: ${res.id}`, true);
+      addRow(res);
+      fileInput.value = '';
+    } else {
+      let detail = 'Gagal mengunggah file.';
+      try {
+        const res = JSON.parse(xhr.responseText);
+        if (res.detail) detail = res.detail;
+      } catch (e) {}
+      showAlert(errDiv, detail, false);
+    }
+  };
+
+  xhr.onerror = () => {
+    btn.disabled = false;
+    progressContainer.classList.add('d-none');
+    showAlert(errDiv, 'Koneksi bermasalah atau proses dihentikan.', false);
+  };
+
+  xhr.send(formData);
+});
+
+// Download URL
+document.getElementById('downloadBtn').addEventListener('click', async () => {
+  const urlInput = document.getElementById('videoUrl');
+  const btn = document.getElementById('downloadBtn');
+  const errDiv = document.getElementById('downloadError');
+  const succDiv = document.getElementById('downloadSuccess');
+  const spinner = document.getElementById('downloadSpinner');
+
+  errDiv.classList.add('d-none');
+  succDiv.classList.add('d-none');
+
+  const url = urlInput.value.trim();
+  if (!url) {
+    showAlert(errDiv, 'URL tidak boleh kosong.', false);
+    return;
+  }
+
+  btn.disabled = true;
+  spinner.classList.remove('d-none');
+
+  try {
+    const res = await fetch('/upload/download', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url: url })
+    });
+
+    const data = await res.json();
+    btn.disabled = false;
+    spinner.classList.add('d-none');
+
+    if (res.ok) {
+      showAlert(succDiv, `Video berhasil di-download! ID: ${data.id} - ${data.original_filename}`, true);
+      addRow(data);
+      urlInput.value = '';
+    } else {
+      showAlert(errDiv, data.detail || 'Gagal mendownload video.', false);
+    }
+  } catch (e) {
+    btn.disabled = false;
+    spinner.classList.add('d-none');
+    showAlert(errDiv, 'Terjadi kesalahan sistem.', false);
+  }
+});
+
+// Bind existing rows + auto-resume polling for processing rows
+document.querySelectorAll('#videoTableBody tr').forEach(row => {
+  bindRowActions(row);
+  const procBtn = row.querySelector('.process-btn');
+  if (procBtn && procBtn.dataset.jobId) {
+    pollJob(procBtn.dataset.jobId, (step) => {
+      procBtn.innerHTML = `<span class="spinner-border spinner-border-sm me-1"></span>Proses: ${step}...`;
+    }).then((done) => {
+      const videoId = procBtn.dataset.videoId;
+      const rowEl = document.getElementById(`video-row-${videoId}`);
+      const cancelBtn = rowEl ? rowEl.querySelector('.cancel-btn') : null;
+      if (done === 'completed') {
+        if (cancelBtn) cancelBtn.remove();
+        procBtn.textContent = 'Selesai';
+        procBtn.disabled = true;
+        procBtn.classList.add('btn-outline-success');
+        const badge = rowEl.querySelector('td:nth-child(3) .badge');
+        if (badge) {
+          badge.textContent = 'ready';
+          badge.classList.remove('bg-warning', 'bg-secondary');
+          badge.classList.add('bg-success');
+        }
+      } else if (done === 'cancelled') {
+        if (cancelBtn) cancelBtn.remove();
+        procBtn.disabled = false;
+        procBtn.classList.remove('btn-outline-success');
+        procBtn.classList.add('btn-success');
+        procBtn.innerHTML = 'Proses';
+        delete procBtn.dataset.jobId;
+        const badge = rowEl.querySelector('td:nth-child(3) .badge');
+        if (badge) {
+          badge.textContent = 'uploaded';
+          badge.classList.remove('bg-warning', 'bg-success');
+          badge.classList.add('bg-secondary');
+        }
+      } else {
+        if (cancelBtn) cancelBtn.remove();
+        procBtn.disabled = false;
+        procBtn.classList.remove('btn-outline-success');
+        procBtn.classList.add('btn-success');
+        procBtn.innerHTML = 'Proses';
+        delete procBtn.dataset.jobId;
+      }
+    });
+  }
+});
+</script>
+{% endblock %}
