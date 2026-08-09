@@ -37,24 +37,9 @@
             {% else %}
             <button class="btn btn-sm btn-primary generate-btn" data-candidate-id="{{ c.id }}">Generate Clip</button>
             {% endif %}
-            <button class="btn btn-sm btn-outline-info" type="button" data-bs-toggle="collapse" data-bs-target="#breakdown-{{ c.id }}">Review</button>
-            <a class="btn btn-sm btn-outline-secondary" target="_blank" href="/preview/candidates/{{ c.id }}">Preview JSON</a>
-          </td>
-        </tr>
-        <tr class="collapse" id="breakdown-{{ c.id }}">
-          <td colspan="8">
-            <div class="p-3 bg-light rounded">
-              {% set bd = c.score_breakdown or {} %}
-              {% for name, item in bd.items() %}
-                <div class="mb-2">
-                  <strong>{{ name }}</strong>
-                  <span class="badge bg-{{ 'danger' if item.score < 0 else ('success' if item.score >= 7 else 'warning') }}">{{ item.score }}</span>
-                  <small class="text-muted d-block">{{ item.reason }}</small>
-                </div>
-              {% else %}
-              <small class="text-muted">Belum ada breakdown score.</small>
-              {% endfor %}
-            </div>
+            <a class="btn btn-sm btn-outline-info" href="/candidates/{{ c.id }}">Detail</a>
+            <a class="btn btn-sm btn-outline-secondary" href="/jobs/{{ c.job_id }}/ui">Progress</a>
+            <button class="btn btn-sm btn-outline-danger delete-btn" data-candidate-id="{{ c.id }}">Delete</button>
           </td>
         </tr>
         {% else %}
@@ -66,6 +51,22 @@
 </div>
 
 <script>
+document.querySelectorAll('.delete-btn').forEach(btn => {
+  btn.addEventListener('click', async () => {
+    const candidateId = btn.dataset.candidateId;
+    if (!confirm(`Hapus candidate #${candidateId}? Clip dan data terkait ikut dihapus.`)) return;
+    btn.disabled = true;
+    const res = await fetch(`/candidates/${candidateId}`, { method: 'DELETE' });
+    if (res.ok) {
+      document.getElementById(`status-${candidateId}`)?.closest('tr')?.remove();
+    } else {
+      const data = await res.json();
+      alert(data.detail || 'Gagal hapus candidate.');
+      btn.disabled = false;
+    }
+  });
+});
+
 document.querySelectorAll('.generate-btn').forEach(btn => {
   btn.addEventListener('click', async () => {
     const candidateId = btn.dataset.candidateId;

@@ -1,20 +1,20 @@
 """Repository for Clip model."""
 
-from app.models.clip_model import Clip
+from app.models.clip_model import ClipModel
 from app.repositories.base_repository import PostgresRepository
 
 
-class ClipRepository(PostgresRepository[Clip]):
+class ClipRepository(PostgresRepository[ClipModel]):
     """PostgreSQL repository for clips."""
 
-    model_class = Clip
+    model_class = ClipModel
 
-    def get_by_video(self, video_id: int) -> list[Clip]:
+    def get_by_video(self, video_id: int) -> list[ClipModel]:
         """Get all clips for a video."""
-        return list(self.db.query(Clip).filter(Clip.video_id == video_id).all())
+        return list(self.db.query(ClipModel).filter(ClipModel.video_id == video_id).all())
 
-    def get_by_candidate(self, candidate_id: int) -> list[Clip]:
+    def get_by_candidate(self, candidate_id: int) -> list[ClipModel]:
         """Get all clips generated from a candidate."""
         return list(
-            self.db.query(Clip).filter(Clip.candidate_id == candidate_id).all()
+            self.db.query(ClipModel).filter(ClipModel.candidate_id == candidate_id).all()
         )

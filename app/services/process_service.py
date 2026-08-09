@@ -6,12 +6,13 @@ from sqlalchemy.orm import Session
 
 from app.core.config.settings import settings
 from app.core.exceptions.base import NotFoundException
-from app.models.candidate_model import Candidate
-from app.models.history_model import History
+from app.models.candidate_model import CandidateModel
+from app.models.history_model import HistoryModel
 from app.repositories.video_repository import VideoRepository
 from app.services.analysis_service import AnalysisService
 from app.services.ffmpeg_service import FFmpegService
 from app.services.job_service import JobService
+from app.services.score_engine import ScoreEngine
 from app.services.transcript_service import TranscriptService
 
 logger = logging.getLogger(__name__)
@@ -33,6 +34,7 @@ class ProcessService:
         self.job_service = JobService(db)
         self.transcript_service = transcript_service or TranscriptService(db, ffmpeg=ffmpeg)
         self.analysis_service = analysis_service or AnalysisService(db)
+        self.score_engine = ScoreEngine(db)
 
     def create_job(self, video_id: int) -> int:
         """Create a pipeline job and return its ID (for async processing)."""
@@ -63,17 +65,23 @@ class ProcessService:
         num = num_clips or settings.DEFAULT_NUM_CLIPS
         job = self.job_service.get(job_id) if job_id else self.job_service.create(video_id)
 
+        logger.debug("Process job %d: step extract start", job.id)
         self.job_service.start_step(job.id, "extract")
         self._update_video_metadata(video)
         self.job_service.finish_step(job.id, "extract", success=True)
+        logger.debug("Process job %d: extract success", job.id)
         self._ensure_not_cancelled(job.id)
 
+        logger.debug("Process job %d: step transcribe start", job.id)
         self.job_service.start_step(job.id, "transcribe")
         transcript = self.transcript_service.transcribe(video_id, job_id=job.id, language=language)
         self.job_service.finish_step(job.id, "transcribe", success=True)
+        logger.debug("Process job %d: transcribe success", job.id)
         self._ensure_not_cancelled(job.id)
 
+        logger.debug("Process job %d: step analyze start", job.id)
         self.job_service.start_step(job.id, "analyze")
+        self.job_service.seed_analyzer_steps(job.id)
         candidates = self.analysis_service.analyze_job(
             job.id,
             video_id,
@@ -87,15 +95,29 @@ class ProcessService:
             analyze_end_time=analyze_end_time,
         )
         self.job_service.finish_step(job.id, "analyze", success=True)
+        logger.debug("Process job %d: analyze success (%d candidate)", job.id, len(candidates))
 
         if not candidates:
             self.job_service.finish_step(job.id, "analyze", success=False, error="Tidak ada segmen transcript")
             raise NotFoundException("Tidak ada segmen transcript untuk dibuat candidate")
 
+        # Satu-satunya sumber final_score: ScoreEngine mengisi breakdown untuk semua candidate
+        logger.debug("Process job %d: step score start", job.id)
+        self.job_service.start_step(job.id, "score")
+        self.score_engine.calculate_for_job(job.id)
+        # Simpan hanya top-N candidate dengan score tertinggi, hapus sisanya
+        candidates = self.score_engine.select_top_n(job.id, num)
+        self.job_service.finish_step(job.id, "score", success=True)
+        logger.debug("Process job %d: score success", job.id)
+
+        logger.debug("Process job %d: step complete start", job.id)
+        self.job_service.start_step(job.id, "complete")
         self.job_service.complete_job(job.id)
+        self.job_service.finish_step(job.id, "complete", success=True)
+        logger.debug("Process job %d: complete success", job.id)
 
         video.status = "ready"
-        self.db.add(History(
+        self.db.add(HistoryModel(
             video_id=video_id,
             job_id=job.id,
             action="candidate_generated",

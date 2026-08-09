@@ -8,20 +8,21 @@ from sqlalchemy.orm import Session
 
 from app.core.config.settings import settings
 from app.core.exceptions.base import NotFoundException
-from app.models.cache_entry_model import CacheEntry
-from app.models.history_model import History
-from app.models.transcript_model import Transcript
-from app.models.transcript_segment_model import TranscriptSegment
-from app.models.video_model import Video
+from app.models.cache_entry_model import CacheEntryModel
+from app.models.history_model import HistoryModel
+from app.models.transcript_model import TranscriptModel
+from app.models.transcript_segment_model import TranscriptSegmentModel
+from app.models.video_model import VideoModel
 from app.repositories.cache_entry_repository import CacheEntryRepository
 from app.repositories.transcript_repository import (
     TranscriptRepository,
     TranscriptSegmentRepository,
 )
+from app.ai_modules.registry import get_analyzer
+from app.ai_modules.speech_to_text.whisper_analyzer import WhisperAnalyzer
 from app.repositories.video_repository import VideoRepository
 from app.services.ffmpeg_service import FFmpegService
 from app.services.job_service import JobService
-from app.services.whisper_service import WhisperService
 
 logger = logging.getLogger(__name__)
 
@@ -33,7 +34,7 @@ class TranscriptService:
         self,
         db: Session,
         ffmpeg: FFmpegService | None = None,
-        whisper: WhisperService | None = None,
+        whisper: WhisperAnalyzer | None = None,
     ) -> None:
         """Initialize with DB and optional tool services (injectable for tests)."""
         self.db = db
@@ -43,7 +44,7 @@ class TranscriptService:
         self.cache_repo = CacheEntryRepository(db)
         self.job_service = JobService(db)
         self.ffmpeg = ffmpeg or FFmpegService()
-        self.whisper = whisper or WhisperService()
+        self.whisper = whisper or get_analyzer("whisper")
 
     def transcribe(
         self,
@@ -51,7 +52,7 @@ class TranscriptService:
         job_id: int | None = None,
         language: str | None = None,
         force: bool = False,
-    ) -> Transcript:
+    ) -> TranscriptModel:
         """Run extract + STT pipeline for a video.
 
         Uses cache key video:{id}:transcribe to skip re-whisper when possible.
@@ -63,17 +64,18 @@ class TranscriptService:
         if not force:
             cached = self.transcript_repo.get_by_video(video_id)
             if cached is not None:
-                logger.info("Reusing existing transcript %d for video %d", cached.id, video_id)
+                logger.debug("Transcript process: pakai cache transcript %d", cached.id)
                 return cached
 
         job = self.job_service.get(job_id) if job_id else self.job_service.create(video_id)
+        logger.debug("Transcript process: mulai untuk video %d (job %d)", video_id, job.id)
 
         try:
             self._extract_and_update_metadata(video, job.id)
             transcript = self._run_transcribe(video, job.id, language)
             self.job_service.finish_step(job.id, "transcribe", success=True)
 
-            self.db.add(History(
+            self.db.add(HistoryModel(
                 video_id=video_id,
                 job_id=job.id,
                 action="transcript_completed",
@@ -85,21 +87,21 @@ class TranscriptService:
             self.job_service.finish_step(job.id, "transcribe", success=False, error=str(e))
             raise
 
-    def get_by_video(self, video_id: int) -> Transcript:
+    def get_by_video(self, video_id: int) -> TranscriptModel:
         """Get latest transcript for video."""
         t = self.transcript_repo.get_by_video(video_id)
         if t is None:
             raise NotFoundException(f"Transcript untuk video {video_id} tidak ditemukan")
         return t
 
-    def get_by_job(self, job_id: int) -> Transcript:
+    def get_by_job(self, job_id: int) -> TranscriptModel:
         """Get transcript for a job."""
         t = self.transcript_repo.get_by_job(job_id)
         if t is None:
             raise NotFoundException(f"Transcript untuk job {job_id} tidak ditemukan")
         return t
 
-    def _extract_and_update_metadata(self, video: Video, job_id: int) -> Path:
+    def _extract_and_update_metadata(self, video: VideoModel, job_id: int) -> Path:
         """Extract audio WAV; update video metadata from ffprobe."""
         self.job_service.start_step(job_id, "extract")
 
@@ -124,7 +126,7 @@ class TranscriptService:
             self.ffmpeg.extract_audio(video.file_path, str(audio_path))
 
             if existing is None:
-                self.cache_repo.add(CacheEntry(
+                self.cache_repo.add(CacheEntryModel(
                     cache_key=cache_key,
                     video_id=video.id,
                     step_name="extract",
@@ -140,7 +142,7 @@ class TranscriptService:
             self.job_service.finish_step(job_id, "extract", success=False, error=str(e))
             raise
 
-    def _run_transcribe(self, video: Video, job_id: int, language: str | None) -> Transcript:
+    def _run_transcribe(self, video: VideoModel, job_id: int, language: str | None) -> TranscriptModel:
         """Run Whisper and persist transcript + segments."""
         self.job_service.start_step(job_id, "transcribe")
 
@@ -153,24 +155,27 @@ class TranscriptService:
             else:
                 audio_path = self._extract_and_update_metadata(video, job_id)
 
-        result = self.whisper.transcribe(str(audio_path), language=language)
+        result = self.whisper.analyze(
+            {"audio_path": str(audio_path), "language": language}
+        )
+        data = result.result_data
 
-        transcript = Transcript(
+        transcript = TranscriptModel(
             video_id=video.id,
             job_id=job_id,
             engine=f"faster-whisper-{settings.WHISPER_MODEL}",
-            language=result.get("language"),
-            full_text=result.get("full_text", ""),
+            language=data.get("language"),
+            full_text=data.get("full_text", ""),
         )
         transcript = self.transcript_repo.add(transcript)
 
-        for seg in result.get("segments", []):
+        for seg in data.get("segments", []):
             conf = None
             words = seg.get("words") or []
             if words:
                 conf = sum(w.get("probability", 0) for w in words) / len(words)
 
-            self.segment_repo.add(TranscriptSegment(
+            self.segment_repo.add(TranscriptSegmentModel(
                 transcript_id=transcript.id,
                 start_time=float(seg["start"]),
                 end_time=float(seg["end"]),
@@ -178,7 +183,7 @@ class TranscriptService:
                 confidence=conf,
             ))
 
-        self.cache_repo.add(CacheEntry(
+        self.cache_repo.add(CacheEntryModel(
             cache_key=f"video:{video.id}:transcribe",
             video_id=video.id,
             step_name="transcribe",
@@ -188,10 +193,10 @@ class TranscriptService:
         video.status = "ready"
         self.db.commit()
         self.db.refresh(transcript)
-        logger.info("Saved transcript %d with %d segments", transcript.id, len(result.get("segments", [])))
+        logger.info("Saved transcript %d with %d segments", transcript.id, len(data.get("segments", [])))
         return transcript
 
-    def _audio_path_for(self, video: Video) -> Path:
+    def _audio_path_for(self, video: VideoModel) -> Path:
         """Deterministic cache path for extracted audio."""
         stem = Path(video.file_path).stem
         digest = hashlib.md5(str(video.id).encode()).hexdigest()[:8]

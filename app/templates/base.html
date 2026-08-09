@@ -15,7 +15,13 @@
         <span class="navbar-toggler-icon"></span>
       </button>
       <div class="collapse navbar-collapse" id="navbarNav">
-        <ul class="navbar-nav ms-auto">
+        <ul class="navbar-nav ms-auto align-items-lg-center">
+          <li class="nav-item d-none d-lg-block" id="globalJobIndicator">
+            <span class="navbar-text me-3" style="display:none;">
+              <span class="spinner-border spinner-border-sm text-warning me-1"></span>
+              <span id="globalJobText">Proses...</span>
+            </span>
+          </li>
           <li class="nav-item"><a class="nav-link" href="/">Dashboard</a></li>
           <li class="nav-item"><a class="nav-link" href="/upload">Upload</a></li>
           <li class="nav-item"><a class="nav-link" href="/candidates">Candidates</a></li>
@@ -30,5 +36,31 @@
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <script>
+  // Global job indicator — tampil di semua halaman selama ada job aktif.
+  // Hanya polling /jobs/active selama masih ada job berjalan; saat idle,
+  // berhenti polling (nol request) sampai user memulai proses baru.
+  (function pollActiveJobs() {
+    fetch('/jobs/active')
+      .then(r => r.json())
+      .then(data => {
+        const el = document.getElementById('globalJobText');
+        const wrap = el && el.parentElement;
+        if (!el) return;
+        if (data.count > 0) {
+          const step = data.active_jobs[0].current_step || 'running';
+          el.textContent = data.count > 1
+            ? `${data.count} proses berjalan...`
+            : `Proses: ${step}...`;
+          wrap.style.display = '';
+          setTimeout(pollActiveJobs, 3000);
+        } else {
+          wrap.style.display = 'none';
+          // idle — tidak ada job aktif, berhenti polling
+        }
+      })
+      .catch(() => {});
+  })();
+  </script>
 </body>
 </html>

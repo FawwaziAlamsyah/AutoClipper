@@ -2,14 +2,14 @@
 
 from unittest.mock import MagicMock
 
-from app.models.transcript_segment_model import TranscriptSegment
+from app.models.transcript_segment_model import TranscriptSegmentModel
 from app.services.subtitle_service import SubtitleService
 
 
 def _make_service(segments_texts: list[tuple[float, float, str]]) -> SubtitleService:
     mock_db = MagicMock()
     mock_segments = [
-        TranscriptSegment(id=i + 1, start_time=st, end_time=et, text=text, confidence=0.9)
+        TranscriptSegmentModel(id=i + 1, start_time=st, end_time=et, text=text, confidence=0.9)
         for i, (st, et, text) in enumerate(segments_texts)
     ]
     mock_transcript = MagicMock()
@@ -27,6 +27,8 @@ def _make_service(segments_texts: list[tuple[float, float, str]]) -> SubtitleSer
     service.clip_repo = MagicMock()
     service.transcript_repo.get_by_job.return_value = mock_transcript
     service.clip_repo.get.return_value = mock_clip
+    # JobService tak diuji di sini — mock agar ensure/start/finish step no-op
+    service.job_service = MagicMock()
     return service
 
 

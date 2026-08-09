@@ -6,7 +6,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base import Base, TimestampMixin
 
 
-class History(Base, TimestampMixin):
+class HistoryModel(Base, TimestampMixin):
     """Audit trail lintas video/job."""
 
     __tablename__ = "history"
@@ -17,5 +17,5 @@ class History(Base, TimestampMixin):
     action: Mapped[str] = mapped_column(Text, nullable=False)
     description: Mapped[str | None] = mapped_column(Text)
 
-    video: Mapped["Video | None"] = relationship(back_populates="history_entries")
-    job: Mapped["Job | None"] = relationship(back_populates="history_entries")
+    video: Mapped["VideoModel | None"] = relationship(back_populates="history_entries")
+    job: Mapped["JobModel | None"] = relationship(back_populates="history_entries")

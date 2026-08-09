@@ -8,7 +8,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base import Base
 
 
-class JobStep(Base):
+class JobStepModel(Base):
     """Riwayat per-tahap dalam satu job."""
 
     __tablename__ = "job_steps"
@@ -22,4 +22,4 @@ class JobStep(Base):
     duration_ms: Mapped[int | None] = mapped_column(Integer)
     error_message: Mapped[str | None] = mapped_column(Text)
 
-    job: Mapped["Job"] = relationship(back_populates="steps")
+    job: Mapped["JobModel"] = relationship(back_populates="steps")

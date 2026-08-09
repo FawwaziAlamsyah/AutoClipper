@@ -6,7 +6,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base import Base
 
 
-class TranscriptSegment(Base):
+class TranscriptSegmentModel(Base):
     """Potongan transcript per-kalimat/per-waktu."""
 
     __tablename__ = "transcript_segments"
@@ -19,5 +19,5 @@ class TranscriptSegment(Base):
     text: Mapped[str] = mapped_column(Text, nullable=False)
     confidence: Mapped[float | None] = mapped_column(Float)
 
-    transcript: Mapped["Transcript"] = relationship(back_populates="segments")
-    speaker: Mapped["Speaker | None"] = relationship(back_populates="segments")
+    transcript: Mapped["TranscriptModel"] = relationship(back_populates="segments")
+    speaker: Mapped["SpeakerModel | None"] = relationship(back_populates="segments")

@@ -4,10 +4,10 @@ import logging
 
 from sqlalchemy.orm import Session
 
-from app.models.video_model import Video
-from app.models.job_model import Job
-from app.models.clip_model import Clip
-from app.models.history_model import History
+from app.models.video_model import VideoModel
+from app.models.job_model import JobModel
+from app.models.clip_model import ClipModel
+from app.models.history_model import HistoryModel
 
 logger = logging.getLogger(__name__)
 
@@ -22,17 +22,17 @@ class DashboardService:
     def get_stats(self) -> dict:
         """Return aggregate counters for the dashboard."""
         return {
-            "total_videos": self.db.query(Video).count(),
-            "completed_jobs": self.db.query(Job).filter(Job.status == "completed").count(),
-            "total_clips": self.db.query(Clip).count(),
-            "pending_jobs": self.db.query(Job).filter(Job.status.in_(["pending", "running"])).count(),
+            "total_videos": self.db.query(VideoModel).count(),
+            "completed_jobs": self.db.query(JobModel).filter(JobModel.status == "completed").count(),
+            "total_clips": self.db.query(ClipModel).count(),
+            "pending_jobs": self.db.query(JobModel).filter(JobModel.status.in_(["pending", "running"])).count(),
         }
 
-    def get_recent_history(self, limit: int = 5) -> list[History]:
+    def get_recent_history(self, limit: int = 5) -> list[HistoryModel]:
         """Return the most recent history entries."""
         return list(
-            self.db.query(History)
-            .order_by(History.created_at.desc())
+            self.db.query(HistoryModel)
+            .order_by(HistoryModel.created_at.desc())
             .limit(limit)
             .all()
         )

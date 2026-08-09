@@ -52,6 +52,11 @@ class Settings(BaseSettings):
     FFMPEG_PATH: str = "ffmpeg"
     FFPROBE_PATH: str = "ffprobe"
 
+    # Cookies file untuk yt-dlp (hindari 403 anti-bot YouTube).
+    # Kosong = pakai cookiesfrombrowser fallback. Isi path cookies.txt untuk
+    # export manual (Get cookies.txt LOCALLY extension).
+    COOKIES_FILE: str = ""
+
     # Whisper
     WHISPER_MODEL: str = "large-v3"
     WHISPER_DEVICE: str = "auto"
@@ -63,6 +68,7 @@ class Settings(BaseSettings):
     LLM_BASE_URL: str = "https://api.openai.com/v1"
 
     # Score weights (default, user-overridable per job)
+    # Semua analyzer sudah diimplementasi asli di app/ai_modules/ — total bobot 100%.
     SCORE_WEIGHT_LLM_CONTENT: float = 0.30
     SCORE_WEIGHT_HOOK: float = 0.10
     SCORE_WEIGHT_STORY: float = 0.15

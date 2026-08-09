@@ -5,15 +5,20 @@ import logging
 from fastapi import APIRouter, Depends, File, Request, UploadFile
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
-from sqlalchemy.orm import Session
 
 from app.core.config.settings import settings
-from app.db.session import get_db
+from app.core.di.dependencies import (
+    get_download_service,
+    get_job_service,
+    get_process_service,
+    get_video_service,
+)
 from app.schemas.video_schema import VideoDetail, VideoUploadResponse, VideoDownloadRequest
 from app.schemas.process_schema import ProcessRequest
 from app.services.video_service import VideoService
 from app.services.download_service import DownloadService
 from app.services.process_service import ProcessService
+from app.services.job_service import JobService
 
 logger = logging.getLogger(__name__)
 
@@ -21,33 +26,14 @@ router = APIRouter(prefix="/upload", tags=["upload"])
 templates = Jinja2Templates(directory="app/templates")
 
 
-def _get_service(db: Session = Depends(get_db)) -> VideoService:
-    return VideoService(db)
-
-
-def _get_download_service(db: Session = Depends(get_db)) -> DownloadService:
-    return DownloadService(db)
-
-
-def _get_process_service(db: Session = Depends(get_db)) -> ProcessService:
-    return ProcessService(db)
-
-
 @router.get("", response_class=HTMLResponse)
 def upload_page(
     request: Request,
-    db: Session = Depends(get_db),
-    service: VideoService = Depends(_get_service),
+    service: VideoService = Depends(get_video_service),
+    job_service: JobService = Depends(get_job_service),
 ) -> HTMLResponse:
     """Render the upload page."""
-    # Jobs yang sedang berjalan, per video: {video_id: {"job_id":..., "current_step":...}}
-    from app.models.job_model import Job
-    running_jobs: dict[int, dict] = {}
-    for j in db.query(Job).filter(Job.status == "running").all():
-        running_jobs[j.video_id] = {
-            "job_id": j.id,
-            "current_step": j.current_step or "running",
-        }
+    running_jobs = job_service.get_running_by_video()
     return templates.TemplateResponse(
         request=request,
         name="upload.html",
@@ -64,7 +50,7 @@ def upload_page(
 @router.post("", response_model=VideoUploadResponse)
 async def upload_video(
     file: UploadFile = File(...),
-    service: VideoService = Depends(_get_service),
+    service: VideoService = Depends(get_video_service),
 ) -> VideoUploadResponse:
     """Upload a video file."""
     file_bytes = await file.read()
@@ -72,15 +58,40 @@ async def upload_video(
     return VideoUploadResponse.model_validate(video)
 
 
+@router.post("/begin", response_model=VideoUploadResponse)
+def begin_upload(
+    filename: str,
+    service: VideoService = Depends(get_video_service),
+) -> VideoUploadResponse:
+    """Create an uploading record (survives page navigation)."""
+    video = service.begin_upload(filename)
+    return VideoUploadResponse.model_validate(video)
+
+
+@router.post("/{video_id}/finish", response_model=VideoUploadResponse)
+def finish_upload(
+    video_id: int,
+    file: UploadFile = File(...),
+    service: VideoService = Depends(get_video_service),
+) -> VideoUploadResponse:
+    """Stream the uploaded file to disk for a pending upload record.
+
+    Sync (not async) — FastAPI menjalankan ini di threadpool, jadi copyfileobj
+    tidak memblokir event loop dan request lain (polling) tetap jalan.
+    """
+    video = service.finish_upload(video_id, file.file)
+    return VideoUploadResponse.model_validate(video)
+
+
 @router.get("/videos", response_model=list[VideoDetail])
-def list_videos(service: VideoService = Depends(_get_service)) -> list[VideoDetail]:
+def list_videos(service: VideoService = Depends(get_video_service)) -> list[VideoDetail]:
     """List all uploaded videos."""
     return [VideoDetail.model_validate(v) for v in service.list_all()]
 
 
 @router.get("/videos/{video_id}", response_model=VideoDetail)
 def get_video(
-    video_id: int, service: VideoService = Depends(_get_service)
+    video_id: int, service: VideoService = Depends(get_video_service)
 ) -> VideoDetail:
     """Get a single video by ID."""
     return VideoDetail.model_validate(service.get(video_id))
@@ -88,21 +99,29 @@ def get_video(
 
 @router.delete("/videos/{video_id}")
 def delete_video(
-    video_id: int, service: VideoService = Depends(_get_service)
+    video_id: int, service: VideoService = Depends(get_video_service)
 ) -> dict:
     """Delete a video."""
     service.delete(video_id)
     return {"detail": "Video deleted"}
 
 
-@router.post("/download", response_model=VideoUploadResponse)
+@router.post("/download")
 def download_video(
     req: VideoDownloadRequest,
-    service: DownloadService = Depends(_get_download_service),
-) -> VideoUploadResponse:
-    """Download video from URL."""
-    video = service.download_video(req.url)
-    return VideoUploadResponse.model_validate(video)
+    service: DownloadService = Depends(get_download_service),
+) -> dict:
+    """Mulai download video dari URL di background; return download_id untuk polling."""
+    return service.start_download(req.url)
+
+
+@router.get("/download/{download_id}")
+def get_download_progress(
+    download_id: str,
+    service: DownloadService = Depends(get_download_service),
+) -> dict:
+    """Baca progress download aktif (persen, status, video saat selesai)."""
+    return service.get_download_progress(download_id)
 
 
 def _run_process(video_id: int, job_id: int, req: ProcessRequest) -> None:
@@ -141,7 +160,7 @@ def _run_process(video_id: int, job_id: int, req: ProcessRequest) -> None:
 def process_video(
     video_id: int,
     req: ProcessRequest | None = None,
-    service: ProcessService = Depends(_get_process_service),
+    service: ProcessService = Depends(get_process_service),
 ) -> dict:
     """Start background processing and return job_id immediately."""
     import threading

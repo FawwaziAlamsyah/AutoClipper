@@ -19,12 +19,6 @@ STORY_MARKERS = (
     "namun", "jadi", "karena", "ternyata", "sebenarnya", "first",
     "then", "after", "finally", "but", "so", "because", "turns out",
 )
-EMOTION_WORDS = (
-    "gila", "hebat", "luar biasa", "sedih", "takjub", "terkejut",
-    "senang", "marah", "takut", "kecewa", "bangga", "haru", "saya",
-    "aku", "kita", "amazing", "incredible", "shocked", "happy", "angry",
-    "scared", "proud", "sad",
-)
 EDUCATIONAL_WORDS = (
     "adalah", "berarti", "fakta", "contoh", "caranya", "tutorial",
     "langkah", "cara", "tips", "rahasia", "prinsip", "teori", "data",
@@ -51,8 +45,6 @@ PENALTY_KEYWORDS = (
     "bagikan", "share this", "intro", "outro",
 )
 NUMBER = re.compile(r"\d+")
-
-_NEUTRAL = {"score": 5.0, "reason": "Validator tidak tersedia (dependency belum diinstall)."}
 
 
 def _words(text: str) -> str:
@@ -85,15 +77,6 @@ def validate_story(text: str) -> tuple[float, str]:
     hits = [m for m in STORY_MARKERS if m in low]
     score = min(5.0 + len(hits) * 1.2, 10.0)
     reason = f"{len(hits)} penanda alur cerita" if hits else "Tidak ada penanda alur cerita"
-    return score, reason
-
-
-def validate_emotion(text: str) -> tuple[float, str]:
-    """Emotion: emotional vocabulary density."""
-    low = _words(text)
-    hits = [w for w in EMOTION_WORDS if w in low]
-    score = min(5.0 + len(hits) * 1.0, 10.0)
-    reason = f"{len(hits)} kata emosional" if hits else "Nada datar, sedikit kata emosional"
     return score, reason
 
 
@@ -155,33 +138,20 @@ def validate_penalty(text: str, skip_keywords: list[str] | None = None) -> tuple
     return -1.0, f"Konten spam/CTA terdeteksi: {', '.join(matched)}"
 
 
-# Validators berat yang butuh audio/video processing library.
-# Belum dipasang (librosa, mediapipe, deepface, pyannote). Diberi skor netral
-# dan alasan jujur, bukan angka palsu.
-HEAVY_VALIDATORS = (
-    ("voice_emotion", _NEUTRAL),
-    ("face_emotion", _NEUTRAL),
-    ("gesture", _NEUTRAL),
-    ("eye_contact", _NEUTRAL),
-    ("scene", _NEUTRAL),
-    ("audio", _NEUTRAL),
-)
-
-
 def run_all_validators(
     text: str,
     keywords: list[str] | None = None,
     skip_keywords: list[str] | None = None,
 ) -> dict[str, dict]:
-    """Run all validators on a window of text.
+    """Run all text-based validators on a window of text.
 
     Returns {analyzer_type: {"score": float, "reason": str}}.
+    Analyzer AI (llm_content, face_emotion, dst) tidak di sini — dipanggil
+    via registry di AnalysisService (app/ai_modules/).
     """
     result = {
         "hook": _pack(*validate_hook(text)),
         "story": _pack(*validate_story(text)),
-        "llm_content": _pack(5.0 + (validate_educational(text)[0] - 5.0) * 0.6, "Skor konten gabungan dari validasi edukasi"),
-        "voice_emotion": _pack(validate_emotion(text)[0], validate_emotion(text)[1]),
         "context": _pack(*validate_context(text)),
         "ending": _pack(*validate_ending(text)),
         "viral_potential": _pack(*validate_viral(text)),
@@ -194,9 +164,6 @@ def run_all_validators(
     score, reason = validate_penalty(text, skip_keywords)
     if score < 0:
         result["penalty"] = _pack(score, reason)
-
-    for name, neutral in HEAVY_VALIDATORS:
-        result[name] = neutral
 
     return result
 

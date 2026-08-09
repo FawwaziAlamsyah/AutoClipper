@@ -6,12 +6,13 @@ from unittest.mock import MagicMock, patch
 import pytest
 from sqlalchemy.orm import Session
 
-from app.models.video_model import Video
+from app.ai_modules.base.analyzer_interface import AnalysisResult
+from app.models.video_model import VideoModel
 from app.services.transcript_service import TranscriptService
 
 
-def _seed_video(db: Session) -> Video:
-    video = Video(
+def _seed_video(db: Session) -> VideoModel:
+    video = VideoModel(
         original_filename="sample.mp4",
         source_type="upload",
         file_path="C:/fake/sample.mp4",
@@ -39,18 +40,21 @@ def test_transcribe_orchestrates_ffmpeg_and_whisper(db_session: Session) -> None
     mock_ffmpeg.extract_audio.return_value = "C:/fake/audio.wav"
 
     mock_whisper = MagicMock()
-    mock_whisper.transcribe.return_value = {
-        "language": "id",
-        "full_text": "Halo dunia",
-        "segments": [
-            {
-                "start": 0.0,
-                "end": 1.5,
-                "text": " Halo dunia",
-                "words": [{"word": "Halo", "probability": 0.9}],
-            }
-        ],
-    }
+    mock_whisper.analyze.return_value = AnalysisResult(
+        score=5.0,
+        result_data={
+            "language": "id",
+            "full_text": "Halo dunia",
+            "segments": [
+                {
+                    "start": 0.0,
+                    "end": 1.5,
+                    "text": " Halo dunia",
+                    "words": [{"word": "Halo", "probability": 0.9}],
+                }
+            ],
+        },
+    )
 
     with patch("pathlib.Path.exists", return_value=True), \
          patch("pathlib.Path.mkdir"):
@@ -73,7 +77,7 @@ def test_transcribe_orchestrates_ffmpeg_and_whisper(db_session: Session) -> None
     assert len(segs) == 1
     assert segs[0].text == "Halo dunia"
     mock_ffmpeg.extract_metadata.assert_called_once()
-    mock_whisper.transcribe.assert_called_once()
+    mock_whisper.analyze.assert_called_once()
 
 
 def test_transcribe_reuses_existing(db_session: Session) -> None:
@@ -89,11 +93,14 @@ def test_transcribe_reuses_existing(db_session: Session) -> None:
     }
     mock_ffmpeg.extract_audio.return_value = "C:/fake/audio.wav"
     mock_whisper = MagicMock()
-    mock_whisper.transcribe.return_value = {
-        "language": "en",
-        "full_text": "first",
-        "segments": [{"start": 0.0, "end": 1.0, "text": "first", "words": []}],
-    }
+    mock_whisper.analyze.return_value = AnalysisResult(
+        score=5.0,
+        result_data={
+            "language": "en",
+            "full_text": "first",
+            "segments": [{"start": 0.0, "end": 1.0, "text": "first", "words": []}],
+        },
+    )
 
     with patch("pathlib.Path.exists", return_value=True), \
          patch("pathlib.Path.mkdir"):
@@ -107,4 +114,4 @@ def test_transcribe_reuses_existing(db_session: Session) -> None:
             second = service.transcribe(video.id, force=False)
 
     assert first.id == second.id
-    assert mock_whisper.transcribe.call_count == 1
+    assert mock_whisper.analyze.call_count == 1

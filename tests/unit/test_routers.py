@@ -5,8 +5,8 @@ from datetime import datetime, UTC
 from fastapi.testclient import TestClient
 
 from app.main import app
-from app.models.candidate_model import Candidate
-from app.models.clip_model import Clip
+from app.models.candidate_model import CandidateModel
+from app.models.clip_model import ClipModel
 from app.schemas.candidate_schema import CandidateDetail
 
 client = TestClient(app)
@@ -22,7 +22,7 @@ def test_list_candidates_empty() -> None:
 
 def test_generate_clip_endpoint() -> None:
     """POST /clips generates a new clip."""
-    mock_candidate = Candidate(
+    mock_candidate = CandidateModel(
         id=1,
         video_id=1,
         job_id=1,
@@ -33,7 +33,7 @@ def test_generate_clip_endpoint() -> None:
         created_at=datetime.now(UTC),
     )
 
-    mock_clip = Clip(
+    mock_clip = ClipModel(
         id=1,
         video_id=1,
         candidate_id=1,

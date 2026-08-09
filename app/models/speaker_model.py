@@ -6,7 +6,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base import Base, TimestampMixin
 
 
-class Speaker(Base, TimestampMixin):
+class SpeakerModel(Base, TimestampMixin):
     """Hasil Speaker Detection, per video."""
 
     __tablename__ = "speakers"
@@ -15,5 +15,5 @@ class Speaker(Base, TimestampMixin):
     video_id: Mapped[int] = mapped_column(Integer, ForeignKey("videos.id"), nullable=False)
     label: Mapped[str] = mapped_column(Text, nullable=False)
 
-    video: Mapped["Video"] = relationship(back_populates="speakers")
-    segments: Mapped[list["TranscriptSegment"]] = relationship(back_populates="speaker")
+    video: Mapped["VideoModel"] = relationship(back_populates="speakers")
+    segments: Mapped[list["TranscriptSegmentModel"]] = relationship(back_populates="speaker")

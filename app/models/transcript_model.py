@@ -6,7 +6,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base import Base, TimestampMixin
 
 
-class Transcript(Base, TimestampMixin):
+class TranscriptModel(Base, TimestampMixin):
     """Hasil Speech-to-Text per video/job."""
 
     __tablename__ = "transcripts"
@@ -18,6 +18,6 @@ class Transcript(Base, TimestampMixin):
     language: Mapped[str | None] = mapped_column(Text)
     full_text: Mapped[str] = mapped_column(Text, nullable=False)
 
-    video: Mapped["Video"] = relationship(back_populates="transcripts")
-    job: Mapped["Job"] = relationship(back_populates="transcripts")
-    segments: Mapped[list["TranscriptSegment"]] = relationship(back_populates="transcript")
+    video: Mapped["VideoModel"] = relationship(back_populates="transcripts")
+    job: Mapped["JobModel"] = relationship(back_populates="transcripts")
+    segments: Mapped[list["TranscriptSegmentModel"]] = relationship(back_populates="transcript")

@@ -86,8 +86,10 @@ alembic upgrade head
 ### Jalankan Aplikasi
 
 ```bash
-uvicorn app.main:app --reload
-.\.venv\Scripts\uvicorn app.main:app --reload #(kalau tidak punya uvicorn di global)
+# --no-access-log: matikan access log per-request agar terminal fokus
+# pada log.debug proses (download process, analyze process, dst).
+uvicorn app.main:app --reload --no-access-log
+.\.venv\Scripts\uvicorn app.main:app --reload --no-access-log #(kalau tidak punya uvicorn di global)
 ```
 
 Buka browser: `http://127.0.0.1:8000`

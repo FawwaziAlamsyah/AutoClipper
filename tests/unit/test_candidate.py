@@ -2,7 +2,7 @@
 
 from unittest.mock import MagicMock, patch
 
-from app.models.candidate_model import Candidate
+from app.models.candidate_model import CandidateModel
 from app.services.candidate_service import CandidateService
 
 
@@ -25,11 +25,13 @@ def test_generate_candidates() -> None:
     mock_repo.get_by_job.return_value = [mock_candidate, MagicMock()]
     service.candidate_repo = mock_repo
     service.score_engine = MagicMock()
+    service.score_engine.select_top_n.return_value = [mock_candidate]
 
     candidates = service.generate_candidates(job_id=1, num_clips=3)
 
-    assert len(candidates) == 2
-    mock_repo.get_by_job.assert_called_once_with(1)
+    assert len(candidates) == 1
+    service.score_engine.calculate_for_job.assert_called_once_with(1)
+    service.score_engine.select_top_n.assert_called_once_with(1, 3)
 
 
 def test_select_candidate() -> None:

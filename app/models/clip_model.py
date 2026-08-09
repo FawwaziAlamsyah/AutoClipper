@@ -8,7 +8,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base import Base, TimestampMixin
 
 
-class Clip(Base, TimestampMixin):
+class ClipModel(Base, TimestampMixin):
     """Hasil akhir Render/Export Engine — file klip jadi."""
 
     __tablename__ = "clips"
@@ -24,6 +24,6 @@ class Clip(Base, TimestampMixin):
     status: Mapped[str] = mapped_column(Text, nullable=False, default="rendering")
     exported_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
-    candidate: Mapped["Candidate | None"] = relationship(back_populates="clips")
-    video: Mapped["Video"] = relationship(back_populates="clips")
-    subtitles: Mapped[list["Subtitle"]] = relationship(back_populates="clip")
+    candidate: Mapped["CandidateModel | None"] = relationship(back_populates="clips")
+    video: Mapped["VideoModel"] = relationship(back_populates="clips")
+    subtitles: Mapped[list["SubtitleModel"]] = relationship(back_populates="clip")
