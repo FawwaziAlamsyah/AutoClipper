@@ -26,16 +26,19 @@
       <div class="table-responsive">
         <table class="table table-striped align-middle">
           <thead>
-            <tr><th>Analyzer</th><th>Kontribusi</th></tr>
+            <tr><th>Analyzer</th><th>Score</th><th>Bobot</th><th>Kontribusi</th><th>Alasan</th></tr>
           </thead>
           <tbody>
             {% for name, value in breakdown.items() %}
             <tr>
               <td><span class="badge bg-light text-dark fw-normal">{{ name }}</span></td>
-              <td>{{ value }}</td>
+              <td>{{ value.score }}</td>
+              <td>{{ '%d%%'|format((value.weight * 100)|round|int) }}</td>
+              <td>{{ value.contribution }}</td>
+              <td class="text-muted small">{{ value.reason or '-' }}</td>
             </tr>
             {% else %}
-            <tr><td colspan="2" class="text-muted text-center">Belum ada breakdown score.</td></tr>
+            <tr><td colspan="5" class="text-muted text-center">Belum ada breakdown score.</td></tr>
             {% endfor %}
           </tbody>
         </table>
