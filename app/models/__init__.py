@@ -12,6 +12,7 @@ from app.models.clip_model import ClipModel
 from app.models.subtitle_model import SubtitleModel
 from app.models.history_model import HistoryModel
 from app.models.cache_entry_model import CacheEntryModel
+from app.models.training_run_model import TrainingRunModel
 
 __all__ = [
     "VideoModel",
@@ -26,4 +27,5 @@ __all__ = [
     "SubtitleModel",
     "HistoryModel",
     "CacheEntryModel",
+    "TrainingRunModel",
 ]

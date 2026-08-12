@@ -27,3 +27,14 @@ class CandidateRepository(PostgresRepository[CandidateModel]):
         self.db.commit()
         self.db.refresh(candidate)
         return candidate
+
+    def get_training_examples(self) -> list[CandidateModel]:
+        """Get all candidates marked as training examples with a real score."""
+        return list(
+            self.db.query(CandidateModel)
+            .filter(
+                CandidateModel.is_training_example == True,  # noqa: E712
+                CandidateModel.actual_score.isnot(None),
+            )
+            .all()
+        )

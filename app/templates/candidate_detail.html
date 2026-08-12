@@ -23,6 +23,19 @@
     <div class="card shadow-sm p-4 h-100">
       <h5>Score Breakdown</h5>
       <p class="text-muted">Kontribusi tiap analyzer ke final score (bobot × skor).</p>
+
+      {% if breakdown and breakdown['_meta'] is defined %}
+      {% set meta = breakdown['_meta'] %}
+      <div class="alert alert-info small mb-3">
+        Skor dihitung pakai:
+        <strong>{{ "Model terlatih" if meta.scoring_method == "trained_model" else "Weighted-sum manual" }}</strong>
+        {% if meta.model_predicted_score is not none %}
+          (model: <strong>{{ meta.model_predicted_score }}</strong>,
+           weighted-sum lama: {{ meta.legacy_weighted_sum_score }})
+        {% endif %}
+      </div>
+      {% endif %}
+
       <div class="table-responsive">
         <table class="table table-striped align-middle">
           <thead>
@@ -30,6 +43,7 @@
           </thead>
           <tbody>
             {% for name, value in breakdown.items() %}
+            {% if name != '_meta' %}
             <tr>
               <td><span class="badge bg-light text-dark fw-normal">{{ name }}</span></td>
               <td>{{ value.score }}</td>
@@ -37,6 +51,7 @@
               <td>{{ value.contribution }}</td>
               <td class="text-muted small">{{ value.reason or '-' }}</td>
             </tr>
+            {% endif %}
             {% else %}
             <tr><td colspan="5" class="text-muted text-center">Belum ada breakdown score.</td></tr>
             {% endfor %}
@@ -68,6 +83,25 @@
 <!-- Actions: Generate Clip + Subtitle -->
 <div class="card shadow-sm p-4 mt-4">
   <h5>Render Clip</h5>
+  <div class="d-flex flex-wrap gap-2 align-items-center mb-3">
+    {% if candidate.label_source == "user_liked" %}
+    <span class="badge bg-success fs-6">✓ Liked (training bagus)</span>
+    <button class="btn btn-sm btn-outline-secondary" id="unlikeBtn">Batalkan</button>
+    {% elif candidate.label_source == "user_disliked" %}
+    <span class="badge bg-danger fs-6">✗ Ditandai Jelek (training)</span>
+    <button class="btn btn-sm btn-outline-secondary" id="undislikeBtn">Batalkan</button>
+    {% else %}
+    <button type="button" class="btn btn-outline-success" id="likeBtn"
+            data-bs-toggle="modal" data-bs-target="#likeConfirmModal">
+      👍 Like (contoh bagus)
+    </button>
+    <button type="button" class="btn btn-outline-danger" id="dislikeBtn"
+            data-bs-toggle="modal" data-bs-target="#dislikeConfirmModal">
+      👎 Tandai Jelek (contoh buruk)
+    </button>
+    {% endif %}
+  </div>
+
   {% if clip %}
   <p class="text-success"><i class="bi bi-check-circle"></i> Clip sudah dibuat:
     <a target="_blank" href="/data/outputs/{{ clip.file_path.split('/')[-1].split('\\')[-1] }}">Open Clip</a>
@@ -76,6 +110,46 @@
   <button class="btn btn-primary" id="generateClipBtn">Generate Clip (9:16)</button>
   <div id="clipResult" class="mt-2"></div>
   {% endif %}
+</div>
+
+<!-- Modal Konfirmasi Like -->
+<div class="modal fade" id="likeConfirmModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Konfirmasi Like</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        Tandai clip ini sebagai contoh BAGUS untuk melatih sistem scoring?
+        Ini akan mempengaruhi bagaimana sistem menilai clip serupa di masa depan.
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
+        <button type="button" class="btn btn-success" id="confirmLikeBtn">Ya, Like &amp; Latih</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Konfirmasi Dislike -->
+<div class="modal fade" id="dislikeConfirmModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Konfirmasi Tandai Jelek</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        Tandai clip ini sebagai contoh <strong>BURUK</strong> untuk melatih sistem scoring?
+        Clip ini akan dijadikan contoh negatif agar sistem menghindari hasil serupa di masa depan.
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
+        <button type="button" class="btn btn-danger" id="confirmDislikeBtn">Ya, Tandai Jelek</button>
+      </div>
+    </div>
+  </div>
 </div>
 
 {% if clip %}
@@ -171,5 +245,47 @@ function esc(str) {
   div.textContent = str == null ? '' : str;
   return div.innerHTML;
 }
+
+// Like — konfirmasi via modal
+document.getElementById('confirmLikeBtn')?.addEventListener('click', async () => {
+  const res = await fetch(`/candidates/{{ candidate.id }}/like`, { method: 'POST' });
+  if (res.ok) {
+    bootstrap.Modal.getInstance(document.getElementById('likeConfirmModal')).hide();
+    location.reload();
+  } else {
+    alert('Gagal menandai like.');
+  }
+});
+
+// Unlike — langsung tanpa modal (jaga-jaga salah klik)
+document.getElementById('unlikeBtn')?.addEventListener('click', async () => {
+  const res = await fetch(`/candidates/{{ candidate.id }}/unlike`, { method: 'POST' });
+  if (res.ok) {
+    location.reload();
+  } else {
+    alert('Gagal membatalkan like.');
+  }
+});
+
+// Dislike — konfirmasi via modal
+document.getElementById('confirmDislikeBtn')?.addEventListener('click', async () => {
+  const res = await fetch(`/candidates/{{ candidate.id }}/dislike`, { method: 'POST' });
+  if (res.ok) {
+    bootstrap.Modal.getInstance(document.getElementById('dislikeConfirmModal')).hide();
+    location.reload();
+  } else {
+    alert('Gagal menandai jelek.');
+  }
+});
+
+// Undislike — langsung tanpa modal
+document.getElementById('undislikeBtn')?.addEventListener('click', async () => {
+  const res = await fetch(`/candidates/{{ candidate.id }}/undislike`, { method: 'POST' });
+  if (res.ok) {
+    location.reload();
+  } else {
+    alert('Gagal membatalkan tanda jelek.');
+  }
+});
 </script>
 {% endblock %}

@@ -3,6 +3,7 @@
 import logging
 
 from app.core.config.settings import settings
+from app.ml.predictor import predict_score
 from app.models.candidate_model import CandidateModel
 from app.models.clip_model import ClipModel
 from app.repositories.analysis_result_repository import AnalysisResultRepository
@@ -51,8 +52,12 @@ class ScoreEngine:
 
         for candidate in candidates:
             breakdown = self._calculate_score_breakdown(job_id, candidate)
-            final_score = sum(v["contribution"] for v in breakdown.values())
-
+            meta = breakdown.get("_meta", {})
+            final_score = (
+                meta["model_predicted_score"]
+                if meta.get("scoring_method") == "trained_model"
+                else meta.get("legacy_weighted_sum_score", 0.0)
+            )
             candidate.final_score = final_score
             candidate.score_breakdown = breakdown
 
@@ -63,9 +68,11 @@ class ScoreEngine:
         """Simpan top-n candidate dengan final_score tertinggi, TANPA overlap satu
         sama lain (non-max suppression berbasis waktu), hapus sisanya.
 
-        Window yang overlap satu sama lain (hasil sliding window Task 1) bisa
-        punya konten nyaris sama — suppression memastikan top-N adalah momen
-        berbeda, bukan geser beberapa detik. Return selected (sorted desc).
+        Window yang overlap satu sama lain (hasil sliding window) bisa punya
+        konten nyaris sama — suppression memastikan top-N adalah momen berbeda.
+        Window yang tidak lolos top-N langsung dihapus — label training hanya
+        dari aksi manual user (Like / Tandai Jelek), bukan otomatis.
+        Return selected (sorted desc).
         """
         candidates = self.candidate_repo.get_by_job(job_id)
         if not candidates:
@@ -84,17 +91,18 @@ class ScoreEngine:
             if len(selected) >= n:
                 break
 
-        drop = [c for c in candidates if c not in selected]
-        drop_ids = [c.id for c in drop]
+        # Semua yang tidak lolos top-N langsung dihapus.
+        # Tidak ada auto-harvest — label training hanya dari aksi manual user.
+        drop_ids = [c.id for c in candidates if c not in selected]
         if drop_ids:
             self.db.query(ClipModel).filter(ClipModel.candidate_id.in_(drop_ids)).delete(synchronize_session=False)
             self.db.query(CandidateModel).filter(CandidateModel.id.in_(drop_ids)).delete(synchronize_session=False)
-            self.db.commit()
-            logger.info(
-                "Dropped %d overlapping/low-score candidate(s) dari job %d, simpan top %d",
-                len(drop_ids), job_id, len(selected),
-            )
 
+        self.db.commit()
+        logger.info(
+            "Job %d: %d selected, %d dihapus",
+            job_id, len(selected), len(drop_ids),
+        )
         return selected
 
     def _calculate_score_breakdown(self, job_id: int, candidate) -> dict[str, dict]:
@@ -156,6 +164,21 @@ class ScoreEngine:
                 "contribution": round(-abs(penalty), 2),
                 "reason": self._get_reason(cand_analysis, "penalty") or "Konten spam/CTA terdeteksi",
             }
+
+        # Weighted-sum legacy score (selalu dihitung — dipakai sebagai fallback
+        # DAN sebagai pembanding transparansi di breakdown)
+        legacy_score = sum(v["contribution"] for v in breakdown.values())
+
+        # Model terlatih — coba prediksi, None jika model belum ada atau gagal
+        model_score = None
+        if settings.USE_TRAINED_SCORE_MODEL:
+            model_score = predict_score(cand_analysis)
+
+        breakdown["_meta"] = {
+            "scoring_method": "trained_model" if model_score is not None else "weighted_sum",
+            "legacy_weighted_sum_score": round(legacy_score, 2),
+            "model_predicted_score": round(model_score, 2) if model_score is not None else None,
+        }
 
         return breakdown
 

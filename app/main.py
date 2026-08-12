@@ -19,6 +19,7 @@ from app.services.dashboard_service import DashboardService
 from app.services.job_service import JobService
 from app.services.video_service import VideoService
 from app.routers import health_router, video_router, history_router, transcript_router, candidate_router, clip_router, preview_router, subtitle_router, job_router
+from app.routers import training_router
 
 setup_logging()
 
@@ -40,6 +41,7 @@ app.include_router(clip_router.router)
 app.include_router(preview_router.router)
 app.include_router(subtitle_router.router)
 app.include_router(job_router.router)
+app.include_router(training_router.router)
 
 
 @app.on_event("startup")

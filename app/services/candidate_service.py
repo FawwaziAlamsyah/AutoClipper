@@ -73,6 +73,46 @@ class CandidateService:
             self.db.query(CandidateModel).order_by(CandidateModel.id.desc()).limit(limit).all()
         )
 
+    def list_by_video(self, video_id: int) -> list[CandidateModel]:
+        """Return all candidates for a specific video, sorted by score desc."""
+        candidates = list(
+            self.db.query(CandidateModel)
+            .filter(CandidateModel.video_id == video_id)
+            .order_by(CandidateModel.final_score.desc())
+            .all()
+        )
+        # Refresh tiap object supaya semua kolom termasuk label_source ter-load
+        for c in candidates:
+            self.db.refresh(c)
+        return candidates
+
+    def get_video_summaries(self) -> list[dict]:
+        """Return per-video summary: video info + candidate counts + top score."""
+        from app.models.video_model import VideoModel
+        videos = self.db.query(VideoModel).order_by(VideoModel.id.desc()).all()
+        result = []
+        for video in videos:
+            candidates = (
+                self.db.query(CandidateModel)
+                .filter(CandidateModel.video_id == video.id)
+                .all()
+            )
+            if not candidates:
+                continue
+            top_score = max((c.final_score or 0.0) for c in candidates)
+            liked = sum(1 for c in candidates if c.label_source == "user_liked")
+            disliked = sum(1 for c in candidates if c.label_source == "user_disliked")
+            clips_done = sum(1 for c in candidates if c.status in ("selected",))
+            result.append({
+                "video": video,
+                "candidate_count": len(candidates),
+                "top_score": round(top_score, 2),
+                "liked": liked,
+                "disliked": disliked,
+                "clips_done": clips_done,
+            })
+        return result
+
     def get_completed_clips(self, candidate_ids: list[int]) -> dict[int, ClipModel]:
         """Map candidate_id -> completed clip for the given candidates."""
         if not candidate_ids:
@@ -100,6 +140,58 @@ class CandidateService:
             raise ValueError(f"Candidate {candidate_id} not found")
         candidate.status = "rejected"
         self.db.commit()
+
+    def mark_as_liked(self, candidate_id: int) -> CandidateModel:
+        """Tandai candidate sebagai training example positif dari review manual user."""
+        candidate = self.candidate_repo.get(candidate_id)
+        if candidate is None:
+            raise ValueError(f"Candidate {candidate_id} not found")
+        candidate.actual_score = settings.LIKED_CLIP_DEFAULT_SCORE
+        candidate.is_training_example = True
+        candidate.label_source = "user_liked"
+        self.db.commit()
+        self.db.refresh(candidate)
+        logger.info("Candidate %d ditandai liked untuk training", candidate_id)
+        return candidate
+
+    def unmark_liked(self, candidate_id: int) -> CandidateModel:
+        """Batalkan status liked — kembalikan ke kondisi bukan training example."""
+        candidate = self.candidate_repo.get(candidate_id)
+        if candidate is None:
+            raise ValueError(f"Candidate {candidate_id} not found")
+        if candidate.label_source == "user_liked":
+            candidate.actual_score = None
+            candidate.is_training_example = False
+            candidate.label_source = None
+            self.db.commit()
+            self.db.refresh(candidate)
+        return candidate
+
+    def mark_as_disliked(self, candidate_id: int) -> CandidateModel:
+        """Tandai candidate sebagai contoh JELEK untuk training (dari review manual user)."""
+        candidate = self.candidate_repo.get(candidate_id)
+        if candidate is None:
+            raise ValueError(f"Candidate {candidate_id} not found")
+        candidate.actual_score = settings.DISLIKED_CLIP_DEFAULT_SCORE
+        candidate.is_training_example = True
+        candidate.label_source = "user_disliked"
+        self.db.commit()
+        self.db.refresh(candidate)
+        logger.info("Candidate %d ditandai jelek untuk training", candidate_id)
+        return candidate
+
+    def unmark_disliked(self, candidate_id: int) -> CandidateModel:
+        """Batalkan status disliked — kembalikan ke kondisi bukan training example."""
+        candidate = self.candidate_repo.get(candidate_id)
+        if candidate is None:
+            raise ValueError(f"Candidate {candidate_id} not found")
+        if candidate.label_source == "user_disliked":
+            candidate.actual_score = None
+            candidate.is_training_example = False
+            candidate.label_source = None
+            self.db.commit()
+            self.db.refresh(candidate)
+        return candidate
 
     def delete_candidate(self, candidate_id: int) -> None:
         """Delete a candidate dan clip terkait (FK-safe)."""

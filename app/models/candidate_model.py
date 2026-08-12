@@ -1,6 +1,6 @@
 """SQLAlchemy model for the candidates table."""
 
-from sqlalchemy import Float, ForeignKey, Integer, Text
+from sqlalchemy import Boolean, Float, ForeignKey, Integer, Text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -21,6 +21,9 @@ class CandidateModel(Base, TimestampMixin):
     score_breakdown: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
     hook_text: Mapped[str | None] = mapped_column(Text)
     status: Mapped[str] = mapped_column(Text, nullable=False, default="candidate")
+    actual_score: Mapped[float | None] = mapped_column(Float, nullable=True)
+    is_training_example: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    label_source: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     video: Mapped["VideoModel"] = relationship(back_populates="candidates")
     job: Mapped["JobModel"] = relationship(back_populates="candidates")

@@ -20,17 +20,60 @@ def candidates_page(
     request: Request,
     service: CandidateService = Depends(get_candidate_service),
 ) -> HTMLResponse:
-    """Render candidates table. Show Open link if a clip already exists."""
-    candidates = service.list_latest(limit=100)
-    clip_by_candidate = service.get_completed_clips([c.id for c in candidates])
-
+    """Render candidates grouped by video — tiap video satu card ringkasan."""
+    summaries = service.get_video_summaries()
     return templates.TemplateResponse(
         request=request,
         name="candidates.html",
         context={
             "app_name": settings.APP_NAME,
-            "candidates": candidates,
-            "clip_by_candidate": clip_by_candidate,
+            "summaries": summaries,
+        },
+    )
+
+
+@router.get("/video/{video_id}", response_class=HTMLResponse)
+def candidates_by_video(
+    request: Request,
+    video_id: int,
+    service: CandidateService = Depends(get_candidate_service),
+) -> HTMLResponse:
+    """Render tabel candidates untuk satu video."""
+    from app.models.video_model import VideoModel
+    video = service.db.query(VideoModel).filter(VideoModel.id == video_id).first()
+    if video is None:
+        raise NotFoundException(f"Video {video_id} tidak ditemukan")
+
+    candidates = service.list_by_video(video_id)
+    clip_by_candidate = service.get_completed_clips([c.id for c in candidates])
+
+    # Build plain dicts untuk render — hindari lazy-load issue di Jinja2
+    candidate_rows = []
+    for c in candidates:
+        clip = clip_by_candidate.get(c.id)
+        clip_filename = None
+        if clip and clip.file_path:
+            import os
+            clip_filename = os.path.basename(clip.file_path)
+        candidate_rows.append({
+            "id": c.id,
+            "start_time": int(c.start_time),
+            "end_time": int(c.end_time),
+            "final_score": c.final_score,
+            "status": c.status,
+            "label_source": c.label_source,
+            "actual_score": c.actual_score,
+            "job_id": c.job_id,
+            "clip_filename": clip_filename,
+        })
+
+    return templates.TemplateResponse(
+        request=request,
+        name="candidates_video.html",
+        context={
+            "app_name": settings.APP_NAME,
+            "video": video,
+            "candidates": candidate_rows,
         },
     )
 
@@ -132,6 +175,58 @@ def delete_candidate(
     except ValueError:
         raise NotFoundException(f"Candidate {candidate_id} tidak ditemukan")
     return {"detail": "Candidate deleted"}
+
+
+@router.post("/{candidate_id}/like")
+def like_candidate(
+    candidate_id: int,
+    service: CandidateService = Depends(get_candidate_service),
+) -> dict:
+    """Tandai candidate sebagai contoh bagus untuk training (dari review manual)."""
+    try:
+        candidate = service.mark_as_liked(candidate_id)
+    except ValueError:
+        raise NotFoundException(f"Candidate {candidate_id} tidak ditemukan")
+    return {"id": candidate.id, "actual_score": candidate.actual_score, "label_source": candidate.label_source}
+
+
+@router.post("/{candidate_id}/unlike")
+def unlike_candidate(
+    candidate_id: int,
+    service: CandidateService = Depends(get_candidate_service),
+) -> dict:
+    """Batalkan status liked (jaga-jaga salah klik meski sudah ada konfirmasi)."""
+    try:
+        candidate = service.unmark_liked(candidate_id)
+    except ValueError:
+        raise NotFoundException(f"Candidate {candidate_id} tidak ditemukan")
+    return {"id": candidate.id}
+
+
+@router.post("/{candidate_id}/dislike")
+def dislike_candidate(
+    candidate_id: int,
+    service: CandidateService = Depends(get_candidate_service),
+) -> dict:
+    """Tandai candidate sebagai contoh JELEK untuk training (dari review manual)."""
+    try:
+        candidate = service.mark_as_disliked(candidate_id)
+    except ValueError:
+        raise NotFoundException(f"Candidate {candidate_id} tidak ditemukan")
+    return {"id": candidate.id, "actual_score": candidate.actual_score, "label_source": candidate.label_source}
+
+
+@router.post("/{candidate_id}/undislike")
+def undislike_candidate(
+    candidate_id: int,
+    service: CandidateService = Depends(get_candidate_service),
+) -> dict:
+    """Batalkan status disliked."""
+    try:
+        candidate = service.unmark_disliked(candidate_id)
+    except ValueError:
+        raise NotFoundException(f"Candidate {candidate_id} tidak ditemukan")
+    return {"id": candidate.id}
 
 
 def _to_detail(c) -> CandidateDetail:

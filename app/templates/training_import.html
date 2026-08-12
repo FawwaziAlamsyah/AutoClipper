@@ -1,0 +1,139 @@
+{% extends "base.html" %}
+
+{% block title %}Bulk Training Import - {{ app_name }}{% endblock %}
+
+{% block content %}
+<div class="card shadow-sm p-4 mb-4">
+  <h3>Bulk Training Import</h3>
+  <p class="text-muted mb-0">
+    Upload file CSV berisi daftar clip training Anda. Setiap baris akan diproses sebagai
+    <code>training_ingest</code> job di background.
+  </p>
+</div>
+
+<div class="row g-4">
+  <!-- Form Upload CSV -->
+  <div class="col-lg-6">
+    <div class="card shadow-sm p-4 h-100">
+      <h5>Format CSV</h5>
+      <p class="text-muted small">Header opsional. Dua kolom: <code>source</code> dan <code>actual_score</code>.</p>
+      <pre class="bg-light p-3 rounded small">source,actual_score
+/path/to/clip1.mp4,8.5
+/path/to/clip2.mp4,9.0
+https://youtu.be/xxxxx,7.5</pre>
+      <ul class="small text-muted mb-3">
+        <li><strong>source</strong> — path file lokal atau URL video</li>
+        <li><strong>actual_score</strong> — skor performa nyata (0-10, dari views/likes)</li>
+      </ul>
+
+      <form id="importForm" enctype="multipart/form-data">
+        <div class="mb-3">
+          <label class="form-label fw-semibold">File CSV</label>
+          <input type="file" class="form-control" id="csvFile" name="file" accept=".csv,text/csv" required>
+        </div>
+        <button type="submit" class="btn btn-primary" id="importBtn">
+          Upload &amp; Mulai Import
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Progress Panel -->
+  <div class="col-lg-6">
+    <div class="card shadow-sm p-4 h-100" id="progressPanel" style="display:none;">
+      <h5>Progress Import</h5>
+      <div class="mb-2">
+        <span class="badge bg-secondary" id="statusBadge">running</span>
+        <small class="text-muted ms-2" id="importIdLabel"></small>
+      </div>
+      <div class="progress mb-3" style="height: 25px;">
+        <div class="progress-bar progress-bar-striped progress-bar-animated"
+             id="progressBar" role="progressbar" style="width: 0%">0%</div>
+      </div>
+      <table class="table table-sm table-borderless mb-0">
+        <tbody>
+          <tr>
+            <td class="text-muted">Total</td>
+            <td id="statTotal">-</td>
+          </tr>
+          <tr>
+            <td class="text-muted">Selesai</td>
+            <td id="statCompleted" class="text-success">-</td>
+          </tr>
+          <tr>
+            <td class="text-muted">Gagal</td>
+            <td id="statFailed" class="text-danger">-</td>
+          </tr>
+          <tr>
+            <td class="text-muted">Antrian</td>
+            <td id="statQueued">-</td>
+          </tr>
+        </tbody>
+      </table>
+      <div id="doneMessage" class="alert alert-success mt-3" style="display:none;">
+        Import selesai! Lihat hasil di <a href="/candidates">halaman Candidates</a>.
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+let _pollInterval = null;
+
+document.getElementById('importForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const btn = document.getElementById('importBtn');
+  btn.disabled = true;
+  btn.textContent = 'Mengunggah...';
+
+  const formData = new FormData();
+  const file = document.getElementById('csvFile').files[0];
+  if (!file) { btn.disabled = false; btn.textContent = 'Upload & Mulai Import'; return; }
+  formData.append('file', file);
+
+  const res = await fetch('/training/bulk-import', { method: 'POST', body: formData });
+  const data = await res.json();
+
+  if (!res.ok) {
+    alert(data.detail || 'Gagal memulai import.');
+    btn.disabled = false;
+    btn.textContent = 'Upload & Mulai Import';
+    return;
+  }
+
+  // Tampilkan panel progress
+  document.getElementById('progressPanel').style.display = '';
+  document.getElementById('importIdLabel').textContent = 'ID: ' + data.import_id;
+  btn.textContent = 'Import Berjalan...';
+
+  // Mulai polling setiap 2 detik
+  _pollProgress(data.import_id);
+  _pollInterval = setInterval(() => _pollProgress(data.import_id), 2000);
+});
+
+async function _pollProgress(importId) {
+  const res = await fetch(`/training/bulk-import/${importId}`);
+  if (!res.ok) return;
+  const d = await res.json();
+
+  document.getElementById('progressBar').style.width = d.percent + '%';
+  document.getElementById('progressBar').textContent = d.percent + '%';
+  document.getElementById('statTotal').textContent = d.total;
+  document.getElementById('statCompleted').textContent = d.completed;
+  document.getElementById('statFailed').textContent = d.failed;
+  document.getElementById('statQueued').textContent = d.queued;
+
+  const badge = document.getElementById('statusBadge');
+  if (d.status === 'finished') {
+    badge.className = 'badge bg-success';
+    badge.textContent = 'selesai';
+    document.getElementById('progressBar').classList.remove('progress-bar-animated');
+    document.getElementById('doneMessage').style.display = '';
+    clearInterval(_pollInterval);
+  } else {
+    badge.className = 'badge bg-warning text-dark';
+    badge.textContent = 'berjalan';
+  }
+}
+</script>
+{% endblock %}

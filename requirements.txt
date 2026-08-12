@@ -15,5 +15,7 @@ nvidia-cublas-cu12>=12.0  # cublas64_12.dll untuk ctranslate2 GPU (Windows)
 opencv-python>=5.0
 mediapipe==0.10.35  # py3.14 wheel: tasks API saja, tanpa mp.solutions
 librosa>=0.11
+scikit-learn>=1.5
+joblib>=1.4
 soundfile>=0.14
 

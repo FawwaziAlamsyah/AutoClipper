@@ -1,0 +1,225 @@
+{% extends "base.html" %}
+
+{% block title %}Training Dashboard - {{ app_name }}{% endblock %}
+
+{% block content %}
+<div class="card shadow-sm p-4 mb-4">
+  <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+    <div>
+      <h3 class="mb-1">Training Dashboard</h3>
+      <p class="text-muted mb-0">Ringkasan data training yang terkumpul dan riwayat model.</p>
+    </div>
+    <a href="/training" class="btn btn-outline-secondary btn-sm">Bulk CSV Import</a>
+  </div>
+</div>
+
+<div class="row g-4 mb-4">
+  <!-- Jumlah data per label_source -->
+  <div class="col-lg-4">
+    <div class="card shadow-sm p-4 h-100">
+      <h5>Data Training</h5>
+      <p class="text-muted small mb-3">Total: <strong>{{ total }}</strong> contoh</p>
+      <table class="table table-sm table-borderless mb-0">
+        <tbody>
+          <tr>
+            <td><span class="badge bg-success">real_performance</span></td>
+            <td class="text-end fw-semibold">{{ counts_by_source.real_performance }}</td>
+            <td class="text-muted small">Views/likes nyata</td>
+          </tr>
+          <tr>
+            <td><span class="badge bg-primary">user_liked</span></td>
+            <td class="text-end fw-semibold">{{ counts_by_source.user_liked }}</td>
+            <td class="text-muted small">Dari tombol Like 👍</td>
+          </tr>
+          <tr>
+            <td><span class="badge bg-danger">user_disliked</span></td>
+            <td class="text-end fw-semibold">{{ counts_by_source.user_disliked }}</td>
+            <td class="text-muted small">Dari tombol Jelek 👎</td>
+          </tr>
+        </tbody>
+      </table>
+      {% if total < 20 %}
+      <div class="alert alert-warning mt-3 mb-0 small">
+        <strong>Data belum cukup.</strong> Minimal 20 contoh diperlukan untuk training.
+        Saat ini: {{ total }} contoh.
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Tombol Train Model -->
+  <div class="col-lg-4">
+    <div class="card shadow-sm p-4 h-100 d-flex flex-column justify-content-between">
+      <div>
+        <h5>Train Model</h5>
+        <p class="text-muted small">
+          Latih model scoring dari semua data training yang terkumpul.
+          Setiap klik menghasilkan run baru yang tersimpan di riwayat di bawah.
+        </p>
+      </div>
+      <button class="btn btn-primary btn-lg w-100" id="trainBtn" {% if total < 20 %}disabled{% endif %}>
+        🚀 Train Model Sekarang
+      </button>
+      <div id="trainResult" class="mt-3"></div>
+    </div>
+  </div>
+
+  <!-- Model Aktif -->
+  <div class="col-lg-4">
+    <div class="card shadow-sm p-4 h-100">
+      <h5>Model Aktif</h5>
+      {% if active_run %}
+      <p class="text-muted small mb-2">
+        Run <strong>#{{ active_run.id }}</strong> —
+        {{ active_run.trained_at.strftime('%Y-%m-%d %H:%M') }}
+      </p>
+      <table class="table table-sm table-borderless mb-0">
+        <tbody>
+          <tr>
+            <td class="text-muted">Samples</td>
+            <td><strong>{{ active_run.sample_count }}</strong></td>
+          </tr>
+          <tr>
+            <td class="text-muted">Val MAE</td>
+            <td><strong>{{ active_run.val_mae }}</strong></td>
+          </tr>
+          <tr>
+            <td class="text-muted">Val R²</td>
+            <td><strong>{{ active_run.val_r2 }}</strong></td>
+          </tr>
+        </tbody>
+      </table>
+      {% else %}
+      <p class="text-muted small">Belum ada model yang dilatih.</p>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<!-- Riwayat Training Runs -->
+<div class="card shadow-sm p-4 mb-4">
+  <h5>Riwayat Training</h5>
+  <p class="text-muted small">Klik "Aktifkan" untuk rollback ke model dari run tertentu.</p>
+  {% if training_runs %}
+  <div class="table-responsive">
+    <table class="table table-sm align-middle">
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Tanggal</th>
+          <th>Sample</th>
+          <th>MAE</th>
+          <th>R²</th>
+          <th>Sumber Data</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for run in training_runs %}
+        <tr class="{{ 'table-success' if run.is_active else '' }}">
+          <td>{{ run.id }}</td>
+          <td>{{ run.trained_at.strftime('%Y-%m-%d %H:%M') }}</td>
+          <td>{{ run.sample_count }}</td>
+          <td>{{ run.val_mae }}</td>
+          <td>{{ run.val_r2 }}</td>
+          <td class="small text-muted">
+            {{ run.real_performance_count }} asli /
+            {{ run.user_liked_count }} liked /
+            {{ run.auto_rejected_count }} jelek
+          </td>
+          <td>
+            {% if run.is_active %}
+            <span class="badge bg-success">Aktif</span>
+            {% else %}
+            <button class="btn btn-sm btn-outline-primary activateBtn"
+                    data-run-id="{{ run.id }}">Aktifkan</button>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="text-muted small">Belum ada riwayat training.</p>
+  {% endif %}
+</div>
+
+<!-- Feature Importance model aktif -->
+{% if active_run and active_run.feature_importance %}
+<div class="card shadow-sm p-4">
+  <h5>Feature Importance — Model Aktif (Run #{{ active_run.id }})</h5>
+  <p class="text-muted small">Diurutkan descending — semakin tinggi, semakin berpengaruh ke prediksi model.</p>
+  <div class="table-responsive">
+    <table class="table table-striped align-middle">
+      <thead>
+        <tr><th>Feature</th><th>Importance</th><th style="width:40%">Visual</th></tr>
+      </thead>
+      <tbody>
+        {% for name, val in active_run.feature_importance.items() %}
+        <tr>
+          <td><span class="badge bg-light text-dark fw-normal">{{ name }}</span></td>
+          <td>{{ "%.4f"|format(val) }}</td>
+          <td>
+            <div class="progress" style="height:14px;">
+              <div class="progress-bar bg-info" style="width: {{ (val * 100)|round(1) }}%"></div>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+<script>
+// Train Model
+document.getElementById('trainBtn')?.addEventListener('click', async () => {
+  const btn = document.getElementById('trainBtn');
+  const resultDiv = document.getElementById('trainResult');
+  btn.disabled = true;
+  btn.textContent = '⏳ Training...';
+  resultDiv.innerHTML = '';
+
+  const res = await fetch('/training/train', { method: 'POST' });
+  const data = await res.json();
+
+  if (res.ok) {
+    btn.textContent = '✅ Selesai — Train Ulang';
+    btn.disabled = false;
+    resultDiv.innerHTML = `
+      <div class="alert alert-success small mb-0">
+        Training selesai (Run #${data.id}).<br>
+        <strong>Samples:</strong> ${data.sample_count} &nbsp;
+        <strong>Val MAE:</strong> ${data.val_mae} &nbsp;
+        <strong>Val R²:</strong> ${data.val_r2}
+      </div>`;
+    setTimeout(() => location.reload(), 1500);
+  } else {
+    const msg = data.detail || 'Gagal training model.';
+    resultDiv.innerHTML = `<div class="alert alert-danger small mb-0">${msg}</div>`;
+    btn.disabled = false;
+    btn.textContent = '🚀 Train Model Sekarang';
+  }
+});
+
+// Aktifkan run (rollback)
+document.querySelectorAll('.activateBtn').forEach(btn => {
+  btn.addEventListener('click', async () => {
+    const runId = btn.dataset.runId;
+    btn.disabled = true;
+    btn.textContent = '...';
+    const res = await fetch(`/training/runs/${runId}/activate`, { method: 'POST' });
+    if (res.ok) {
+      location.reload();
+    } else {
+      const data = await res.json();
+      alert(data.detail || 'Gagal mengaktifkan run.');
+      btn.disabled = false;
+      btn.textContent = 'Aktifkan';
+    }
+  });
+});
+</script>
+{% endblock %}

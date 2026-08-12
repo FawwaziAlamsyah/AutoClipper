@@ -94,6 +94,15 @@ class DownloadService:
         """Download video from URL using yt-dlp and register in DB.
 
         progress_cb dipanggil dengan persen (0-100) via yt-dlp progress_hooks.
+
+        Strategi dicoba berurutan, berhenti di percobaan pertama yang sukses:
+        1. player_client "android" TANPA cookies — client Android sering lolos
+           pengecekan bot YouTube tanpa perlu login sama sekali (ini yang dipakai
+           kebanyakan situs downloader publik, bukan cookies).
+        2. Kalau gagal dan COOKIES_FILE tersedia → pakai file cookies manual.
+        3. Kalau tidak ada cookies file → coba baca cookies dari browser
+           (Chrome → Firefox → Edge) secara berurutan.
+        4. Terakhir, coba tanpa cookies sama sekali (client web default).
         """
         if not url:
             raise ValidationException("URL tidak boleh kosong")
@@ -115,7 +124,7 @@ class DownloadService:
             pct = int(done * 100 / total) if total else 0
             progress_cb(pct)
 
-        ydl_opts = {
+        base_opts = {
             # Pilih format video mp4 terbaik atau format default dengan ekstensi aman
             "format": "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best",
             "outtmpl": out_tmpl,
@@ -129,7 +138,6 @@ class DownloadService:
                 "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
                 "Accept-Language": "en-US,en;q=0.9",
             },
-            # Tolak tak bertanggung jawab — izinkan risiko download
             "extractor_retries": 3,
             "noplaylist": True,
             # yt-dlp gagal auto-deteksi Node untuk n-challenge YouTube (2026.07).
@@ -137,48 +145,44 @@ class DownloadService:
             "js_runtimes": {"node": {}},
         }
 
-        # Cookies file (export manual) — prioritas tertinggi, tak perlu browser.
+        # Susun daftar strategi dicoba berurutan: (label, ydl_opts).
+        attempts: list[tuple[str, dict]] = []
+
+        # 1. Client Android tanpa cookies — percobaan pertama, paling murah (tak perlu
+        #    login/browser sama sekali) dan sering lolos "Sign in to confirm you're not a bot".
+        android_opts = dict(base_opts)
+        android_opts["extractor_args"] = {"youtube": {"player_client": ["android"]}}
+        attempts.append(("android (tanpa cookies)", android_opts))
+
+        # 2. Cookies file manual (export via ekstensi browser) — prioritas kalau tersedia.
         if settings.COOKIES_FILE and Path(settings.COOKIES_FILE).exists():
-            ydl_opts["cookiesfile"] = settings.COOKIES_FILE
-            return self._extract_and_register(url, ydl_opts)
+            cookie_file_opts = dict(base_opts)
+            cookie_file_opts["cookiesfile"] = settings.COOKIES_FILE
+            attempts.append(("web + cookies file", cookie_file_opts))
+        else:
+            # 3. Tidak ada cookies file → coba baca cookies langsung dari browser.
+            for browser in ("chrome", "firefox", "edge"):
+                browser_opts = dict(base_opts)
+                browser_opts["cookiesfrombrowser"] = (browser,)
+                attempts.append((f"web + cookies {browser}", browser_opts))
 
-        # Cookies browser untuk hindari 403 anti-bot YouTube. Coba berurutan:
-        # Chrome → Firefox → Edge → tanpa cookies. Browser yang sedang dipakai
-        # (DB terkunci) dilewati otomatis.
-        cookie_attempts = [
-            {"browser": "chrome", "opts": ("chrome",)},
-            {"browser": "firefox", "opts": ("firefox",)},
-            {"browser": "edge", "opts": ("edge",)},
-            {"browser": None, "opts": None},
-        ]
+        # 4. Terakhir: coba tanpa cookies sama sekali (client web default).
+        attempts.append(("web tanpa cookies", dict(base_opts)))
 
-        last_cookie_error: str | None = None
-        for attempt in cookie_attempts:
-            opts = dict(ydl_opts)
-            if attempt["opts"] is not None:
-                opts["cookiesfrombrowser"] = attempt["opts"]
+        last_error: str | None = None
+        for label, opts in attempts:
             try:
                 return self._extract_and_register(url, opts)
             except yt_dlp.utils.DownloadError as e:
                 msg = str(e)
-                # Error cookie/anti-bot → coba browser berikutnya
-                cookie_err = (
-                    "Could not copy" in msg          # DB browser terkunci
-                    or "Sign in to confirm" in msg   # anti-bot YouTube
-                    or "could not find" in msg       # profil browser tak ada (firefox)
-                    or "cookiesfrombrowser" in msg   # error generic baca cookies
+                last_error = msg
+                logger.debug(
+                    "Download process: strategi '%s' gagal (%s), coba strategi berikutnya",
+                    label, msg[:120],
                 )
-                if cookie_err:
-                    last_cookie_error = msg
-                    logger.debug(
-                        "Download process: cookies %s gagal (%s), coba berikutnya",
-                        attempt["browser"] or "tanpa cookies", msg[:120],
-                    )
-                    continue
-                # Error lain → langsung raise
-                raise ValidationException(f"Gagal mendownload video dari URL: {msg}")
+                continue
 
-        raise ValidationException(self._user_friendly_download_error(last_cookie_error or "unknown"))
+        raise ValidationException(self._user_friendly_download_error(last_error or "unknown"))
 
     def _user_friendly_download_error(self, msg: str) -> str:
         """Map yt-dlp error to user-friendly message for UI."""
@@ -260,7 +264,7 @@ class DownloadService:
                 return video
 
         except yt_dlp.utils.DownloadError:
-            # Propagasi polos — caller (download_video) yang handle fallback cookies
+            # Propagasi polos — caller (download_video) yang handle fallback strategi lain
             raise
         except Exception as e:
             logger.error("Failed to download video from URL: %s", url, exc_info=e)
