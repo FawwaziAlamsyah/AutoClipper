@@ -7,7 +7,7 @@ class ProcessRequest(BaseModel):
     """User-configurable pipeline parameters."""
 
     language: str | None = Field(
-        None, description="id, en, atau kosong untuk auto-detect"
+        "id", description="id, en, atau kosong untuk auto-detect"
     )
     content_type: str = Field(
         "podcast",

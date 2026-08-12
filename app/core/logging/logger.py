@@ -42,3 +42,7 @@ def setup_logging() -> None:
     error_handler.setLevel(logging.ERROR)
     error_handler.setFormatter(formatter)
     root_logger.addHandler(error_handler)
+
+    # Matikan uvicorn access log (polling UI menyebabkan spam GET /jobs/xxx setiap detik).
+    # Log error uvicorn tetap jalan — hanya access log per-request yang dimatikan.
+    logging.getLogger("uvicorn.access").setLevel(logging.WARNING)
