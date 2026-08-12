@@ -74,3 +74,23 @@ def get_subtitle_service(db: Session = Depends(get_db)) -> SubtitleService:
 
 def get_analysis_service(db: Session = Depends(get_db)) -> AnalysisService:
     return AnalysisService(db)
+
+
+def get_training_import_service(db: Session = Depends(get_db)):
+    from app.services.training_import_service import TrainingImportService
+    return TrainingImportService(db)
+
+
+def get_training_stats_service(db: Session = Depends(get_db)):
+    from app.services.training_stats_service import TrainingStatsService
+    return TrainingStatsService(db)
+
+
+def get_model_trainer(db: Session = Depends(get_db)):
+    from app.ml.trainer import ModelTrainer
+    return ModelTrainer(db)
+
+
+def get_training_run_repo(db: Session = Depends(get_db)):
+    from app.repositories.training_run_repository import TrainingRunRepository
+    return TrainingRunRepository(db)

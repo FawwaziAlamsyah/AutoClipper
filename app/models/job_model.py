@@ -17,6 +17,7 @@ class JobModel(Base, TimestampMixin):
     video_id: Mapped[int] = mapped_column(Integer, ForeignKey("videos.id"), nullable=False)
     pipeline_name: Mapped[str] = mapped_column(Text, nullable=False)
     status: Mapped[str] = mapped_column(Text, nullable=False, default="pending")
+    job_type: Mapped[str] = mapped_column(Text, nullable=False, default="discovery")
     current_step: Mapped[str | None] = mapped_column(Text)
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

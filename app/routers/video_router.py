@@ -13,6 +13,7 @@ from app.core.di.dependencies import (
     get_process_service,
     get_video_service,
 )
+from app.core.exceptions.base import ValidationException
 from app.schemas.video_schema import VideoDetail, VideoUploadResponse, VideoDownloadRequest
 from app.schemas.process_schema import ProcessRequest
 from app.services.video_service import VideoService
@@ -170,5 +171,57 @@ def process_video(
 
     job_id = service.create_job(video_id)
     thread = threading.Thread(target=_run_process, args=(video_id, job_id, req), daemon=True)
+    thread.start()
+    return {"job_id": job_id, "status": "running"}
+
+
+def _run_training_process(video_id: int, job_id: int, actual_score: float) -> None:
+    """Run training_ingest pipeline in background thread with its own DB session."""
+    from app.db.session import SessionLocal
+    db = SessionLocal()
+    try:
+        service = ProcessService(db)
+        service.process_video(
+            video_id,
+            job_id=job_id,
+            num_clips=1,
+            actual_score=actual_score,
+        )
+    except Exception as e:
+        logger.error("Background training process failed: %s", e, exc_info=e)
+        db.rollback()
+        service = ProcessService(db)
+        job = service.job_service.get(job_id)
+        if job.status == "cancelled":
+            db.close()
+            return
+        step = job.current_step or "transcribe"
+        service.job_service.finish_step(job_id, step, success=False, error=str(e))
+    finally:
+        db.close()
+
+
+@router.post("/videos/{video_id}/process-training")
+def process_training_clip(
+    video_id: int,
+    actual_score: float,
+    service: ProcessService = Depends(get_process_service),
+) -> dict:
+    """Proses video sebagai training clip: whole-clip mode, langsung diberi label.
+
+    Dipakai untuk SATU clip contoh yang sudah dilabel manual (dari views/likes).
+    Untuk banyak clip sekaligus, lihat TrainingClip 2 (bulk CSV import).
+    """
+    import threading
+
+    if not (0 <= actual_score <= 10):
+        raise ValidationException("actual_score harus antara 0-10")
+
+    job_id = service.create_job(video_id, job_type="training_ingest")
+    thread = threading.Thread(
+        target=_run_training_process,
+        args=(video_id, job_id, actual_score),
+        daemon=True,
+    )
     thread.start()
     return {"job_id": job_id, "status": "running"}

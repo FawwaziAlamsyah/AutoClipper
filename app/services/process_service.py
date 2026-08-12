@@ -36,12 +36,12 @@ class ProcessService:
         self.analysis_service = analysis_service or AnalysisService(db)
         self.score_engine = ScoreEngine(db)
 
-    def create_job(self, video_id: int) -> int:
+    def create_job(self, video_id: int, job_type: str = "discovery") -> int:
         """Create a pipeline job and return its ID (for async processing)."""
         video = self.video_repo.get(video_id)
         if video is None:
             raise NotFoundException(f"Video {video_id} tidak ditemukan")
-        job = self.job_service.create(video_id)
+        job = self.job_service.create(video_id, job_type=job_type)
         return job.id
 
     def process_video(
@@ -56,6 +56,7 @@ class ProcessService:
         max_duration: int | None = None,
         analyze_start_time: float | None = None,
         analyze_end_time: float | None = None,
+        actual_score: float | None = None,
     ) -> dict:
         """Run pipeline and return generated candidates with real scores."""
         video = self.video_repo.get(video_id)
@@ -64,7 +65,6 @@ class ProcessService:
 
         num = num_clips or settings.DEFAULT_NUM_CLIPS
         job = self.job_service.get(job_id) if job_id else self.job_service.create(video_id)
-
         logger.debug("Process job %d: step extract start", job.id)
         self.job_service.start_step(job.id, "extract")
         self._update_video_metadata(video)
@@ -109,6 +109,18 @@ class ProcessService:
         candidates = self.score_engine.select_top_n(job.id, num)
         self.job_service.finish_step(job.id, "score", success=True)
         logger.debug("Process job %d: score success", job.id)
+
+        # Untuk training_ingest: label candidate dengan actual_score yang diberikan
+        if job.job_type == "training_ingest" and actual_score is not None and candidates:
+            training_candidate = candidates[0]
+            training_candidate.actual_score = actual_score
+            training_candidate.is_training_example = True
+            training_candidate.label_source = "real_performance"
+            self.db.commit()
+            logger.info(
+                "Labeled candidate %d sebagai training example dengan actual_score=%.2f",
+                training_candidate.id, actual_score,
+            )
 
         logger.debug("Process job %d: step complete start", job.id)
         self.job_service.start_step(job.id, "complete")

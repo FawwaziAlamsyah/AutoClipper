@@ -1,0 +1,121 @@
+{% extends "base.html" %}
+
+{% block title %}Candidates — {{ video.original_filename }} - {{ app_name }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+  <div>
+    <a href="/candidates" class="text-muted small text-decoration-none">← Semua Video</a>
+    <h3 class="mb-0 mt-1 text-truncate" style="max-width:600px" title="{{ video.original_filename }}">
+      {{ video.original_filename }}
+    </h3>
+    <div class="d-flex flex-wrap gap-2 mt-1">
+      <span class="badge bg-secondary">Video #{{ video.id }}</span>
+      {% if video.duration_seconds %}
+      <span class="badge bg-dark">⏱ {{ '%d:%02d'|format((video.duration_seconds // 60)|int, (video.duration_seconds % 60)|int) }}</span>
+      {% endif %}
+      <span class="badge bg-info text-dark">{{ candidates | length }} candidates</span>
+    </div>
+  </div>
+</div>
+
+{% if candidates %}
+<div class="card shadow-sm">
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0">
+      <thead class="table-light">
+        <tr>
+          <th>ID</th>
+          <th>Window</th>
+          <th>Score</th>
+          <th>Status</th>
+          <th>Label</th>
+          <th>Aksi</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for c in candidates %}
+        <tr id="row-{{ c.id }}">
+          <td class="text-muted small">{{ c.id }}</td>
+          <td class="small">{{ c.start_time }}s – {{ c.end_time }}s</td>
+          <td><strong>{{ c.final_score }}</strong></td>
+          <td>
+            <span class="badge bg-{{ 'success' if c.clip_filename else ('warning text-dark' if c.status == 'selected' else 'secondary') }}">
+              {{ 'clip ready' if c.clip_filename else c.status }}
+            </span>
+          </td>
+          <td>
+            {% if c.label_source == "user_liked" %}
+            <span class="badge bg-success">👍 Liked</span>
+            {% elif c.label_source == "user_disliked" %}
+            <span class="badge bg-danger">👎 Jelek</span>
+            {% elif c.label_source == "real_performance" %}
+            <span class="badge bg-primary">⭐ {{ c.actual_score }}</span>
+            {% else %}
+            <span class="text-muted small">—</span>
+            {% endif %}
+          </td>
+          <td>
+            <div class="d-flex flex-wrap gap-1">
+              {% if c.clip_filename %}
+              <a class="btn btn-sm btn-success" target="_blank"
+                 href="/data/outputs/{{ c.clip_filename }}">Open</a>
+              {% else %}
+              <button class="btn btn-sm btn-primary generate-btn" data-candidate-id="{{ c.id }}">Generate</button>
+              {% endif %}
+              <a class="btn btn-sm btn-outline-info" href="/candidates/{{ c.id }}">Detail</a>
+              <button class="btn btn-sm btn-outline-danger delete-btn" data-candidate-id="{{ c.id }}">Hapus</button>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% else %}
+<div class="card shadow-sm p-5 text-center text-muted">
+  Belum ada candidates untuk video ini.
+</div>
+{% endif %}
+
+<script>
+document.querySelectorAll('.delete-btn').forEach(btn => {
+  btn.addEventListener('click', async () => {
+    const id = btn.dataset.candidateId;
+    if (!confirm(`Hapus candidate #${id}?`)) return;
+    btn.disabled = true;
+    const res = await fetch(`/candidates/${id}`, { method: 'DELETE' });
+    if (res.ok) {
+      document.getElementById(`row-${id}`)?.remove();
+    } else {
+      const data = await res.json();
+      alert(data.detail || 'Gagal hapus.');
+      btn.disabled = false;
+    }
+  });
+});
+
+document.querySelectorAll('.generate-btn').forEach(btn => {
+  btn.addEventListener('click', async () => {
+    const id = btn.dataset.candidateId;
+    btn.disabled = true;
+    btn.textContent = '...';
+    const res = await fetch('/clips', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ candidate_id: Number(id), aspect_ratio: '9:16', subtitle_enabled: false, subtitle_style: 'minimal' })
+    });
+    const data = await res.json();
+    if (res.ok) {
+      btn.outerHTML = `<a class="btn btn-sm btn-success" target="_blank" href="/${data.file_path.replaceAll('\\\\', '/').replaceAll('\\', '/')}">Open</a>`;
+    } else {
+      alert(data.detail || 'Gagal generate.');
+      btn.disabled = false;
+      btn.textContent = 'Generate';
+    }
+  });
+});
+</script>
+{% endblock %}

@@ -28,3 +28,25 @@ class AnalysisResultRepository(PostgresRepository[AnalysisResultModel]):
             .order_by(AnalysisResultModel.start_time)
             .all()
         )
+
+    def get_by_job_and_window(
+        self,
+        job_id: int,
+        start_time: float,
+        end_time: float,
+    ) -> list[AnalysisResultModel]:
+        """Get analysis results for a specific job window (exact start/end match).
+
+        Dipakai oleh trainer.py untuk membangun feature vector per candidate —
+        start/end dari analysis_results selalu sama persis dengan window
+        candidate karena analysis_service membuat keduanya dari sumber yang sama.
+        """
+        return list(
+            self.db.query(AnalysisResultModel)
+            .filter(
+                AnalysisResultModel.job_id == job_id,
+                AnalysisResultModel.start_time == start_time,
+                AnalysisResultModel.end_time == end_time,
+            )
+            .all()
+        )

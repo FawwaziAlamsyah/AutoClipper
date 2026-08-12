@@ -81,6 +81,14 @@ class Settings(BaseSettings):
     SCORE_WEIGHT_CONTEXT: float = 0.05
     SCORE_WEIGHT_ENDING: float = 0.05
 
+    # Training data settings
+    MAX_AUTO_NEGATIVES_PER_JOB: int = 5
+    LIKED_CLIP_DEFAULT_SCORE: float = 8.0
+    DISLIKED_CLIP_DEFAULT_SCORE: float = 2.0
+
+    # Model scoring toggle — set False di .env untuk paksa pakai weighted-sum lama
+    USE_TRAINED_SCORE_MODEL: bool = True
+
 
 @lru_cache
 def get_settings() -> Settings:

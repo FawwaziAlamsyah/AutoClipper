@@ -88,11 +88,21 @@ class AnalysisService:
                 logger.warning("Analyze range memfilter semua segmen untuk transcript %d", transcript.id)
                 return []
 
-        # Sliding window menyapu SELURUH durasi video dengan overlap — semua
-        # kandidat dihasilkan, lalu score_engine.select_top_n() yang memilih
-        # top-N non-overlap setelah scoring.
-        windows = self._build_windows(segments, min_dur, max_dur)
-
+        # Pilih mode window berdasarkan job_type:
+        # - training_ingest: satu window mencakup seluruh durasi clip (clip sudah jadi momen terbaik)
+        # - discovery (default): sliding window untuk men-scan raw stream panjang
+        job = self.job_service.get(job_id)
+        if job.job_type == "training_ingest":
+            windows = [{
+                "start": segments[0].start_time,
+                "end": segments[-1].end_time,
+                "segments": segments,
+            }]
+        else:
+            # Sliding window menyapu SELURUH durasi video dengan overlap — semua
+            # kandidat dihasilkan, lalu score_engine.select_top_n() yang memilih
+            # top-N non-overlap setelah scoring.
+            windows = self._build_windows(segments, min_dur, max_dur)
         # Text validators (per window) + buat candidates
         candidates = []
         window_texts = []

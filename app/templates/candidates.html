@@ -3,97 +3,65 @@
 {% block title %}Candidates - {{ app_name }}{% endblock %}
 
 {% block content %}
-<div class="card shadow-sm p-4">
-  <h3>Candidate Clips</h3>
-  <p class="text-muted">Klik Generate untuk render candidate jadi file clip final.</p>
-  <div class="table-responsive">
-    <table class="table table-striped align-middle">
-      <thead>
-        <tr>
-          <th>ID</th>
-          <th>Video</th>
-          <th>Job</th>
-          <th>Start</th>
-          <th>End</th>
-          <th>Score</th>
-          <th>Status</th>
-          <th>Aksi</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for c in candidates %}
-        <tr>
-          <td>{{ c.id }}</td>
-          <td>{{ c.video_id }}</td>
-          <td>{{ c.job_id }}</td>
-          <td>{{ c.start_time }}s</td>
-          <td>{{ c.end_time }}s</td>
-          <td>{{ c.final_score }}</td>
-          <td><span class="badge bg-{{ 'success' if clip_by_candidate.get(c.id) else 'secondary' }}" id="status-{{ c.id }}">{{ 'ready' if clip_by_candidate.get(c.id) else c.status }}</span></td>
-          <td>
-            {% set clip = clip_by_candidate.get(c.id) %}
-            {% if clip %}
-            <a class="btn btn-sm btn-success" target="_blank" href="/data/outputs/{{ clip.file_path.split('/')[-1].split('\\')[-1] }}">Open Clip</a>
-            {% else %}
-            <button class="btn btn-sm btn-primary generate-btn" data-candidate-id="{{ c.id }}">Generate Clip</button>
-            {% endif %}
-            <a class="btn btn-sm btn-outline-info" href="/candidates/{{ c.id }}">Detail</a>
-            <a class="btn btn-sm btn-outline-secondary" href="/jobs/{{ c.job_id }}/ui">Progress</a>
-            <button class="btn btn-sm btn-outline-danger delete-btn" data-candidate-id="{{ c.id }}">Delete</button>
-          </td>
-        </tr>
-        {% else %}
-        <tr><td colspan="8" class="text-center text-muted">Belum ada candidate. Klik Proses di halaman Upload.</td></tr>
-        {% endfor %}
-      </tbody>
-    </table>
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <div>
+    <h3 class="mb-1">Candidate Clips</h3>
+    <p class="text-muted mb-0">{{ summaries | length }} video dengan candidates. Klik untuk lihat detail.</p>
   </div>
 </div>
 
-<script>
-document.querySelectorAll('.delete-btn').forEach(btn => {
-  btn.addEventListener('click', async () => {
-    const candidateId = btn.dataset.candidateId;
-    if (!confirm(`Hapus candidate #${candidateId}? Clip dan data terkait ikut dihapus.`)) return;
-    btn.disabled = true;
-    const res = await fetch(`/candidates/${candidateId}`, { method: 'DELETE' });
-    if (res.ok) {
-      document.getElementById(`status-${candidateId}`)?.closest('tr')?.remove();
-    } else {
-      const data = await res.json();
-      alert(data.detail || 'Gagal hapus candidate.');
-      btn.disabled = false;
-    }
-  });
-});
+{% if summaries %}
+<div class="row g-3">
+  {% for s in summaries %}
+  <div class="col-md-6 col-lg-4">
+    <div class="card shadow-sm h-100">
+      <div class="card-body">
+        <div class="d-flex justify-content-between align-items-start mb-2">
+          <h6 class="card-title mb-0 text-truncate me-2" title="{{ s.video.original_filename }}">
+            {{ s.video.original_filename }}
+          </h6>
+          <span class="badge bg-secondary flex-shrink-0">ID {{ s.video.id }}</span>
+        </div>
 
-document.querySelectorAll('.generate-btn').forEach(btn => {
-  btn.addEventListener('click', async () => {
-    const candidateId = btn.dataset.candidateId;
-    btn.disabled = true;
-    btn.textContent = 'Generating...';
+        <div class="d-flex flex-wrap gap-2 mb-3">
+          <span class="badge bg-info text-dark">{{ s.candidate_count }} candidates</span>
+          <span class="badge bg-dark">Top {{ s.top_score }}</span>
+          {% if s.clips_done > 0 %}
+          <span class="badge bg-success">{{ s.clips_done }} clip dibuat</span>
+          {% endif %}
+          {% if s.liked > 0 %}
+          <span class="badge bg-success bg-opacity-75">👍 {{ s.liked }}</span>
+          {% endif %}
+          {% if s.disliked > 0 %}
+          <span class="badge bg-danger bg-opacity-75">👎 {{ s.disliked }}</span>
+          {% endif %}
+        </div>
 
-    const res = await fetch('/clips', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        candidate_id: Number(candidateId),
-        aspect_ratio: '9:16',
-        subtitle_enabled: false,
-        subtitle_style: 'minimal'
-      })
-    });
-    const data = await res.json();
+        <div class="text-muted small mb-3">
+          {% if s.video.duration_seconds %}
+          ⏱ {{ '%d:%02d'|format((s.video.duration_seconds // 60)|int, (s.video.duration_seconds % 60)|int) }}
+          {% endif %}
+          {% if s.video.source_type == 'download' %}
+          <span class="ms-2">🌐 Download</span>
+          {% else %}
+          <span class="ms-2">📁 Upload</span>
+          {% endif %}
+        </div>
+      </div>
+      <div class="card-footer bg-transparent border-top-0 pt-0 pb-3 px-3">
+        <a class="btn btn-primary btn-sm w-100" href="/candidates/video/{{ s.video.id }}">
+          Lihat {{ s.candidate_count }} Candidates →
+        </a>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
 
-    if (res.ok) {
-      document.getElementById(`status-${candidateId}`).textContent = 'selected';
-      btn.outerHTML = `<a class="btn btn-sm btn-success" target="_blank" href="/${data.file_path.replaceAll('\\\\', '/').replaceAll('\\', '/')}">Open Clip</a>`;
-    } else {
-      alert(data.detail || 'Gagal generate clip.');
-      btn.disabled = false;
-      btn.textContent = 'Generate Clip';
-    }
-  });
-});
-</script>
+{% else %}
+<div class="card shadow-sm p-5 text-center text-muted">
+  <p class="mb-1">Belum ada candidates.</p>
+  <p class="small">Klik <strong>Proses</strong> di halaman <a href="/upload">Upload</a> untuk memulai.</p>
+</div>
+{% endif %}
 {% endblock %}
