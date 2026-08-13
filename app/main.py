@@ -10,6 +10,7 @@ from fastapi.templating import Jinja2Templates
 from app.core.config.settings import settings
 from app.core.di.dependencies import get_dashboard_service
 from app.core.exceptions.handlers import register_exception_handlers
+from app.core.htmx import render
 from app.core.logging.logger import setup_logging
 import logging
 
@@ -20,6 +21,7 @@ from app.services.job_service import JobService
 from app.services.video_service import VideoService
 from app.routers import health_router, video_router, history_router, transcript_router, candidate_router, clip_router, preview_router, subtitle_router, job_router
 from app.routers import training_router
+from app.routers import storage_router
 
 setup_logging()
 
@@ -42,6 +44,7 @@ app.include_router(preview_router.router)
 app.include_router(subtitle_router.router)
 app.include_router(job_router.router)
 app.include_router(training_router.router)
+app.include_router(storage_router.router)
 
 
 @app.on_event("startup")
@@ -66,10 +69,16 @@ def index(
     stats = dashboard_service.get_stats()
     recent_history = dashboard_service.get_recent_history()
 
-    return templates.TemplateResponse(
-        request=request,
-        name="dashboard.html",
-        context={"app_name": settings.APP_NAME, "stats": stats, "recent_history": recent_history},
+    return render(
+        request,
+        templates,
+        partial_name="dashboard_content.html",
+        context={
+            "request": request,
+            "app_name": settings.APP_NAME,
+            "stats": stats,
+            "recent_history": recent_history,
+        },
     )
 
 

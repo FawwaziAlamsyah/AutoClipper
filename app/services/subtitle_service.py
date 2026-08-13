@@ -50,9 +50,20 @@ class SubtitleService:
         if clip is None:
             raise ValueError(f"Clip {clip_id} not found")
 
-        transcript = self.transcript_repo.get_by_job(clip.job_id)
+        # job_id ada di candidate, bukan di clip langsung
+        if clip.candidate_id is None:
+            raise ValueError(f"Clip {clip_id} tidak punya candidate terkait")
+
+        from app.repositories.candidate_repository import CandidateRepository
+        candidate = CandidateRepository(self.db).get(clip.candidate_id)
+        if candidate is None:
+            raise ValueError(f"Candidate {clip.candidate_id} not found")
+
+        job_id = candidate.job_id
+
+        transcript = self.transcript_repo.get_by_job(job_id)
         if transcript is None:
-            raise ValueError(f"Transcript for job {clip.job_id} not found")
+            raise ValueError(f"Transcript for job {job_id} not found")
 
         style = style if style in STYLE_FORMATTERS else "minimal"
         formatter = STYLE_FORMATTERS[style]
@@ -73,7 +84,6 @@ class SubtitleService:
         output_path = f"data/outputs/clip_{clip.id}_sub_{style}.{format}"
 
         # Step opsional "subtitle" — catat job_steps TANPA ubah status job
-        job_id = clip.job_id
         logger.debug("Subtitle process: generate %s (%s) untuk clip %d", format, style, clip_id)
         self.job_service.start_optional_step(job_id, "subtitle")
         try:

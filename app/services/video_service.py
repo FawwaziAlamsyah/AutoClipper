@@ -3,23 +3,16 @@
 import hashlib
 import logging
 import shutil
+from datetime import UTC, datetime
 from pathlib import Path
 
 from sqlalchemy.orm import Session
 
 from app.core.config.settings import settings
 from app.core.exceptions.base import NotFoundException, ValidationException
-from app.models.analysis_result_model import AnalysisResultModel
 from app.models.cache_entry_model import CacheEntryModel
-from app.models.candidate_model import CandidateModel
 from app.models.clip_model import ClipModel
 from app.models.history_model import HistoryModel
-from app.models.job_model import JobModel
-from app.models.job_step_model import JobStepModel
-from app.models.speaker_model import SpeakerModel
-from app.models.subtitle_model import SubtitleModel
-from app.models.transcript_model import TranscriptModel
-from app.models.transcript_segment_model import TranscriptSegmentModel
 from app.models.video_model import VideoModel
 from app.repositories.video_repository import VideoRepository
 
@@ -157,12 +150,30 @@ class VideoService:
         return self.repo.list()
 
     def delete(self, video_id: int) -> None:
-        """Delete a video, related records, and generated files."""
+        """Archive video: hapus file fisik, TAPI simpan semua baris database.
+
+        Nama method "delete" dipertahankan (dipanggil dari video_router.py) tapi
+        perilakunya sekarang archive — video yang sudah dianalisis tidak pernah
+        hard-delete dari DB, supaya data training/candidate tidak pernah hilang.
+        """
         video = self.get(video_id)
+        if video.is_archived:
+            logger.info("Video %d sudah diarsipkan sebelumnya, skip", video_id)
+            return
+
         self._delete_video_files(video_id, video.file_path)
-        self._delete_related_rows(video_id)
-        self.repo.delete(video_id)
-        logger.info("Deleted video record: %d", video_id)
+        # _delete_related_rows() TIDAK dipanggil — candidates, analysis_results,
+        # transcripts, dll semua TETAP di database.
+
+        video.is_archived = True
+        video.archived_at = datetime.now(UTC)
+        self.db.add(HistoryModel(
+            video_id=video.id,
+            action="video_archived",
+            description="File dihapus untuk hemat storage, data training tetap tersimpan",
+        ))
+        self.db.commit()
+        logger.info("Video %d diarsipkan (file dihapus, data DB tetap ada)", video_id)
 
     def _delete_video_files(self, video_id: int, source_path: str) -> None:
         """Delete source, cache, and output files for a video."""
@@ -183,8 +194,28 @@ class VideoService:
                         "File terkunci (dipakai proses lain), lewati hapus fisik: %s", path
                     )
 
-    def _delete_related_rows(self, video_id: int) -> None:
-        """Delete related rows in FK-safe order."""
+    def hard_delete(self, video_id: int) -> None:
+        """Hard-delete video beserta SEMUA data terkait dari database.
+
+        Dipakai saat ingin benar-benar menghapus segalanya — file, candidates,
+        training labels, transcripts, analysis_results, jobs, dst.
+        Operasi ini TIDAK BISA di-undo.
+        """
+        from app.models.analysis_result_model import AnalysisResultModel
+        from app.models.candidate_model import CandidateModel
+        from app.models.job_model import JobModel
+        from app.models.job_step_model import JobStepModel
+        from app.models.speaker_model import SpeakerModel
+        from app.models.subtitle_model import SubtitleModel
+        from app.models.transcript_model import TranscriptModel
+        from app.models.transcript_segment_model import TranscriptSegmentModel
+
+        video = self.get(video_id)
+
+        # 1. Hapus file fisik dulu
+        self._delete_video_files(video_id, video.file_path)
+
+        # 2. Hapus semua baris DB terkait (FK-safe order)
         job_ids = [j.id for j in self.db.query(JobModel).filter(JobModel.video_id == video_id).all()]
         transcript_ids = [t.id for t in self.db.query(TranscriptModel).filter(TranscriptModel.video_id == video_id).all()]
         candidate_ids = [c.id for c in self.db.query(CandidateModel).filter(CandidateModel.video_id == video_id).all()]
@@ -212,4 +243,7 @@ class VideoService:
             self.db.query(JobStepModel).filter(JobStepModel.job_id.in_(job_ids)).delete(synchronize_session=False)
             self.db.query(JobModel).filter(JobModel.id.in_(job_ids)).delete(synchronize_session=False)
 
+        # 3. Hapus row video itu sendiri
+        self.repo.delete(video_id)
         self.db.commit()
+        logger.info("Hard-deleted video %d dan semua data terkait", video_id)

@@ -1,0 +1,39 @@
+<tr id="row-{{ candidate.id }}">
+  <td class="text-muted small">{{ candidate.id }}</td>
+  <td class="small">{{ candidate.start_time }}s – {{ candidate.end_time }}s</td>
+  <td><strong>{{ candidate.final_score }}</strong></td>
+  <td>
+    <span class="badge bg-{{ 'success' if candidate.clip_filename else ('warning text-dark' if candidate.status == 'selected' else 'secondary') }}">
+      {{ 'clip ready' if candidate.clip_filename else candidate.status }}
+    </span>
+  </td>
+  <td>
+    {% if candidate.label_source == "user_liked" %}
+    <span class="badge bg-success">👍 Liked</span>
+    {% elif candidate.label_source == "user_disliked" %}
+    <span class="badge bg-danger">👎 Jelek</span>
+    {% elif candidate.label_source == "real_performance" %}
+    <span class="badge bg-primary">⭐ {{ candidate.actual_score }}</span>
+    {% else %}
+    <span class="text-muted small">—</span>
+    {% endif %}
+  </td>
+  <td>
+    <div class="d-flex flex-wrap gap-1">
+      {% if candidate.clip_filename %}
+      <a class="btn btn-sm btn-success" target="_blank"
+         href="/data/outputs/{{ candidate.clip_filename }}">Open</a>
+      {% else %}
+      <button class="btn btn-sm btn-primary"
+              onclick="generateClipRow(this, {{ candidate.id }})">Generate</button>
+      {% endif %}
+      <a class="btn btn-sm btn-outline-info"
+         href="/candidates/{{ candidate.id }}"
+         hx-get="/candidates/{{ candidate.id }}"
+         hx-target="#main-content"
+         hx-push-url="true">Detail</a>
+      <button class="btn btn-sm btn-outline-danger"
+              onclick="deleteCandidate(this, {{ candidate.id }})">Hapus</button>
+    </div>
+  </td>
+</tr>

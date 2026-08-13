@@ -4,136 +4,104 @@
 
 {% block content %}
 <div class="card shadow-sm p-4 mb-4">
-  <h3>Bulk Training Import</h3>
-  <p class="text-muted mb-0">
-    Upload file CSV berisi daftar clip training Anda. Setiap baris akan diproses sebagai
-    <code>training_ingest</code> job di background.
-  </p>
+  <div class="d-flex justify-content-between align-items-start flex-wrap gap-3">
+    <div>
+      <h3 class="mb-1">Bulk Training Import</h3>
+      <p class="text-muted mb-0">
+        Upload file CSV berisi daftar clip video beserta skor performanya.
+        Setiap baris akan diproses sebagai <code>training_ingest</code> job di background —
+        video di-download/di-analisis lalu dijadikan data training untuk model scoring.
+      </p>
+    </div>
+    <a href="/training/template.csv" download class="btn btn-outline-secondary btn-sm text-nowrap">
+      ⬇ Download Template CSV
+    </a>
+  </div>
 </div>
 
 <div class="row g-4">
-  <!-- Form Upload CSV -->
+  <!-- Panduan + Form -->
   <div class="col-lg-6">
     <div class="card shadow-sm p-4 h-100">
-      <h5>Format CSV</h5>
-      <p class="text-muted small">Header opsional. Dua kolom: <code>source</code> dan <code>actual_score</code>.</p>
-      <pre class="bg-light p-3 rounded small">source,actual_score
-/path/to/clip1.mp4,8.5
-/path/to/clip2.mp4,9.0
-https://youtu.be/xxxxx,7.5</pre>
-      <ul class="small text-muted mb-3">
-        <li><strong>source</strong> — path file lokal atau URL video</li>
-        <li><strong>actual_score</strong> — skor performa nyata (0-10, dari views/likes)</li>
-      </ul>
 
-      <form id="importForm" enctype="multipart/form-data">
+      <!-- Penjelasan Format -->
+      <h5>Format CSV</h5>
+      <p class="text-muted small mb-2">
+        2 kolom wajib: <code>source</code> dan <code>actual_score</code>.<br>
+        Baris header <strong>boleh ada atau tidak</strong> — sistem otomatis detect.
+      </p>
+
+      <div class="table-responsive mb-3">
+        <table class="table table-sm table-bordered small mb-0">
+          <thead class="table-light">
+            <tr>
+              <th>Kolom</th>
+              <th>Isi</th>
+              <th>Contoh</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>source</code></td>
+              <td>Path file lokal <strong>atau</strong> URL video (YouTube, TikTok, dll)</td>
+              <td class="text-muted">C:\clips\video1.mp4<br>https://youtu.be/abc123</td>
+            </tr>
+            <tr>
+              <td><code>actual_score</code></td>
+              <td>Skor performa nyata <strong>0–10</strong> berdasarkan views/likes/engagement</td>
+              <td class="text-muted">8.5 → viral<br>4.0 → biasa<br>1.0 → flop</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <p class="text-muted small mb-1"><strong>Contoh isi file CSV:</strong></p>
+      <pre class="bg-light p-3 rounded small mb-3">source,actual_score
+C:\Users\Anda\Videos\gaming_highlight.mp4,9.2
+C:\Users\Anda\Videos\reaction_clip.mp4,6.5
+https://youtu.be/xxxxxxxxxxx,8.0
+https://www.tiktok.com/@user/video/123,7.5</pre>
+
+      <div class="alert alert-info small py-2 mb-3">
+        💡 <strong>Tips:</strong> Skor 8–10 = konten yang sangat viral/bagus.
+        Skor 4–7 = performa sedang. Skor 0–3 = konten yang tidak perform.
+        Semakin banyak data, semakin akurat model scoring-nya.
+      </div>
+
+      <!-- Form Upload -->
+      <form hx-post="/training/bulk-import"
+            hx-target="#importProgress"
+            hx-swap="innerHTML"
+            hx-encoding="multipart/form-data">
         <div class="mb-3">
           <label class="form-label fw-semibold">File CSV</label>
-          <input type="file" class="form-control" id="csvFile" name="file" accept=".csv,text/csv" required>
+          <input type="file" class="form-control" name="file" accept=".csv,text/csv" required>
+          <div class="form-text">Format: .csv — maks beberapa ratus baris per upload.</div>
         </div>
-        <button type="submit" class="btn btn-primary" id="importBtn">
-          Upload &amp; Mulai Import
-        </button>
+        <div class="d-flex gap-2 align-items-center flex-wrap">
+          <button type="submit" class="btn btn-primary">
+            ⬆ Upload &amp; Mulai Import
+          </button>
+          <a href="/training/template.csv" download class="btn btn-outline-secondary btn-sm">
+            ⬇ Download Template
+          </a>
+        </div>
       </form>
+      <div id="importStatus" class="mt-3"></div>
     </div>
   </div>
 
   <!-- Progress Panel -->
   <div class="col-lg-6">
-    <div class="card shadow-sm p-4 h-100" id="progressPanel" style="display:none;">
-      <h5>Progress Import</h5>
-      <div class="mb-2">
-        <span class="badge bg-secondary" id="statusBadge">running</span>
-        <small class="text-muted ms-2" id="importIdLabel"></small>
-      </div>
-      <div class="progress mb-3" style="height: 25px;">
-        <div class="progress-bar progress-bar-striped progress-bar-animated"
-             id="progressBar" role="progressbar" style="width: 0%">0%</div>
-      </div>
-      <table class="table table-sm table-borderless mb-0">
-        <tbody>
-          <tr>
-            <td class="text-muted">Total</td>
-            <td id="statTotal">-</td>
-          </tr>
-          <tr>
-            <td class="text-muted">Selesai</td>
-            <td id="statCompleted" class="text-success">-</td>
-          </tr>
-          <tr>
-            <td class="text-muted">Gagal</td>
-            <td id="statFailed" class="text-danger">-</td>
-          </tr>
-          <tr>
-            <td class="text-muted">Antrian</td>
-            <td id="statQueued">-</td>
-          </tr>
-        </tbody>
-      </table>
-      <div id="doneMessage" class="alert alert-success mt-3" style="display:none;">
-        Import selesai! Lihat hasil di <a href="/candidates">halaman Candidates</a>.
+    <div id="importProgress">
+      <!-- Akan diisi setelah upload CSV -->
+      <div class="card shadow-sm p-4 text-center text-muted" style="border-style:dashed;">
+        <div class="fs-1 mb-2">📊</div>
+        <p class="mb-1">Progress import akan muncul di sini</p>
+        <p class="small">Upload file CSV di sebelah kiri untuk memulai.</p>
       </div>
     </div>
   </div>
 </div>
 
-<script>
-let _pollInterval = null;
-
-document.getElementById('importForm').addEventListener('submit', async (e) => {
-  e.preventDefault();
-  const btn = document.getElementById('importBtn');
-  btn.disabled = true;
-  btn.textContent = 'Mengunggah...';
-
-  const formData = new FormData();
-  const file = document.getElementById('csvFile').files[0];
-  if (!file) { btn.disabled = false; btn.textContent = 'Upload & Mulai Import'; return; }
-  formData.append('file', file);
-
-  const res = await fetch('/training/bulk-import', { method: 'POST', body: formData });
-  const data = await res.json();
-
-  if (!res.ok) {
-    alert(data.detail || 'Gagal memulai import.');
-    btn.disabled = false;
-    btn.textContent = 'Upload & Mulai Import';
-    return;
-  }
-
-  // Tampilkan panel progress
-  document.getElementById('progressPanel').style.display = '';
-  document.getElementById('importIdLabel').textContent = 'ID: ' + data.import_id;
-  btn.textContent = 'Import Berjalan...';
-
-  // Mulai polling setiap 2 detik
-  _pollProgress(data.import_id);
-  _pollInterval = setInterval(() => _pollProgress(data.import_id), 2000);
-});
-
-async function _pollProgress(importId) {
-  const res = await fetch(`/training/bulk-import/${importId}`);
-  if (!res.ok) return;
-  const d = await res.json();
-
-  document.getElementById('progressBar').style.width = d.percent + '%';
-  document.getElementById('progressBar').textContent = d.percent + '%';
-  document.getElementById('statTotal').textContent = d.total;
-  document.getElementById('statCompleted').textContent = d.completed;
-  document.getElementById('statFailed').textContent = d.failed;
-  document.getElementById('statQueued').textContent = d.queued;
-
-  const badge = document.getElementById('statusBadge');
-  if (d.status === 'finished') {
-    badge.className = 'badge bg-success';
-    badge.textContent = 'selesai';
-    document.getElementById('progressBar').classList.remove('progress-bar-animated');
-    document.getElementById('doneMessage').style.display = '';
-    clearInterval(_pollInterval);
-  } else {
-    badge.className = 'badge bg-warning text-dark';
-    badge.textContent = 'berjalan';
-  }
-}
-</script>
 {% endblock %}

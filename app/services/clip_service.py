@@ -7,6 +7,7 @@ from pathlib import Path
 
 from sqlalchemy.orm import Session
 
+from app.core.exceptions.base import ValidationException
 from app.models.clip_model import ClipModel
 from app.models.candidate_model import CandidateModel
 from app.models.history_model import HistoryModel
@@ -35,18 +36,26 @@ class ClipService:
     def generate_clip(
         self,
         candidate_id: int,
-        aspect_ratio: str = "9:16",
+        aspect_ratio: str = "16:9",
         subtitle_enabled: bool = False,
         subtitle_style: str = "minimal",
     ) -> ClipModel:
         """Generate a final clip using FFmpeg from a candidate."""
         candidate = self.candidate_repo.get(candidate_id)
         if candidate is None:
-            raise ValueError(f"Candidate {candidate_id} not found")
+            raise ValidationException(f"Candidate {candidate_id} not found")
 
         video = self.video_repo.get(candidate.video_id)
         if video is None:
-            raise ValueError(f"Video {candidate.video_id} not found")
+            raise ValidationException(f"Video {candidate.video_id} not found")
+
+        # Cek file masih ada sebelum coba render.
+        if video.is_archived or not Path(video.file_path).exists():
+            raise ValidationException(
+                f"Video dengan ID {video.id} sudah dihapus. "
+                "Tidak bisa generate clip baru dari video ini — data candidate "
+                "tetap tersimpan untuk training, tapi file sumbernya sudah tidak ada."
+            )
 
         # Generate output filename
         unique_id = str(uuid.uuid4())[:8]
@@ -97,16 +106,31 @@ class ClipService:
         return clip
 
     def _extract_clip(self, input_path: str, output_path: str, start: float, end: float, aspect_ratio: str) -> None:
-        """Extract clip using FFmpeg with optional reframing."""
+        """Extract clip using FFmpeg with reframing for social media output.
+
+        Untuk 9:16 (TikTok/Reels/Shorts): crop tengah dari video sumber supaya
+        gambar penuh tanpa pillar-box hitam — standar sosmed.
+        Untuk 16:9 dan 1:1: tetap pakai scale+pad (lebih aman untuk konten landscape).
+        """
         width, height = self._parse_aspect_ratio(aspect_ratio)
         duration = end - start
 
-        # Build FFmpeg command
-        # -ss before -i for fast seek, -c:v libx264 -preset fast
-        vf = (
-            f"scale={width}:{height}:force_original_aspect_ratio=decrease,"
-            f"pad={width}:{height}:(ow-iw)/2:(oh-ih)/2:black"
-        )
+        # Video filter: crop tengah untuk 9:16, scale+pad untuk rasio lain
+        if aspect_ratio == "9:16":
+            # Crop bagian tengah video sumber ke rasio 9:16, lalu scale ke 1080x1920.
+            # crop=ih*9/16:ih ambil lebar = tinggi×(9/16), tinggi penuh, dari tengah horizontal.
+            # Kalau video sumber sudah portrait atau lebih sempit dari 9:16,
+            # fallback ke scale+pad supaya tidak error.
+            vf = (
+                f"crop=min(iw\\,ih*9/16):min(ih\\,iw*16/9):(iw-min(iw\\,ih*9/16))/2:(ih-min(ih\\,iw*16/9))/2,"
+                f"scale={width}:{height}:flags=lanczos"
+            )
+        else:
+            vf = (
+                f"scale={width}:{height}:force_original_aspect_ratio=decrease:flags=lanczos,"
+                f"pad={width}:{height}:(ow-iw)/2:(oh-ih)/2:black"
+            )
+
         cmd = [
             self.ffmpeg.ffmpeg_path,
             "-y",
@@ -115,15 +139,16 @@ class ClipService:
             "-t", str(duration),
             "-vf", vf,
             "-c:v", "libx264",
-            "-preset", "fast",
-            "-crf", "23",
+            "-preset", "slow",   # slow = kualitas lebih baik, ukuran lebih kecil vs fast
+            "-crf", "18",        # 18 = kualitas tinggi (visually lossless), sosmed-ready
             "-c:a", "aac",
-            "-b:a", "128k",
+            "-b:a", "192k",      # naik dari 128k untuk audio sosmed
+            "-movflags", "+faststart",  # progressive download, penting untuk sosmed
             output_path,
         ]
 
         logger.info("Running FFmpeg: %s", " ".join(cmd))
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
         if result.returncode != 0:
             logger.error("FFmpeg failed: %s", result.stderr)
             raise RuntimeError(f"FFmpeg error: {result.stderr}")

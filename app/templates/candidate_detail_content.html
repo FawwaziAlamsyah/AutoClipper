@@ -1,0 +1,252 @@
+<div class="d-flex align-items-center gap-3 mb-3">
+  <a href="/candidates/video/{{ video_id }}"
+     hx-get="/candidates/video/{{ video_id }}"
+     hx-target="#main-content"
+     hx-push-url="true"
+     class="btn btn-outline-secondary btn-sm">← Back</a>
+</div>
+
+<div class="card shadow-sm p-4 mb-4">
+  <h3>Candidate #{{ candidate.id }}</h3>
+  <div class="d-flex flex-wrap gap-3 mb-2">
+    <span class="badge bg-primary">Video {{ candidate.video_id }}</span>
+    <span class="badge bg-secondary">Job {{ candidate.job_id }}</span>
+    <span class="badge bg-{{ 'success' if candidate.status == 'selected' else ('danger' if candidate.status == 'rejected' else 'info') }}">{{ candidate.status }}</span>
+    <span class="badge bg-dark">Final Score {{ candidate.final_score }}</span>
+  </div>
+  <p class="text-muted mb-0">Window: {{ candidate.start_time }}s – {{ candidate.end_time }}s</p>
+  {% if candidate.hook_text %}
+  <blockquote class="blockquote mt-2 mb-0">"{{ candidate.hook_text }}"</blockquote>
+  {% endif %}
+</div>
+
+<div class="row g-4">
+  <!-- Score Breakdown -->
+  <div class="col-lg-6">
+    <div class="card shadow-sm p-4 h-100">
+      <h5>Score Breakdown</h5>
+      <p class="text-muted">Kontribusi tiap analyzer ke final score (bobot × skor).</p>
+
+      {% if breakdown and breakdown['_meta'] is defined %}
+      {% set meta = breakdown['_meta'] %}
+      <div class="alert alert-info small mb-3">
+        Skor dihitung pakai:
+        <strong>{{ "Model terlatih" if meta.scoring_method == "trained_model" else "Weighted-sum manual" }}</strong>
+        {% if meta.model_predicted_score is not none %}
+          (model: <strong>{{ meta.model_predicted_score }}</strong>,
+           weighted-sum lama: {{ meta.legacy_weighted_sum_score }})
+        {% endif %}
+      </div>
+      {% endif %}
+
+      <div class="table-responsive">
+        <table class="table table-striped align-middle">
+          <thead>
+            <tr><th>Analyzer</th><th>Score</th><th>Bobot</th><th>Kontribusi</th><th>Alasan</th></tr>
+          </thead>
+          <tbody>
+            {% for name, value in breakdown.items() %}
+            {% if name != '_meta' %}
+            <tr>
+              <td><span class="badge bg-light text-dark fw-normal">{{ name }}</span></td>
+              <td>{{ value.score }}</td>
+              <td>{{ '%d%%'|format((value.weight * 100)|round|int) }}</td>
+              <td>{{ value.contribution }}</td>
+              <td class="text-muted small">{{ value.reason or '-' }}</td>
+            </tr>
+            {% endif %}
+            {% else %}
+            <tr><td colspan="5" class="text-muted text-center">Belum ada breakdown score.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <a class="btn btn-sm btn-outline-secondary mt-2" target="_blank" href="/preview/candidates/{{ candidate.id }}">Preview JSON</a>
+    </div>
+  </div>
+
+  <!-- Preview Video -->
+  <div class="col-lg-6">
+    <div class="card shadow-sm p-4 h-100">
+      <h5>Preview</h5>
+      {% if preview %}
+      <video id="candidateVideo" class="w-100 rounded" controls preload="metadata">
+        <source src="{{ preview.video_url or '' }}" type="video/mp4">
+        Browser tidak mendukung video.
+      </video>
+      <small class="text-muted d-block mt-2">Mulai {{ preview.start_time }}s, durasi {{ preview.duration }}s.</small>
+      <a class="btn btn-sm btn-outline-info mt-2" target="_blank" href="/preview/candidates/{{ candidate.id }}">Lihat Data Preview</a>
+      {% else %}
+      <p class="text-muted">Video tidak tersedia.</p>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<!-- Actions -->
+<div class="card shadow-sm p-4 mt-4">
+  <h5>Render Clip</h5>
+  <div class="d-flex flex-wrap gap-2 align-items-center mb-3" id="like-status">
+    {% include "_like_button.html" %}
+  </div>
+
+  {% if clip %}
+  <p class="text-success"><i class="bi bi-check-circle"></i> Clip sudah dibuat:
+    <a target="_blank" href="/data/outputs/{{ clip.file_path.split('/')[-1].split('\\')[-1] }}">Open Clip</a>
+  </p>
+  {% else %}
+  <div id="clip-action">
+    <button class="btn btn-primary" id="generateClipBtn" onclick="doGenerateClip(this, {{ candidate.id }})">
+      Generate Clip (16:9 / 1080p)
+    </button>
+  </div>
+  {% endif %}
+</div>
+
+<!-- Modal Like -->
+<div class="modal fade" id="likeConfirmModal" tabindex="-1">
+  <div class="modal-dialog"><div class="modal-content">
+    <div class="modal-header"><h5 class="modal-title">Konfirmasi Like</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+    <div class="modal-body">Tandai clip ini sebagai contoh BAGUS untuk melatih sistem scoring?</div>
+    <div class="modal-footer">
+      <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
+      <button type="button" class="btn btn-success" id="likeConfirmBtn">Ya, Like &amp; Latih</button>
+    </div>
+  </div></div>
+</div>
+
+<!-- Modal Dislike -->
+<div class="modal fade" id="dislikeConfirmModal" tabindex="-1">
+  <div class="modal-dialog"><div class="modal-content">
+    <div class="modal-header"><h5 class="modal-title">Konfirmasi Tandai Jelek</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+    <div class="modal-body">Tandai clip ini sebagai contoh <strong>BURUK</strong> untuk melatih sistem scoring?</div>
+    <div class="modal-footer">
+      <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
+      <button type="button" class="btn btn-danger" id="dislikeConfirmBtn">Ya, Tandai Jelek</button>
+    </div>
+  </div></div>
+</div>
+
+<script>
+(function seekPreview() {
+  const vid = document.getElementById('candidateVideo');
+  const start = {{ preview.start_time if preview else 0 }};
+  if (!vid) return;
+  vid.preload = 'metadata';
+  vid.addEventListener('loadedmetadata', () => { vid.currentTime = start; });
+})();
+
+async function doLikeAction(url) {
+  const res = await fetch(url, { method: 'POST', headers: { 'HX-Request': 'true' } });
+  if (res.ok) {
+    const html = await res.text();
+    document.getElementById('like-status').innerHTML = html;
+  } else {
+    alert('Gagal. Coba lagi.');
+  }
+}
+
+async function generateSubtitle(btn, clipId) {
+  const format = document.getElementById('subFormat').value;
+  const style = document.getElementById('subStyle').value;
+  const language = document.getElementById('subLanguage').value;
+  const resultDiv = document.getElementById('subtitleResult');
+
+  btn.disabled = true;
+  btn.textContent = 'Generating...';
+  resultDiv.innerHTML = '<p class="text-muted small">Memproses subtitle...</p>';
+
+  try {
+    const formData = new FormData();
+    formData.append('format', format);
+    formData.append('style', style);
+    formData.append('language', language);
+
+    const res = await fetch(`/subtitle/clips/${clipId}`, {
+      method: 'POST',
+      body: formData,
+    });
+
+    if (res.ok) {
+      resultDiv.innerHTML = await res.text();
+    } else {
+      const data = await res.json().catch(() => ({}));
+      resultDiv.innerHTML = `<div class="alert alert-danger small">${data.detail || 'Gagal generate subtitle.'}</div>`;
+    }
+  } catch (e) {
+    resultDiv.innerHTML = `<div class="alert alert-danger small">Terjadi kesalahan. Coba lagi.</div>`;
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Generate Subtitle';
+  }
+}
+
+async function doGenerateClip(btn, candidateId) {
+  btn.disabled = true;
+  btn.textContent = 'Generating...';
+  try {
+    const res = await fetch(
+      `/clips/generate-detail?candidate_id=${candidateId}&aspect_ratio=16:9&subtitle_enabled=false&subtitle_style=minimal`,
+      { method: 'POST' }
+    );
+    if (res.ok) {
+      const html = await res.text();
+      document.getElementById('clip-action').outerHTML = html;
+    } else {
+      alert('Gagal generate clip. Coba lagi.');
+      btn.disabled = false;
+      btn.textContent = 'Generate Clip (16:9 / 1080p)';
+    }
+  } catch (e) {
+    alert('Terjadi kesalahan. Coba lagi.');
+    btn.disabled = false;
+    btn.textContent = 'Generate Clip (16:9 / 1080p)';
+  }
+}
+
+document.getElementById('likeConfirmBtn')?.addEventListener('click', async function() {
+  bootstrap.Modal.getInstance(document.getElementById('likeConfirmModal'))?.hide();
+  await doLikeAction('/candidates/{{ candidate.id }}/like');
+});
+
+document.getElementById('dislikeConfirmBtn')?.addEventListener('click', async function() {
+  bootstrap.Modal.getInstance(document.getElementById('dislikeConfirmModal'))?.hide();
+  await doLikeAction('/candidates/{{ candidate.id }}/dislike');
+});
+</script>
+
+{% if clip %}
+<div class="card shadow-sm p-4 mt-3">
+  <h5>Subtitle</h5>
+  <div class="row g-2 align-items-end">
+    <div class="col-auto">
+      <label class="form-label">Format</label>
+      <select class="form-select" id="subFormat">
+        <option value="srt">SRT</option>
+        <option value="vtt">VTT</option>
+      </select>
+    </div>
+    <div class="col-auto">
+      <label class="form-label">Style</label>
+      <select class="form-select" id="subStyle">
+        <option value="minimal">Minimal</option>
+        <option value="tiktok">TikTok</option>
+        <option value="youtube">YouTube</option>
+      </select>
+    </div>
+    <div class="col-auto">
+      <label class="form-label">Bahasa</label>
+      <select class="form-select" id="subLanguage">
+        <option value="id">Indonesia</option>
+        <option value="en">English</option>
+      </select>
+    </div>
+    <div class="col-auto">
+      <button class="btn btn-dark" onclick="generateSubtitle(this, {{ clip.id }})">
+        Generate Subtitle
+      </button>
+    </div>
+  </div>
+  <div id="subtitleResult" class="mt-3"></div>
+</div>
+{% endif %}

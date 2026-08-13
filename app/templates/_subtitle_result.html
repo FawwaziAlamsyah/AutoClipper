@@ -1,0 +1,2 @@
+<pre class="bg-light p-3 rounded">{{ content }}</pre>
+<a class="btn btn-sm btn-success" href="/data/outputs/{{ file_path.split('/')[-1] if '/' in file_path else file_path.split('\\')[-1] }}" target="_blank">Download {{ format.upper() }}</a>

@@ -1,0 +1,347 @@
+<div class="row g-4 justify-content-center">
+  <!-- Card Upload File -->
+  <div class="col-md-6">
+    <div class="card shadow-sm h-100 p-4">
+      <h3>Upload File Video</h3>
+      <p class="text-muted">Pilih file video lokal dari komputer Anda.</p>
+
+      <form hx-post="/upload" hx-target="#upload-status" hx-swap="innerHTML"
+            hx-encoding="multipart/form-data" class="d-flex flex-column flex-grow-1">
+        <div class="mb-4">
+          <label class="form-label">Pilih file video ({{ allowed_extensions | join(', ') }})</label>
+          <input class="form-control" type="file" name="file" accept=".mp4,.mov,.mkv,.avi" required>
+          <div class="form-text">Maksimal ukuran file: {{ max_size_mb }} MB.</div>
+        </div>
+        <button class="btn btn-primary w-100 mt-auto" type="submit">Upload Video</button>
+      </form>
+      <div id="upload-status" class="mt-3"></div>
+    </div>
+  </div>
+
+  <!-- Card Download URL -->
+  <div class="col-md-6">
+    <div class="card shadow-sm h-100 p-4">
+      <h3>Download dari URL</h3>
+      <p class="text-muted">Masukkan link URL video (YouTube, TikTok, dll).</p>
+
+      <div class="mb-4">
+        <label for="videoUrl" class="form-label">URL Video</label>
+        <input class="form-control" type="url" id="videoUrl" placeholder="https://www.youtube.com/watch?v=...">
+        <div class="form-text">Video akan di-download secara otomatis dan di-import.</div>
+      </div>
+
+      <div class="d-none" id="downloadSpinner">
+        <div class="mb-2 d-flex justify-content-between">
+          <span>Sedang mengunduh video...</span>
+          <span id="downloadPct">0%</span>
+        </div>
+        <div class="progress" style="height: 20px;">
+          <div class="progress-bar progress-bar-striped progress-bar-animated" id="downloadProgressBar"
+               role="progressbar" style="width: 0%"></div>
+        </div>
+      </div>
+
+      <div class="alert alert-danger d-none" id="downloadError"></div>
+      <div class="alert alert-success d-none" id="downloadSuccess"></div>
+
+      <button class="btn btn-dark w-100 mt-auto" id="downloadBtn">Download &amp; Import</button>
+    </div>
+  </div>
+</div>
+
+<div class="card shadow-sm p-4 mt-4">
+  <h3>Pengaturan Pipeline</h3>
+  <p class="text-muted">Parameter ini dipakai saat tombol Proses di tabel video diklik.</p>
+  <div class="row g-3">
+    <div class="col-md-3">
+      <label class="form-label">Bahasa</label>
+      <select class="form-select" id="pl-language">
+        <option value="">Auto Detect</option>
+        <option value="id" selected>Indonesia</option>
+        <option value="en">English</option>
+      </select>
+    </div>
+    <div class="col-md-3">
+      <label class="form-label">Content Type</label>
+      <select class="form-select" id="pl-content-type">
+        <option>podcast</option>
+        <option>interview</option>
+        <option selected>gaming</option>
+        <option>education</option>
+        <option>streaming</option>
+        <option>news</option>
+        <option>motivation</option>
+        <option>custom</option>
+      </select>
+    </div>
+    <div class="col-md-3">
+      <label class="form-label">Clip Style</label>
+      <select class="form-select" id="pl-clip-style">
+        <option>viral</option>
+        <option>educational</option>
+        <option selected>funny</option>
+        <option>emotional</option>
+        <option>storytelling</option>
+        <option>controversial</option>
+      </select>
+    </div>
+    <div class="col-md-3">
+      <label class="form-label">Jumlah Clip</label>
+      <input class="form-control" type="number" id="pl-num-clips" value="20" min="1" max="20">
+    </div>
+    <div class="col-md-3">
+      <label class="form-label">Durasi Min (detik)</label>
+      <input class="form-control" type="number" id="pl-min-duration" value="30" min="5">
+    </div>
+    <div class="col-md-3">
+      <label class="form-label">Durasi Maks (detik)</label>
+      <input class="form-control" type="number" id="pl-max-duration" value="60" min="10">
+    </div>
+    <div class="col-md-3">
+      <label class="form-label">Keyword Boost (koma)</label>
+      <input class="form-control" type="text" id="pl-keywords" placeholder="bitcoin, ai, investasi">
+    </div>
+    <div class="col-md-3">
+      <label class="form-label">Skip Keywords (koma)</label>
+      <input class="form-control" type="text" id="pl-skip-keywords" placeholder="sponsor, subscribe, iklan">
+    </div>
+  </div>
+</div>
+
+<div class="card shadow-sm p-4 mt-4">
+  <h3>Video Terupload</h3>
+  <div class="table-responsive">
+    <table class="table table-striped align-middle">
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Nama File</th>
+          <th>Status</th>
+          <th>Tipe</th>
+          <th>Durasi</th>
+          <th>Aksi</th>
+        </tr>
+      </thead>
+      <tbody id="videoTableBody">
+        {% for video in videos %}
+        {% set rj = running_jobs.get(video.id) %}
+        <tr id="video-row-{{ video.id }}">
+          <td>{{ video.id }}</td>
+          <td>{{ video.original_filename }}</td>
+          <td><span class="badge bg-{{ 'success' if video.status == 'ready' else ('warning' if (rj or video.status == 'uploading') else 'secondary') }}">{{ 'processing' if rj else video.status }}</span></td>
+          <td>{{ video.source_type }}</td>
+          <td>{{ '{}m {:.0f}s'.format((video.duration_seconds // 60)|int, video.duration_seconds % 60) if video.duration_seconds else '-' }}</td>
+          <td class="d-flex gap-2 align-items-center">
+            {% if rj %}
+            <button class="btn btn-sm btn-outline-success process-btn" data-video-id="{{ video.id }}" data-job-id="{{ rj.job_id }}" disabled>
+              <span class="spinner-border spinner-border-sm me-1"></span>Proses: {{ rj.current_step }}...
+            </button>
+            <button class="btn btn-sm btn-warning cancel-btn" data-job-id="{{ rj.job_id }}">Cancel</button>
+            {% elif video.status == 'uploading' %}
+            <button class="btn btn-sm btn-outline-secondary process-btn" data-video-id="{{ video.id }}" data-uploading="1" disabled>
+              <span class="spinner-border spinner-border-sm me-1"></span>Uploading...
+            </button>
+            {% else %}
+            <button class="btn btn-sm btn-success process-btn" data-video-id="{{ video.id }}">Proses</button>
+            {% endif %}
+            {% if video.is_archived %}
+            <span class="badge bg-warning text-dark">📦 Archived</span>
+            {% endif %}
+            <button class="btn btn-sm btn-danger hard-delete-btn" data-video-id="{{ video.id }}">🗑 Delete All</button>
+          </td>
+        </tr>
+        {% else %}
+        <tr id="empty-row"><td colspan="6" class="text-center text-muted">Belum ada video.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+// Re-attach all JS on htmx partial load (htmx:afterSwap fires after content swap)
+function initUploadPage() {
+  const PL_IDS = ['pl-language', 'pl-content-type', 'pl-clip-style', 'pl-num-clips',
+                  'pl-min-duration', 'pl-max-duration', 'pl-keywords', 'pl-skip-keywords'];
+  const PL_KEY = 'pipelineSettings';
+
+  function savePipelineSettings() {
+    const state = {};
+    PL_IDS.forEach(id => { const el = document.getElementById(id); if (el) state[id] = el.value; });
+    sessionStorage.setItem(PL_KEY, JSON.stringify(state));
+  }
+  function restorePipelineSettings() {
+    try {
+      const state = JSON.parse(sessionStorage.getItem(PL_KEY) || '{}');
+      PL_IDS.forEach(id => { const el = document.getElementById(id); if (el && state[id] !== undefined) el.value = state[id]; });
+    } catch (e) {}
+  }
+  PL_IDS.forEach(id => { const el = document.getElementById(id); if (el) el.addEventListener('change', savePipelineSettings); });
+  restorePipelineSettings();
+
+  function esc(str) { const d = document.createElement('div'); d.textContent = str == null ? '' : str; return d.innerHTML; }
+  function formatDuration(sec) { if (sec == null) return '-'; return `${Math.floor(sec/60)}m ${Math.round(sec%60)}s`; }
+
+  function rowHtml(v) {
+    const statusBadge = `<span class="badge bg-${v.status==='ready'?'success':(v.status==='uploading'?'warning':'secondary')}">${esc(v.status)}</span>`;
+    const actions = v.status==='uploading'
+      ? `<button class="btn btn-sm btn-outline-secondary process-btn" data-video-id="${v.id}" data-uploading="1" disabled><span class="spinner-border spinner-border-sm me-1"></span>Uploading...</button>`
+      : `<button class="btn btn-sm btn-success process-btn" data-video-id="${v.id}">Proses</button>`;
+    const archiveBtn = v.is_archived
+      ? `<span class="badge bg-warning text-dark">📦 Archived</span>`
+      : ``;
+    return `<tr id="video-row-${v.id}"><td>${v.id}</td><td>${esc(v.original_filename)}</td><td>${statusBadge}</td><td>${esc(v.source_type)}</td><td>${formatDuration(v.duration_seconds)}</td><td class="d-flex gap-2 align-items-center">${actions}${archiveBtn}<button class="btn btn-sm btn-danger hard-delete-btn" data-video-id="${v.id}">🗑 Delete All</button></td></tr>`;
+  }
+
+  function addRow(video) {
+    const tbody = document.getElementById('videoTableBody');
+    const empty = document.getElementById('empty-row');
+    if (empty) empty.remove();
+    tbody.insertAdjacentHTML('beforeend', rowHtml(video));
+    bindRowActions(document.querySelector(`#video-row-${video.id}`));
+  }
+
+  function setProcessing(btn, jobId) {
+    btn.disabled = true; btn.classList.remove('btn-success'); btn.classList.add('btn-outline-success');
+    btn.dataset.jobId = jobId;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Proses: memulai...';
+    const cell = btn.parentNode;
+    let cancelBtn = cell.querySelector('.cancel-btn');
+    if (!cancelBtn) {
+      cancelBtn = document.createElement('button');
+      cancelBtn.className = 'btn btn-sm btn-warning cancel-btn'; cancelBtn.textContent = 'Cancel';
+      cancelBtn.addEventListener('click', () => cancelJob(cancelBtn)); cell.appendChild(cancelBtn);
+    }
+    cancelBtn.dataset.jobId = jobId; cancelBtn.disabled = false;
+  }
+
+  function showAlert(el, msg, ok) {
+    el.textContent = msg; el.classList.remove('d-none','alert-danger','alert-success');
+    el.classList.add(ok ? 'alert-success' : 'alert-danger');
+  }
+
+  function bindRowActions(row) {
+    const procBtn = row.querySelector('.process-btn');
+    const cancelBtn = row.querySelector('.cancel-btn');
+    const hardDelBtn = row.querySelector('.hard-delete-btn');
+    if (procBtn) procBtn.addEventListener('click', () => processVideo(procBtn));
+    if (cancelBtn) cancelBtn.addEventListener('click', () => cancelJob(cancelBtn));
+    if (hardDelBtn) hardDelBtn.addEventListener('click', () => hardDeleteVideo(hardDelBtn));
+  }
+
+  async function cancelJob(btn) {
+    const jobId = btn.dataset.jobId; if (!jobId) return;
+    if (!confirm(`Cancel job ${jobId}?`)) return;
+    btn.disabled = true; btn.textContent = 'Membatalkan...';
+    const res = await fetch(`/jobs/${jobId}/cancel`, { method: 'POST' });
+    if (res.ok) {
+      const row = btn.closest('tr'); if (!row) return;
+      btn.outerHTML = '';
+      const procBtn = row.querySelector('.process-btn');
+      if (procBtn) { procBtn.disabled = false; procBtn.classList.remove('btn-outline-success'); procBtn.classList.add('btn-success'); procBtn.innerHTML = 'Proses'; delete procBtn.dataset.jobId; }
+      const badge = row.querySelector('td:nth-child(3) .badge');
+      if (badge) { badge.textContent = 'uploaded'; badge.classList.remove('bg-warning'); badge.classList.add('bg-secondary'); }
+    } else { alert('Gagal cancel job.'); btn.disabled = false; btn.textContent = 'Cancel'; }
+  }
+
+  async function processVideo(btn) {
+    const videoId = btn.dataset.videoId;
+    const row = document.getElementById(`video-row-${videoId}`);
+    const badge = row?.querySelector('td:nth-child(3) .badge');
+    if (badge && badge.textContent.trim() === 'ready') { if (!confirm('Video sudah pernah diproses. Proses ulang?')) return; }
+    btn.disabled = true; const oldText = btn.textContent; btn.textContent = 'Memulai...';
+    const params = {
+      language: document.getElementById('pl-language').value || null,
+      content_type: document.getElementById('pl-content-type').value,
+      clip_style: document.getElementById('pl-clip-style').value,
+      num_clips: parseInt(document.getElementById('pl-num-clips').value) || 20,
+      min_clip_duration: parseInt(document.getElementById('pl-min-duration').value) || 30,
+      max_clip_duration: parseInt(document.getElementById('pl-max-duration').value) || 60,
+      keyword_boost: document.getElementById('pl-keywords').value.split(',').map(s=>s.trim()).filter(Boolean),
+      skip_keywords: document.getElementById('pl-skip-keywords').value.split(',').map(s=>s.trim()).filter(Boolean),
+    };
+    try {
+      const res = await fetch(`/upload/videos/${videoId}/process`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(params) });
+      const data = await res.json();
+      if (!res.ok) { alert(data.detail||'Gagal memulai proses.'); btn.disabled=false; btn.textContent=oldText; return; }
+      const jobId = data.job_id; setProcessing(btn, jobId);
+      const done = await pollJob(jobId, (step, pct) => { btn.innerHTML=`<span class="spinner-border spinner-border-sm me-1"></span>Proses: ${step}${pct!=null?` (${pct}%)`:''}`;  btn.title=`Proses: ${step}`; });
+      const rowEl = document.getElementById(`video-row-${videoId}`);
+      const cancelBtn = rowEl?.querySelector('.cancel-btn');
+      if (done === 'completed') {
+        cancelBtn?.remove(); btn.disabled=false; btn.classList.remove('btn-outline-success'); btn.classList.add('btn-success'); btn.textContent='Proses'; delete btn.dataset.jobId;
+        const b = rowEl?.querySelector('td:nth-child(3) .badge'); if(b){b.textContent='ready';b.classList.remove('bg-warning','bg-secondary');b.classList.add('bg-success');}
+      } else if (done === 'cancelled') {
+        cancelBtn?.remove(); btn.disabled=false; btn.classList.remove('btn-outline-success'); btn.classList.add('btn-success'); btn.textContent=oldText; delete btn.dataset.jobId;
+        const b = rowEl?.querySelector('td:nth-child(3) .badge'); if(b){b.textContent='uploaded';b.classList.remove('bg-warning','bg-success');b.classList.add('bg-secondary');}
+      } else { cancelBtn?.remove(); alert(`Proses gagal. ${done}`); btn.disabled=false; btn.classList.remove('btn-outline-success'); btn.classList.add('btn-success'); btn.textContent=oldText; }
+    } catch(e) { btn.disabled=false; btn.textContent=oldText; alert('Terjadi kesalahan sistem.'); }
+  }
+
+  async function pollJob(jobId, onStep) {
+    for (let i=0; i<6000; i++) {
+      await new Promise(r => setTimeout(r, 2000));
+      const res = await fetch(`/jobs/${jobId}`); if (!res.ok) return 'HTTP error';
+      const data = await res.json(); onStep(data.current_step||data.status, data.progress_percent);
+      if (data.status==='completed') return 'completed';
+      if (data.status==='cancelled') return 'cancelled';
+      if (data.status==='failed') return data.error_message||'unknown error';
+    }
+    return 'timeout';
+  }
+
+  async function hardDeleteVideo(btn) {
+    const videoId = btn.dataset.videoId;
+    if (!confirm(`⚠️ DELETE ALL: Video ID ${videoId} beserta SEMUA data terkait dihapus permanen.\nTIDAK BISA di-undo. Lanjutkan?`)) return;
+    btn.disabled=true; btn.textContent='...';
+    const res = await fetch(`/upload/videos/${videoId}/hard`, { method:'DELETE' });
+    if (res.ok) {
+      document.getElementById(`video-row-${videoId}`)?.remove();
+      const tbody = document.getElementById('videoTableBody');
+      if (tbody && !tbody.querySelector('tr')) tbody.innerHTML='<tr id="empty-row"><td colspan="6" class="text-center text-muted">Belum ada video.</td></tr>';
+    } else { const data=await res.json(); alert(data.detail||'Gagal menghapus.'); btn.disabled=false; btn.textContent='🗑 Delete All'; }
+  }
+
+  document.getElementById('downloadBtn')?.addEventListener('click', async () => {
+    const urlInput=document.getElementById('videoUrl'), btn=document.getElementById('downloadBtn');
+    const errDiv=document.getElementById('downloadError'), succDiv=document.getElementById('downloadSuccess');
+    const spinner=document.getElementById('downloadSpinner');
+    errDiv.classList.add('d-none'); succDiv.classList.add('d-none');
+    const url=urlInput.value.trim(); if(!url){showAlert(errDiv,'URL tidak boleh kosong.',false);return;}
+    btn.disabled=true; spinner.classList.remove('d-none');
+    try {
+      const res=await fetch('/upload/download',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url})});
+      const data=await res.json();
+      if(!res.ok){btn.disabled=false;spinner.classList.add('d-none');showAlert(errDiv,data.detail||'Gagal memulai download.',false);return;}
+      const dlId=data.download_id, pctEl=document.getElementById('downloadPct'), bar=document.getElementById('downloadProgressBar');
+      for(let i=0;i<1200;i++){
+        await new Promise(r=>setTimeout(r,800));
+        const pr=await fetch(`/upload/download/${dlId}`); const pd=await pr.json();
+        if(pd.status==='finished'){bar.style.width='100%';pctEl.textContent='100%';btn.disabled=false;spinner.classList.add('d-none');showAlert(succDiv,`Video berhasil di-download! ID: ${pd.video.id}`,true);addRow(pd.video);urlInput.value='';return;}
+        if(pd.status==='error'){btn.disabled=false;spinner.classList.add('d-none');showAlert(errDiv,pd.error||'Gagal.',false);return;}
+        bar.style.width=(pd.percent||0)+'%'; pctEl.textContent=(pd.percent||0)+'%';
+      }
+      btn.disabled=false; spinner.classList.add('d-none'); showAlert(errDiv,'Timeout.',false);
+    } catch(e){btn.disabled=false;spinner.classList.add('d-none');showAlert(errDiv,'Kesalahan sistem.',false);}
+  });
+
+  document.querySelectorAll('#videoTableBody tr').forEach(row=>{
+    bindRowActions(row);
+    const procBtn=row.querySelector('.process-btn');
+    if(procBtn&&procBtn.dataset.jobId){
+      pollJob(procBtn.dataset.jobId,(step,pct)=>{procBtn.innerHTML=`<span class="spinner-border spinner-border-sm me-1"></span>Proses: ${step}${pct!=null?` (${pct}%)`:''}`;procBtn.title=`Proses: ${step}`;}).then(done=>{
+        const videoId=procBtn.dataset.videoId, rowEl=document.getElementById(`video-row-${videoId}`), cancelBtn=rowEl?.querySelector('.cancel-btn');
+        cancelBtn?.remove(); procBtn.disabled=false; procBtn.classList.remove('btn-outline-success'); procBtn.classList.add('btn-success'); procBtn.innerHTML='Proses'; delete procBtn.dataset.jobId;
+        const b=rowEl?.querySelector('td:nth-child(3) .badge');
+        if(done==='completed'&&b){b.textContent='ready';b.classList.remove('bg-warning','bg-secondary');b.classList.add('bg-success');}
+        else if(done==='cancelled'&&b){b.textContent='uploaded';b.classList.remove('bg-warning','bg-success');b.classList.add('bg-secondary');}
+      });
+    }
+  });
+}
+
+// Jalankan saat load langsung (full page) DAN saat di-swap oleh htmx
+if (document.readyState === 'loading') { document.addEventListener('DOMContentLoaded', initUploadPage); }
+else { initUploadPage(); }
+document.addEventListener('htmx:afterSwap', (e) => { if (e.target.id === 'main-content') initUploadPage(); });
+</script>

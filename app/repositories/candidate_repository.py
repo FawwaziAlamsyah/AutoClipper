@@ -38,3 +38,23 @@ class CandidateRepository(PostgresRepository[CandidateModel]):
             )
             .all()
         )
+
+    def count_unrendered_by_video(self, video_id: int) -> int:
+        """Count candidates for a video that have no completed clip yet."""
+        from app.models.clip_model import ClipModel
+        rendered_candidate_ids = (
+            self.db.query(ClipModel.candidate_id)
+            .filter(
+                ClipModel.video_id == video_id,
+                ClipModel.status == "completed",
+            )
+            .subquery()
+        )
+        return (
+            self.db.query(CandidateModel)
+            .filter(
+                CandidateModel.video_id == video_id,
+                CandidateModel.id.notin_(rendered_candidate_ids),
+            )
+            .count()
+        )

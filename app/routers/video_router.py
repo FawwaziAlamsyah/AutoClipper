@@ -14,6 +14,7 @@ from app.core.di.dependencies import (
     get_video_service,
 )
 from app.core.exceptions.base import ValidationException
+from app.core.htmx import render
 from app.schemas.video_schema import VideoDetail, VideoUploadResponse, VideoDownloadRequest
 from app.schemas.process_schema import ProcessRequest
 from app.services.video_service import VideoService
@@ -35,10 +36,12 @@ def upload_page(
 ) -> HTMLResponse:
     """Render the upload page."""
     running_jobs = job_service.get_running_by_video()
-    return templates.TemplateResponse(
-        request=request,
-        name="upload.html",
+    return render(
+        request,
+        templates,
+        partial_name="upload_content.html",
         context={
+            "request": request,
             "app_name": settings.APP_NAME,
             "allowed_extensions": settings.ALLOWED_VIDEO_EXTENSIONS,
             "max_size_mb": settings.MAX_UPLOAD_SIZE_MB,
@@ -50,12 +53,24 @@ def upload_page(
 
 @router.post("", response_model=VideoUploadResponse)
 async def upload_video(
+    request: Request,
     file: UploadFile = File(...),
     service: VideoService = Depends(get_video_service),
 ) -> VideoUploadResponse:
     """Upload a video file."""
     file_bytes = await file.read()
     video = service.upload(file.filename or "unknown.mp4", file_bytes)
+
+    # Return HTML status partial for htmx, JSON for API
+    if request.headers.get("HX-Request"):
+        return templates.TemplateResponse(
+            request=request,
+            name="_upload_status.html",
+            context={
+                "request": request,
+                "video": VideoUploadResponse.model_validate(video),
+            },
+        )
     return VideoUploadResponse.model_validate(video)
 
 
@@ -100,11 +115,27 @@ def get_video(
 
 @router.delete("/videos/{video_id}")
 def delete_video(
+    request: Request,
     video_id: int, service: VideoService = Depends(get_video_service)
 ) -> dict:
-    """Delete a video."""
+    """Archive a video (hapus file, simpan data DB)."""
     service.delete(video_id)
-    return {"detail": "Video deleted"}
+    
+    # Return empty HTML for htmx requests (removes row), JSON for API requests
+    if request.headers.get("HX-Request"):
+        from fastapi.responses import HTMLResponse
+        return HTMLResponse("")
+    else:
+        return {"detail": "Video archived"}
+
+
+@router.delete("/videos/{video_id}/hard")
+def hard_delete_video(
+    video_id: int, service: VideoService = Depends(get_video_service)
+) -> dict:
+    """Hard-delete video beserta semua data terkait — TIDAK BISA di-undo."""
+    service.hard_delete(video_id)
+    return {"detail": "Video hard-deleted"}
 
 
 @router.post("/download")

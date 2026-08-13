@@ -24,3 +24,14 @@ class VideoRepository(PostgresRepository[VideoModel]):
         self.db.commit()
         self.db.refresh(video)
         return video
+
+    def get_ready_not_archived(self) -> list[VideoModel]:
+        """Return videos with status='ready' that have not been archived yet."""
+        return list(
+            self.db.query(VideoModel)
+            .filter(
+                VideoModel.status == "ready",
+                VideoModel.is_archived == False,  # noqa: E712
+            )
+            .all()
+        )
