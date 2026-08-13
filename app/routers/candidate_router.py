@@ -6,6 +6,7 @@ from fastapi.templating import Jinja2Templates
 
 from app.core.config.settings import settings
 from app.core.exceptions.base import NotFoundException
+from app.core.htmx import render
 from app.core.di.dependencies import get_candidate_service, get_preview_service
 from app.schemas.candidate_schema import CandidateDetail
 from app.services.candidate_service import CandidateService
@@ -22,10 +23,12 @@ def candidates_page(
 ) -> HTMLResponse:
     """Render candidates grouped by video — tiap video satu card ringkasan."""
     summaries = service.get_video_summaries()
-    return templates.TemplateResponse(
-        request=request,
-        name="candidates.html",
+    return render(
+        request,
+        templates,
+        partial_name="candidates_content.html",
         context={
+            "request": request,
             "app_name": settings.APP_NAME,
             "summaries": summaries,
         },
@@ -67,10 +70,12 @@ def candidates_by_video(
             "clip_filename": clip_filename,
         })
 
-    return templates.TemplateResponse(
-        request=request,
-        name="candidates_video.html",
+    return render(
+        request,
+        templates,
+        partial_name="candidates_video_content.html",
         context={
+            "request": request,
             "app_name": settings.APP_NAME,
             "video": video,
             "candidates": candidate_rows,
@@ -109,15 +114,18 @@ def candidate_detail(
         else:
             preview["video_url"] = None
 
-    return templates.TemplateResponse(
-        request=request,
-        name="candidate_detail.html",
+    return render(
+        request,
+        templates,
+        partial_name="candidate_detail_content.html",
         context={
+            "request": request,
             "app_name": settings.APP_NAME,
             "candidate": candidate,
             "breakdown": candidate.score_breakdown or {},
             "clip": clip,
             "preview": preview,
+            "video_id": candidate.video_id,
         },
     )
 
@@ -164,69 +172,90 @@ def reject_candidate(
     return _to_detail(candidate)
 
 
-@router.delete("/{candidate_id}")
+@router.delete("/{candidate_id}", response_class=HTMLResponse)
 def delete_candidate(
+    request: Request,
     candidate_id: int,
     service: CandidateService = Depends(get_candidate_service),
-) -> dict:
+) -> HTMLResponse:
     """Delete a candidate beserta clip terkait."""
     try:
         service.delete_candidate(candidate_id)
     except ValueError:
         raise NotFoundException(f"Candidate {candidate_id} tidak ditemukan")
-    return {"detail": "Candidate deleted"}
+    return HTMLResponse("")  # Return empty HTML — htmx swap=outerHTML akan menghapus <tr> dari DOM
 
 
-@router.post("/{candidate_id}/like")
+@router.post("/{candidate_id}/like", response_class=HTMLResponse)
 def like_candidate(
+    request: Request,
     candidate_id: int,
     service: CandidateService = Depends(get_candidate_service),
-) -> dict:
+) -> HTMLResponse:
     """Tandai candidate sebagai contoh bagus untuk training (dari review manual)."""
     try:
         candidate = service.mark_as_liked(candidate_id)
     except ValueError:
         raise NotFoundException(f"Candidate {candidate_id} tidak ditemukan")
-    return {"id": candidate.id, "actual_score": candidate.actual_score, "label_source": candidate.label_source}
+    return templates.TemplateResponse(
+        request=request,
+        name="_like_button.html",
+        context={"request": request, "candidate": candidate},
+    )
 
 
-@router.post("/{candidate_id}/unlike")
+@router.post("/{candidate_id}/unlike", response_class=HTMLResponse)
 def unlike_candidate(
+    request: Request,
     candidate_id: int,
     service: CandidateService = Depends(get_candidate_service),
-) -> dict:
+) -> HTMLResponse:
     """Batalkan status liked (jaga-jaga salah klik meski sudah ada konfirmasi)."""
     try:
         candidate = service.unmark_liked(candidate_id)
     except ValueError:
         raise NotFoundException(f"Candidate {candidate_id} tidak ditemukan")
-    return {"id": candidate.id}
+    return templates.TemplateResponse(
+        request=request,
+        name="_like_button.html",
+        context={"request": request, "candidate": candidate},
+    )
 
 
-@router.post("/{candidate_id}/dislike")
+@router.post("/{candidate_id}/dislike", response_class=HTMLResponse)
 def dislike_candidate(
+    request: Request,
     candidate_id: int,
     service: CandidateService = Depends(get_candidate_service),
-) -> dict:
+) -> HTMLResponse:
     """Tandai candidate sebagai contoh JELEK untuk training (dari review manual)."""
     try:
         candidate = service.mark_as_disliked(candidate_id)
     except ValueError:
         raise NotFoundException(f"Candidate {candidate_id} tidak ditemukan")
-    return {"id": candidate.id, "actual_score": candidate.actual_score, "label_source": candidate.label_source}
+    return templates.TemplateResponse(
+        request=request,
+        name="_like_button.html",
+        context={"request": request, "candidate": candidate},
+    )
 
 
-@router.post("/{candidate_id}/undislike")
+@router.post("/{candidate_id}/undislike", response_class=HTMLResponse)
 def undislike_candidate(
+    request: Request,
     candidate_id: int,
     service: CandidateService = Depends(get_candidate_service),
-) -> dict:
+) -> HTMLResponse:
     """Batalkan status disliked."""
     try:
         candidate = service.unmark_disliked(candidate_id)
     except ValueError:
         raise NotFoundException(f"Candidate {candidate_id} tidak ditemukan")
-    return {"id": candidate.id}
+    return templates.TemplateResponse(
+        request=request,
+        name="_like_button.html",
+        context={"request": request, "candidate": candidate},
+    )
 
 
 def _to_detail(c) -> CandidateDetail:

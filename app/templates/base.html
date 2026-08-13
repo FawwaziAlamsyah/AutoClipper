@@ -6,62 +6,79 @@
   <title>{% block title %}{{ app_name }}{% endblock %}</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
   <link href="/static/css/style.css" rel="stylesheet">
+  <script src="https://unpkg.com/htmx.org@2.0.4"
+          integrity="sha384-HGfztofotfshcF7+8n44JQL2oJmowVChPTg48W4bwqsCPXTNsFVaHz3XKz7RnCn5"
+          crossorigin="anonymous"></script>
 </head>
 <body>
   <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
     <div class="container">
-      <a class="navbar-brand" href="/">{{ app_name }}</a>
+      <a class="navbar-brand"
+         href="/"
+         hx-get="/"
+         hx-target="#main-content"
+         hx-push-url="true">{{ app_name }}</a>
       <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
         <span class="navbar-toggler-icon"></span>
       </button>
       <div class="collapse navbar-collapse" id="navbarNav">
         <ul class="navbar-nav ms-auto align-items-lg-center">
-          <li class="nav-item d-none d-lg-block" id="globalJobIndicator">
-            <span class="navbar-text me-3" style="display:none;">
-              <span class="spinner-border spinner-border-sm text-warning me-1"></span>
-              <span id="globalJobText">Proses...</span>
-            </span>
+          <li class="nav-item">
+            <a class="nav-link" href="/"
+               hx-get="/"
+               hx-target="#main-content"
+               hx-push-url="true">Dashboard</a>
           </li>
-          <li class="nav-item"><a class="nav-link" href="/">Dashboard</a></li>
-          <li class="nav-item"><a class="nav-link" href="/upload">Upload</a></li>
-          <li class="nav-item"><a class="nav-link" href="/candidates">Candidates</a></li>
-          <li class="nav-item"><a class="nav-link" href="/history">History</a></li>
-          <li class="nav-item"><a class="nav-link" href="/training/dashboard">Training</a></li>
+          <li class="nav-item">
+            <a class="nav-link" href="/upload"
+               hx-get="/upload"
+               hx-target="#main-content"
+               hx-push-url="true">Upload</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="/candidates"
+               hx-get="/candidates"
+               hx-target="#main-content"
+               hx-push-url="true">Candidates</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="/history"
+               hx-get="/history"
+               hx-target="#main-content"
+               hx-push-url="true">History</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="/training/dashboard"
+               hx-get="/training/dashboard"
+               hx-target="#main-content"
+               hx-push-url="true">Training</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="/storage/dashboard"
+               hx-get="/storage/dashboard"
+               hx-target="#main-content"
+               hx-push-url="true">Storage</a>
+          </li>
         </ul>
       </div>
     </div>
   </nav>
 
-  <div class="container py-4">
-    {% block content %}{% endblock %}
+  <!-- Area widget global (job progress dll) — polling otomatis via htmx
+       TIDAK PERNAH ikut di-swap saat navigasi karena di luar #main-content. -->
+  <div id="global-widgets"
+       hx-get="/jobs/active/status-widget"
+       hx-trigger="load, every 3s"
+       hx-swap="outerHTML"></div>
+
+  <div id="main-content" class="container py-4">
+    {% block content %}
+      {% if _content_partial is defined %}
+        {% include _content_partial %}
+      {% endif %}
+    {% endblock %}
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-  <script>
-  // Global job indicator — tampil di semua halaman selama ada job aktif.
-  // Hanya polling /jobs/active selama masih ada job berjalan; saat idle,
-  // berhenti polling (nol request) sampai user memulai proses baru.
-  (function pollActiveJobs() {
-    fetch('/jobs/active')
-      .then(r => r.json())
-      .then(data => {
-        const el = document.getElementById('globalJobText');
-        const wrap = el && el.parentElement;
-        if (!el) return;
-        if (data.count > 0) {
-          const step = data.active_jobs[0].current_step || 'running';
-          el.textContent = data.count > 1
-            ? `${data.count} proses berjalan...`
-            : `Proses: ${step}...`;
-          wrap.style.display = '';
-          setTimeout(pollActiveJobs, 3000);
-        } else {
-          wrap.style.display = 'none';
-          // idle — tidak ada job aktif, berhenti polling
-        }
-      })
-      .catch(() => {});
-  })();
-  </script>
 </body>
 </html>

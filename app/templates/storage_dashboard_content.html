@@ -1,0 +1,104 @@
+<div class="card shadow-sm p-4 mb-4">
+  <h3 class="mb-1">Storage Dashboard</h3>
+  <p class="text-muted mb-0">Ringkasan penggunaan disk dan daftar video yang bisa diarsipkan.</p>
+</div>
+
+<!-- Ringkasan Disk Usage -->
+<div class="row g-3 mb-4">
+  <div class="col-sm-6 col-lg-3">
+    <div class="card shadow-sm p-3 text-center">
+      <div class="fs-4 fw-bold text-primary">{{ stats.uploads_mb }} MB</div>
+      <div class="text-muted small">Video mentah (uploads)</div>
+    </div>
+  </div>
+  <div class="col-sm-6 col-lg-3">
+    <div class="card shadow-sm p-3 text-center">
+      <div class="fs-4 fw-bold text-success">{{ stats.outputs_mb }} MB</div>
+      <div class="text-muted small">Clip hasil render (outputs)</div>
+    </div>
+  </div>
+  <div class="col-sm-6 col-lg-3">
+    <div class="card shadow-sm p-3 text-center">
+      <div class="fs-4 fw-bold text-warning">{{ stats.cache_mb }} MB</div>
+      <div class="text-muted small">Cache sementara</div>
+    </div>
+  </div>
+  <div class="col-sm-6 col-lg-3">
+    <div class="card shadow-sm p-3 text-center">
+      <div class="fs-4 fw-bold text-secondary">{{ stats.models_mb }} MB</div>
+      <div class="text-muted small">Model training</div>
+    </div>
+  </div>
+</div>
+
+<!-- Tabel Video Belum Diarsipkan -->
+<div class="card shadow-sm p-4">
+  <h5>Video Belum Diarsipkan ({{ archivable | length }})</h5>
+  <p class="text-muted small mb-3">
+    Diurutkan dari file terbesar. Archive menghapus file dari disk — data candidate dan training tetap tersimpan.
+  </p>
+
+  {% if archivable %}
+  <div class="table-responsive">
+    <table class="table table-sm align-middle">
+      <thead class="table-light">
+        <tr>
+          <th>ID</th>
+          <th>Nama File</th>
+          <th>Ukuran</th>
+          <th>Candidate belum di-render</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in archivable %}
+        <tr id="storage-row-{{ row.video.id }}">
+          <td class="text-muted small">{{ row.video.id }}</td>
+          <td class="text-truncate" style="max-width:300px" title="{{ row.video.original_filename }}">
+            {{ row.video.original_filename }}
+          </td>
+          <td><strong>{{ row.size_mb }} MB</strong></td>
+          <td>
+            {% if row.unrendered_count > 0 %}
+            <span class="text-warning small">{{ row.unrendered_count }} candidate (tetap boleh diarsipkan)</span>
+            {% else %}
+            <span class="text-muted small">Semua sudah di-render</span>
+            {% endif %}
+          </td>
+          <td>
+            <button class="btn btn-sm btn-outline-warning"
+                    onclick="archiveVideo(this, {{ row.video.id }})">
+              📦 Archive
+            </button>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="text-muted small">Tidak ada video yang perlu diarsipkan.</p>
+  {% endif %}
+</div>
+
+<script>
+async function archiveVideo(btn, videoId) {
+  if (!confirm('File video akan dihapus dari disk untuk hemat storage.\nData candidate/training tetap tersimpan. Lanjutkan?')) return;
+  btn.disabled = true;
+  btn.textContent = '...';
+  try {
+    const res = await fetch(`/upload/videos/${videoId}`, { method: 'DELETE' });
+    if (res.ok) {
+      document.getElementById('storage-row-' + videoId)?.remove();
+    } else {
+      alert('Gagal mengarsipkan video.');
+      btn.disabled = false;
+      btn.textContent = '📦 Archive';
+    }
+  } catch (e) {
+    alert('Terjadi kesalahan.');
+    btn.disabled = false;
+    btn.textContent = '📦 Archive';
+  }
+}
+</script>

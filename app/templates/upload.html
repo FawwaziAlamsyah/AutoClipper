@@ -153,7 +153,12 @@
             {% else %}
             <button class="btn btn-sm btn-success process-btn" data-video-id="{{ video.id }}">Proses</button>
             {% endif %}
-            <button class="btn btn-sm btn-danger delete-btn" data-video-id="{{ video.id }}">Delete</button>
+            {% if video.is_archived %}
+            <span class="badge bg-warning text-dark">📦 Archived</span>
+            {% else %}
+            <button class="btn btn-sm btn-outline-warning delete-btn" data-video-id="{{ video.id }}">📦 Archive</button>
+            {% endif %}
+            <button class="btn btn-sm btn-danger hard-delete-btn" data-video-id="{{ video.id }}">🗑 Delete All</button>
           </td>
         </tr>
         {% else %}
@@ -215,6 +220,9 @@ function rowHtml(v) {
   const actions = v.status === 'uploading'
     ? `<button class="btn btn-sm btn-outline-secondary process-btn" data-video-id="${v.id}" data-uploading="1" disabled><span class="spinner-border spinner-border-sm me-1"></span>Uploading...</button>`
     : `<button class="btn btn-sm btn-success process-btn" data-video-id="${v.id}">Proses</button>`;
+  const archiveBtn = v.is_archived
+    ? `<span class="badge bg-warning text-dark">📦 Archived</span>`
+    : `<button class="btn btn-sm btn-outline-warning delete-btn" data-video-id="${v.id}">📦 Archive</button>`;
   return `
   <tr id="video-row-${v.id}">
     <td>${v.id}</td>
@@ -224,7 +232,8 @@ function rowHtml(v) {
     <td>${formatDuration(v.duration_seconds)}</td>
     <td class="d-flex gap-2 align-items-center">
       ${actions}
-      <button class="btn btn-sm btn-danger delete-btn" data-video-id="${v.id}">Delete</button>
+      ${archiveBtn}
+      <button class="btn btn-sm btn-danger hard-delete-btn" data-video-id="${v.id}">🗑 Delete All</button>
     </td>
   </tr>`;
 }
@@ -268,9 +277,11 @@ function bindRowActions(row) {
   const procBtn = row.querySelector('.process-btn');
   const delBtn = row.querySelector('.delete-btn');
   const cancelBtn = row.querySelector('.cancel-btn');
+  const hardDelBtn = row.querySelector('.hard-delete-btn');
   if (procBtn) procBtn.addEventListener('click', () => processVideo(procBtn));
   if (delBtn) delBtn.addEventListener('click', () => deleteVideo(delBtn));
   if (cancelBtn) cancelBtn.addEventListener('click', () => cancelJob(cancelBtn));
+  if (hardDelBtn) hardDelBtn.addEventListener('click', () => hardDeleteVideo(hardDelBtn));
 }
 
 async function cancelJob(btn) {
@@ -414,19 +425,45 @@ async function pollJob(jobId, onStep) {
 
 async function deleteVideo(btn) {
   const videoId = btn.dataset.videoId;
-  if (!confirm(`Delete video ID ${videoId}? File dan semua data terkait akan dihapus.`)) return;
+  if (!confirm(
+    `File video ID ${videoId} akan dihapus dari disk untuk hemat storage.\n` +
+    `Semua data candidate/training tetap tersimpan. Lanjutkan?`
+  )) return;
   btn.disabled = true;
+  btn.textContent = '...';
   const res = await fetch(`/upload/videos/${videoId}`, { method: 'DELETE' });
+  if (res.ok) {
+    // Ganti tombol Archive dengan badge Archived — jangan hapus row
+    btn.outerHTML = `<span class="badge bg-warning text-dark">📦 Archived</span>`;
+  } else {
+    const data = await res.json();
+    alert(data.detail || 'Gagal mengarsipkan video.');
+    btn.disabled = false;
+    btn.textContent = '📦 Archive';
+  }
+}
+
+async function hardDeleteVideo(btn) {
+  const videoId = btn.dataset.videoId;
+  if (!confirm(
+    `⚠️ DELETE ALL: Video ID ${videoId} beserta SEMUA data terkait akan dihapus permanen.\n` +
+    `Ini termasuk candidates, training labels, transcripts, dan analysis results.\n\n` +
+    `Operasi ini TIDAK BISA di-undo. Lanjutkan?`
+  )) return;
+  btn.disabled = true;
+  btn.textContent = '...';
+  const res = await fetch(`/upload/videos/${videoId}/hard`, { method: 'DELETE' });
   if (res.ok) {
     document.getElementById(`video-row-${videoId}`)?.remove();
     const tbody = document.getElementById('videoTableBody');
-    if (!tbody.querySelector('tr')) {
+    if (tbody && !tbody.querySelector('tr')) {
       tbody.innerHTML = '<tr id="empty-row"><td colspan="6" class="text-center text-muted">Belum ada video.</td></tr>';
     }
   } else {
     const data = await res.json();
-    alert(data.detail || 'Gagal delete video.');
+    alert(data.detail || 'Gagal menghapus video.');
     btn.disabled = false;
+    btn.textContent = '🗑 Delete All';
   }
 }
 

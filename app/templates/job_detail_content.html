@@ -1,8 +1,11 @@
-{% extends "base.html" %}
+<div class="d-flex align-items-center gap-3 mb-3">
+  <a href="/history"
+     hx-get="/history"
+     hx-target="#main-content"
+     hx-push-url="true"
+     class="btn btn-outline-secondary btn-sm">← Back</a>
+</div>
 
-{% block title %}Job #{{ status.job_id }} - {{ app_name }}{% endblock %}
-
-{% block content %}
 <div class="card shadow-sm p-4 mb-4">
   <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
     <div>
@@ -14,12 +17,19 @@
       </div>
       {% if status.error_message %}<div class="alert alert-danger mt-2 mb-0">{{ status.error_message }}</div>{% endif %}
     </div>
-    <button class="btn btn-sm btn-warning" id="cancelJobBtn">Cancel Job</button>
+    <button class="btn btn-sm btn-warning"
+            onclick="cancelJob(this, {{ status.job_id }})">Cancel Job</button>
   </div>
 
-  <div class="progress mt-3" style="height: 25px;">
-    <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar"
-         style="width: {{ status.progress_percent }}%">{{ status.progress_percent }}%</div>
+  <!-- Progress bar diupdate via htmx polling -->
+  <div id="job-progress-detail"
+       hx-get="/jobs/{{ status.job_id }}/status-fragment"
+       hx-trigger="{% if status.status in ('pending', 'running') %}load, every 2s{% else %}load{% endif %}"
+       hx-swap="innerHTML">
+    <div class="progress mt-3" style="height: 25px;">
+      <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar"
+           style="width: {{ status.progress_percent }}%">{{ status.progress_percent }}%</div>
+    </div>
   </div>
 </div>
 
@@ -51,15 +61,27 @@
 </div>
 
 <script>
-document.getElementById('cancelJobBtn')?.addEventListener('click', async () => {
-  if (!confirm('Batalkan job {{ status.job_id }}?')) return;
-  const res = await fetch('/jobs/{{ status.job_id }}/cancel', { method: 'POST' });
-  if (res.ok) location.reload();
-  else alert('Gagal cancel job.');
-});
-
-// Auto-refresh saat job masih berjalan
-const running = {{ 'true' if status.status in ('pending', 'running') else 'false' }};
-if (running) setTimeout(() => location.reload(), 3000);
+async function cancelJob(btn, jobId) {
+  if (!confirm('Batalkan job ' + jobId + '?')) return;
+  btn.disabled = true;
+  btn.textContent = 'Membatalkan...';
+  try {
+    const res = await fetch(`/jobs/${jobId}/cancel`, { method: 'POST' });
+    if (res.ok) {
+      // Reload halaman job detail dengan konten terbaru
+      const pageRes = await fetch(`/jobs/${jobId}/ui`, { headers: { 'HX-Request': 'true' } });
+      if (pageRes.ok) {
+        document.getElementById('main-content').innerHTML = await pageRes.text();
+      }
+    } else {
+      alert('Gagal cancel job.');
+      btn.disabled = false;
+      btn.textContent = 'Cancel Job';
+    }
+  } catch (e) {
+    alert('Terjadi kesalahan.');
+    btn.disabled = false;
+    btn.textContent = 'Cancel Job';
+  }
+}
 </script>
-{% endblock %}

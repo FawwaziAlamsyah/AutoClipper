@@ -1,0 +1,51 @@
+<div class="card shadow-sm p-4" 
+     {% if status != 'finished' %}
+     hx-get="/training/bulk-import/{{ import_id }}" 
+     hx-target="#importStatus" 
+     hx-swap="innerHTML" 
+     hx-trigger="load delay:2s, every 3s"
+     {% endif %}>
+  <h5>Progress Import</h5>
+  <div class="mb-2">
+    {% if status == 'finished' %}
+    <span class="badge bg-success">selesai</span>
+    {% else %}
+    <span class="badge bg-warning text-dark">berjalan</span>
+    {% endif %}
+    <small class="text-muted ms-2">ID: {{ import_id }}</small>
+  </div>
+  
+  {% if percent is defined %}
+  <div class="progress mb-3" style="height: 25px;">
+    <div class="progress-bar {% if status != 'finished' %}progress-bar-striped progress-bar-animated{% endif %}"
+         role="progressbar" style="width: {{ percent }}%">{{ percent }}%</div>
+  </div>
+  
+  <table class="table table-sm table-borderless mb-0">
+    <tbody>
+      <tr>
+        <td class="text-muted">Total</td>
+        <td>{{ total }}</td>
+      </tr>
+      <tr>
+        <td class="text-muted">Selesai</td>
+        <td class="text-success">{{ completed }}</td>
+      </tr>
+      <tr>
+        <td class="text-muted">Gagal</td>
+        <td class="text-danger">{{ failed }}</td>
+      </tr>
+      <tr>
+        <td class="text-muted">Antrian</td>
+        <td>{{ queued }}</td>
+      </tr>
+    </tbody>
+  </table>
+  {% endif %}
+  
+  {% if status == 'finished' %}
+  <div class="alert alert-success mt-3">
+    Import selesai! Lihat hasil di <a href="/candidates">halaman Candidates</a>.
+  </div>
+  {% endif %}
+</div>

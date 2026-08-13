@@ -8,6 +8,7 @@ from fastapi.templating import Jinja2Templates
 
 from app.core.config.settings import settings
 from app.core.di.dependencies import get_history_service
+from app.core.htmx import render
 from app.schemas.history_schema import HistoryDetail
 from app.services.history_service import HistoryService
 
@@ -21,10 +22,12 @@ templates = Jinja2Templates(directory="app/templates")
 def history_page(request: Request, service: HistoryService = Depends(get_history_service)) -> HTMLResponse:
     """Render the history page."""
     entries = service.list_all()
-    return templates.TemplateResponse(
-        request=request,
-        name="history.html",
+    return render(
+        request,
+        templates,
+        partial_name="history_content.html",
         context={
+            "request": request,
             "app_name": settings.APP_NAME,
             "entries": entries,
         },

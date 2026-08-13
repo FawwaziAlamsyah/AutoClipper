@@ -1,6 +1,8 @@
 """SQLAlchemy model for the videos table."""
 
-from sqlalchemy import Float, Integer, Text
+from datetime import datetime
+
+from sqlalchemy import Boolean, DateTime, Float, Integer, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base, TimestampMixin
@@ -22,6 +24,8 @@ class VideoModel(Base, TimestampMixin):
     fps: Mapped[float | None] = mapped_column(Float)
     file_size_bytes: Mapped[int | None] = mapped_column(Integer)
     status: Mapped[str] = mapped_column(Text, nullable=False, default="uploaded")
+    is_archived: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    archived_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     jobs: Mapped[list["JobModel"]] = relationship(back_populates="video")
     transcripts: Mapped[list["TranscriptModel"]] = relationship(back_populates="video")

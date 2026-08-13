@@ -94,3 +94,8 @@ def get_model_trainer(db: Session = Depends(get_db)):
 def get_training_run_repo(db: Session = Depends(get_db)):
     from app.repositories.training_run_repository import TrainingRunRepository
     return TrainingRunRepository(db)
+
+
+def get_storage_service(db: Session = Depends(get_db)):
+    from app.services.storage_service import StorageService
+    return StorageService(db)
