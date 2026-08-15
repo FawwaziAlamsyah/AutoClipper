@@ -5,6 +5,7 @@ import threading
 import uuid
 from pathlib import Path
 from typing import Callable
+
 import yt_dlp
 
 from sqlalchemy.orm import Session
@@ -36,6 +37,19 @@ def _video_payload(video: VideoModel) -> dict:
         "duration_seconds": video.duration_seconds,
         "status": video.status,
     }
+
+
+class _YtDlpLogger:
+    """Kirim pesan yt-dlp ke logger aplikasi, bukan stderr terminal."""
+
+    def debug(self, message: str) -> None:
+        logger.debug("yt-dlp: %s", message)
+
+    def warning(self, message: str) -> None:
+        logger.debug("yt-dlp warning: %s", message)
+
+    def error(self, message: str) -> None:
+        logger.debug("yt-dlp error: %s", message)
 
 
 class DownloadService:
@@ -131,6 +145,7 @@ class DownloadService:
             "outtmpl": out_tmpl,
             "quiet": True,
             "no_warnings": True,
+            "logger": _YtDlpLogger(),
             "merge_output_format": "mp4",
             "progress_hooks": [_hook] if progress_cb else [],
             # User-agent realistis + header HTTP — hindari 403 anti-bot YouTube
@@ -160,14 +175,8 @@ class DownloadService:
             cookie_file_opts = dict(base_opts)
             cookie_file_opts["cookiesfile"] = settings.COOKIES_FILE
             attempts.append(("web + cookies file", cookie_file_opts))
-        else:
-            # 3. Tidak ada cookies file → coba baca cookies langsung dari browser.
-            for browser in ("chrome", "firefox", "edge"):
-                browser_opts = dict(base_opts)
-                browser_opts["cookiesfrombrowser"] = (browser,)
-                attempts.append((f"web + cookies {browser}", browser_opts))
 
-        # 4. Terakhir: coba tanpa cookies sama sekali (client web default).
+        # 3. Terakhir: coba tanpa cookies sama sekali (client web default).
         attempts.append(("web tanpa cookies", dict(base_opts)))
 
         last_error: str | None = None

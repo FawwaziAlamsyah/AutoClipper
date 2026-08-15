@@ -30,10 +30,14 @@ templates = Jinja2Templates(directory="app/templates")
 @router.get("", response_class=HTMLResponse)
 def training_import_page(request: Request) -> HTMLResponse:
     """Render halaman bulk CSV import untuk training clip."""
-    return templates.TemplateResponse(
-        request=request,
-        name="training_import.html",
-        context={"app_name": settings.APP_NAME},
+    return render(
+        request,
+        templates,
+        partial_name="training_import.html",
+        context={
+            "request": request,
+            "app_name": settings.APP_NAME,
+        },
     )
 
 
@@ -69,13 +73,13 @@ async def bulk_import_training(
     """
     rows = await service.parse_csv(file)
     import_id, job_ids = service.enqueue_bulk_ingest(rows)
+    progress = service.get_import_progress(import_id)  # context lengkap dari awal
     return templates.TemplateResponse(
         request=request,
         name="_import_progress.html",
         context={
             "request": request,
-            "import_id": import_id,
-            "queued": len(rows)
+            **progress,  # sudah termasuk import_id, status, total, completed, failed, percent
         }
     )
 

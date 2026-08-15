@@ -66,10 +66,19 @@ class CandidateService:
         return self.candidate_repo.get_by_job(job_id)[:limit]
 
     def list_by_video(self, video_id: int) -> list[CandidateModel]:
-        """Return all candidates for a specific video, sorted by score desc."""
+        """Return all candidates for a specific video, sorted by score desc.
+
+        Candidate dari job_type="training_ingest" DIKECUALIKAN.
+        """
+        from app.models.job_model import JobModel
+
         candidates = list(
             self.db.query(CandidateModel)
-            .filter(CandidateModel.video_id == video_id)
+            .join(JobModel, CandidateModel.job_id == JobModel.id)
+            .filter(
+                CandidateModel.video_id == video_id,
+                JobModel.job_type != "training_ingest",
+            )
             .order_by(CandidateModel.final_score.desc())
             .all()
         )
@@ -80,13 +89,19 @@ class CandidateService:
 
     def get_video_summaries(self) -> list[dict]:
         """Return per-video summary: video info + candidate counts + top score."""
+        from app.models.job_model import JobModel
         from app.models.video_model import VideoModel
+
         videos = self.db.query(VideoModel).order_by(VideoModel.id.desc()).all()
         result = []
         for video in videos:
             candidates = (
                 self.db.query(CandidateModel)
-                .filter(CandidateModel.video_id == video.id)
+                .join(JobModel, CandidateModel.job_id == JobModel.id)
+                .filter(
+                    CandidateModel.video_id == video.id,
+                    JobModel.job_type != "training_ingest",
+                )
                 .all()
             )
             if not candidates:

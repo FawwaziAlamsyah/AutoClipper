@@ -12,6 +12,7 @@ from app.core.config.settings import settings
 from app.core.exceptions.base import NotFoundException, ValidationException
 from app.models.cache_entry_model import CacheEntryModel
 from app.models.clip_model import ClipModel
+from app.models.history_model import HistoryModel
 from app.models.video_model import VideoModel
 from app.repositories.video_repository import VideoRepository
 from app.services.history_service import HistoryService
