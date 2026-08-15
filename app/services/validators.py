@@ -19,12 +19,6 @@ STORY_MARKERS = (
     "namun", "jadi", "karena", "ternyata", "sebenarnya", "first",
     "then", "after", "finally", "but", "so", "because", "turns out",
 )
-EDUCATIONAL_WORDS = (
-    "adalah", "berarti", "fakta", "contoh", "caranya", "tutorial",
-    "langkah", "cara", "tips", "rahasia", "prinsip", "teori", "data",
-    "persen", "%", "tahun", "is", "means", "fact", "example", "how to",
-    "steps", "tips",
-)
 VIRAL_WORDS = (
     "viral", "luar biasa", "gila", "gak nyangka", "mengejutkan",
     "shocking", "unbelievable", "crazy", "insane", "wild", "explode",
@@ -44,7 +38,6 @@ PENALTY_KEYWORDS = (
     "follow", "like", "iklan", "advertisement", "jangan lupa like",
     "bagikan", "share this", "intro", "outro",
 )
-NUMBER = re.compile(r"\d+")
 
 
 def _words(text: str) -> str:
@@ -77,16 +70,6 @@ def validate_story(text: str) -> tuple[float, str]:
     hits = [m for m in STORY_MARKERS if m in low]
     score = min(5.0 + len(hits) * 1.2, 10.0)
     reason = f"{len(hits)} penanda alur cerita" if hits else "Tidak ada penanda alur cerita"
-    return score, reason
-
-
-def validate_educational(text: str) -> tuple[float, str]:
-    """Educational value: facts, numbers, explanations."""
-    low = _words(text)
-    hits = [w for w in EDUCATIONAL_WORDS if w in low]
-    numbers = len(NUMBER.findall(text))
-    score = min(5.0 + len(hits) * 0.8 + numbers * 0.3, 10.0)
-    reason = f"{len(hits)} penanda edukasi, {numbers} angka" if hits or numbers else "Sedikit konten edukasi"
     return score, reason
 
 

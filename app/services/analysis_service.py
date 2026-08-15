@@ -15,7 +15,6 @@ from app.ai_modules.registry import get_analyzer
 from app.core.config.settings import settings
 from app.models.analysis_result_model import AnalysisResultModel
 from app.models.candidate_model import CandidateModel
-from app.models.history_model import HistoryModel
 from app.models.transcript_model import TranscriptModel
 from app.repositories.analysis_result_repository import AnalysisResultRepository
 from app.repositories.cache_entry_repository import CacheEntryRepository

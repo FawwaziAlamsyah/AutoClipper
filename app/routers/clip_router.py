@@ -5,7 +5,7 @@ from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 
 from app.core.di.dependencies import get_clip_service, get_candidate_service
-from app.schemas.clip_schema import ClipGenerateRequest, ClipDetail
+from app.schemas.clip_schema import ClipGenerateRequest
 from app.services.clip_service import ClipService
 from app.services.candidate_service import CandidateService
 

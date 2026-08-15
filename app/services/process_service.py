@@ -6,11 +6,10 @@ from sqlalchemy.orm import Session
 
 from app.core.config.settings import settings
 from app.core.exceptions.base import NotFoundException
-from app.models.candidate_model import CandidateModel
-from app.models.history_model import HistoryModel
 from app.repositories.video_repository import VideoRepository
 from app.services.analysis_service import AnalysisService
 from app.services.ffmpeg_service import FFmpegService
+from app.services.history_service import HistoryService
 from app.services.job_service import JobService
 from app.services.score_engine import ScoreEngine
 from app.services.transcript_service import TranscriptService
@@ -32,6 +31,7 @@ class ProcessService:
         self.db = db
         self.video_repo = VideoRepository(db)
         self.job_service = JobService(db)
+        self.history_service = HistoryService(db)
         self.transcript_service = transcript_service or TranscriptService(db, ffmpeg=ffmpeg)
         self.analysis_service = analysis_service or AnalysisService(db)
         self.score_engine = ScoreEngine(db)
@@ -128,13 +128,13 @@ class ProcessService:
         self.job_service.finish_step(job.id, "complete", success=True)
         logger.debug("Process job %d: complete success", job.id)
 
-        video.status = "ready"
-        self.db.add(HistoryModel(
-            video_id=video_id,
-            job_id=job.id,
+        self.video_repo.update_status(video_id, "ready")
+        self.history_service.log(
             action="candidate_generated",
             description=f"Generated {len(candidates)} candidate clips dari transcript",
-        ))
+            video_id=video_id,
+            job_id=job.id,
+        )
         self.db.commit()
 
         return {
@@ -168,7 +168,7 @@ class ProcessService:
             video.width = meta.get("width")
             video.height = meta.get("height")
             video.fps = meta.get("fps")
-            video.status = "processing"
+            self.video_repo.update_status(video.id, "processing")
             self.db.commit()
         except Exception as e:
             logger.warning("Metadata extraction failed: %s", e)

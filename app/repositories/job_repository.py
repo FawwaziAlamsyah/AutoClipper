@@ -1,7 +1,5 @@
 """Repository for Job and JobStep models."""
 
-from sqlalchemy.orm import Session
-
 from app.models.job_model import JobModel
 from app.models.job_step_model import JobStepModel
 from app.repositories.base_repository import PostgresRepository
@@ -26,15 +24,6 @@ class JobRepository(PostgresRepository[JobModel]):
         """Retrieve jobs stuck in pending/running (orphaned after restart)."""
         return list(
             self.db.query(JobModel).filter(JobModel.status.in_(["pending", "running"])).all()
-        )
-
-    def get_latest_by_video(self, video_id: int) -> JobModel | None:
-        """Get the most recent job for a video."""
-        return (
-            self.db.query(JobModel)
-            .filter(JobModel.video_id == video_id)
-            .order_by(JobModel.created_at.desc())
-            .first()
         )
 
 

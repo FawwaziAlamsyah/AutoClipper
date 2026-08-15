@@ -10,7 +10,6 @@ from pathlib import Path
 from fastapi import UploadFile
 from sqlalchemy.orm import Session
 
-from app.core.config.settings import settings
 from app.core.exceptions.base import ValidationException
 from app.services.download_service import DownloadService
 from app.services.process_service import ProcessService

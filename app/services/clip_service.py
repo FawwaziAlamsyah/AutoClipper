@@ -9,13 +9,11 @@ from sqlalchemy.orm import Session
 
 from app.core.exceptions.base import ValidationException
 from app.models.clip_model import ClipModel
-from app.models.candidate_model import CandidateModel
-from app.models.history_model import HistoryModel
-from app.models.video_model import VideoModel
 from app.repositories.clip_repository import ClipRepository
 from app.repositories.candidate_repository import CandidateRepository
 from app.repositories.video_repository import VideoRepository
 from app.services.ffmpeg_service import FFmpegService
+from app.services.history_service import HistoryService
 from app.services.job_service import JobService
 
 logger = logging.getLogger(__name__)
@@ -31,6 +29,7 @@ class ClipService:
         self.candidate_repo = CandidateRepository(db)
         self.clip_repo = ClipRepository(db)
         self.ffmpeg = FFmpegService()
+        self.history_service = HistoryService(db)
         self.job_service = JobService(db)
 
     def generate_clip(
@@ -89,18 +88,16 @@ class ClipService:
         )
         clip = self.clip_repo.add(clip)
 
-        # Update candidate status
-        candidate.status = "selected"
-        self.db.commit()
+        # Update candidate status via repository
+        self.candidate_repo.update_status(candidate_id, "selected")
 
         # Log to history
-        self.db.add(HistoryModel(
-            video_id=candidate.video_id,
-            job_id=candidate.job_id,
+        self.history_service.log(
             action="clip_exported",
             description=f"Clip {clip.id} exported: {aspect_ratio}",
-        ))
-        self.db.commit()
+            video_id=candidate.video_id,
+            job_id=candidate.job_id,
+        )
 
         logger.info("Generated clip %d for candidate %d", clip.id, candidate_id)
         return clip

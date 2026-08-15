@@ -12,9 +12,9 @@ from app.core.config.settings import settings
 from app.core.exceptions.base import NotFoundException, ValidationException
 from app.models.cache_entry_model import CacheEntryModel
 from app.models.clip_model import ClipModel
-from app.models.history_model import HistoryModel
 from app.models.video_model import VideoModel
 from app.repositories.video_repository import VideoRepository
+from app.services.history_service import HistoryService
 
 logger = logging.getLogger(__name__)
 
@@ -27,6 +27,7 @@ class VideoService:
     def __init__(self, db: Session) -> None:
         """Initialize with DB session."""
         self.repo = VideoRepository(db)
+        self.history_service = HistoryService(db)
         self.db = db
 
     def upload(self, filename: str, file_bytes: bytes) -> VideoModel:
@@ -64,11 +65,11 @@ class VideoService:
         )
         video = self.repo.add(video)
 
-        self.db.add(HistoryModel(
-            video_id=video.id,
+        self.history_service.log(
             action="video_uploaded",
             description=f"Uploaded {filename}",
-        ))
+            video_id=video.id,
+        )
         self.db.commit()
 
         return video
@@ -118,12 +119,12 @@ class VideoService:
 
         video.file_path = str(dest)
         video.file_size_bytes = size
-        video.status = "uploaded"
-        self.db.add(HistoryModel(
-            video_id=video.id,
+        self.repo.update_status(video_id, "uploaded")
+        self.history_service.log(
             action="video_uploaded",
             description=f"Uploaded {filename}",
-        ))
+            video_id=video.id,
+        )
         self.db.commit()
         logger.info("Video saved: %s (%d bytes)", dest, size)
         return video
@@ -167,11 +168,11 @@ class VideoService:
 
         video.is_archived = True
         video.archived_at = datetime.now(UTC)
-        self.db.add(HistoryModel(
-            video_id=video.id,
+        self.history_service.log(
             action="video_archived",
             description="File dihapus untuk hemat storage, data training tetap tersimpan",
-        ))
+            video_id=video.id,
+        )
         self.db.commit()
         logger.info("Video %d diarsipkan (file dihapus, data DB tetap ada)", video_id)
 

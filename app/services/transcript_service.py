@@ -9,7 +9,6 @@ from sqlalchemy.orm import Session
 from app.core.config.settings import settings
 from app.core.exceptions.base import NotFoundException
 from app.models.cache_entry_model import CacheEntryModel
-from app.models.history_model import HistoryModel
 from app.models.transcript_model import TranscriptModel
 from app.models.transcript_segment_model import TranscriptSegmentModel
 from app.models.video_model import VideoModel
@@ -22,6 +21,7 @@ from app.ai_modules.registry import get_analyzer
 from app.ai_modules.speech_to_text.whisper_analyzer import WhisperAnalyzer
 from app.repositories.video_repository import VideoRepository
 from app.services.ffmpeg_service import FFmpegService
+from app.services.history_service import HistoryService
 from app.services.job_service import JobService
 
 logger = logging.getLogger(__name__)
@@ -43,6 +43,7 @@ class TranscriptService:
         self.segment_repo = TranscriptSegmentRepository(db)
         self.cache_repo = CacheEntryRepository(db)
         self.job_service = JobService(db)
+        self.history_service = HistoryService(db)
         self.ffmpeg = ffmpeg or FFmpegService()
         self.whisper = whisper or get_analyzer("whisper")
 
@@ -75,12 +76,12 @@ class TranscriptService:
             transcript = self._run_transcribe(video, job.id, language)
             self.job_service.finish_step(job.id, "transcribe", success=True)
 
-            self.db.add(HistoryModel(
-                video_id=video_id,
-                job_id=job.id,
+            self.history_service.log(
                 action="transcript_completed",
                 description=f"Transcript {transcript.id} language={transcript.language}",
-            ))
+                video_id=video_id,
+                job_id=job.id,
+            )
             self.db.commit()
             return transcript
         except Exception as e:
@@ -111,7 +112,7 @@ class TranscriptService:
             video.width = meta.get("width")
             video.height = meta.get("height")
             video.fps = meta.get("fps")
-            video.status = "processing"
+            self.video_repo.update_status(video.id, "processing")
             self.db.commit()
 
             audio_path = self._audio_path_for(video)
@@ -190,7 +191,7 @@ class TranscriptService:
             file_path=None,
         ))
 
-        video.status = "ready"
+        self.video_repo.update_status(video.id, "ready")
         self.db.commit()
         self.db.refresh(transcript)
         logger.info("Saved transcript %d with %d segments", transcript.id, len(data.get("segments", [])))

@@ -11,9 +11,9 @@ from sqlalchemy.orm import Session
 
 from app.core.config.settings import settings
 from app.core.exceptions.base import ValidationException
-from app.models.history_model import HistoryModel
 from app.models.video_model import VideoModel
 from app.repositories.video_repository import VideoRepository
+from app.services.history_service import HistoryService
 
 logger = logging.getLogger(__name__)
 
@@ -44,6 +44,7 @@ class DownloadService:
     def __init__(self, db: Session) -> None:
         """Initialize with DB session."""
         self.repo = VideoRepository(db)
+        self.history_service = HistoryService(db)
         self.db = db
 
     def start_download(self, url: str) -> dict:
@@ -252,13 +253,12 @@ class DownloadService:
                 logger.debug("Download process: import process ke DB (video %s)", video.original_filename)
                 video = self.repo.add(video)
 
-                # Log to HistoryModel
-                self.db.add(HistoryModel(
-                    video_id=video.id,
+                # Log to history
+                self.history_service.log(
                     action="video_downloaded",
                     description=f"Downloaded video from {url}",
-                ))
-                self.db.commit()
+                    video_id=video.id,
+                )
 
                 logger.info("Video downloaded from URL successfully: %s", url)
                 return video

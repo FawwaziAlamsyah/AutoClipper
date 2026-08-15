@@ -1,0 +1,12 @@
+{% if candidate.label_source == "user_liked" %}
+<span class="badge bg-success">👍 Liked</span>
+<button class="btn btn-sm btn-link p-0 text-muted"
+        onclick="doLikeAction({{ candidate.id }}, '/candidates/{{ candidate.id }}/unlike')">batalkan</button>
+{% elif candidate.label_source == "user_disliked" %}
+<span class="badge bg-danger">👎 Jelek</span>
+<button class="btn btn-sm btn-link p-0 text-muted"
+        onclick="doLikeAction({{ candidate.id }}, '/candidates/{{ candidate.id }}/undislike')">batalkan</button>
+{% else %}
+<button type="button" class="btn btn-sm btn-outline-success" onclick="openLikeModal({{ candidate.id }})">👍 Like</button>
+<button type="button" class="btn btn-sm btn-outline-danger" onclick="openDislikeModal({{ candidate.id }})">👎 Jelek</button>
+{% endif %}

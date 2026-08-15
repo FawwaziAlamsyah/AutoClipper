@@ -134,6 +134,7 @@ class ScoreEngine:
             "audio": settings.SCORE_WEIGHT_AUDIO,
             "context": settings.SCORE_WEIGHT_CONTEXT,
             "ending": settings.SCORE_WEIGHT_ENDING,
+            "viral_potential": settings.SCORE_WEIGHT_VIRAL_POTENTIAL,
         }
 
         # Filter analysis ke window candidate ini saja (overlap check).

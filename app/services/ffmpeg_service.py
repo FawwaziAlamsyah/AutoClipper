@@ -70,6 +70,39 @@ class FFmpegService:
             logger.error("Failed to run ffprobe on: %s", video_path, exc_info=e)
             raise ExternalToolException(f"Gagal mengekstrak metadata video: {str(e)}")
 
+    def extract_preview_clip(self, video_path: str, start: float, end: float, output_path: str) -> str:
+        """Potong cepat segmen video jadi file preview kecil (stream copy, tanpa re-encode).
+
+        Pakai -c copy supaya nyaris instan bahkan untuk source video berjam-jam —
+        ini BUKAN untuk kualitas final (potongan bisa meleset ke keyframe terdekat,
+        bukan frame presisi), cukup untuk preview cepat di UI. Untuk hasil final
+        yang presisi & reframe, tetap pakai ClipService.generate_clip().
+        """
+        if not Path(video_path).exists():
+            raise FileNotFoundError(f"Video file not found at: {video_path}")
+
+        Path(output_path).parent.mkdir(parents=True, exist_ok=True)
+        duration = max(end - start, 0.1)
+
+        cmd = [
+            self.ffmpeg_path,
+            "-y",
+            "-ss", str(start),
+            "-i", video_path,
+            "-t", str(duration),
+            "-c", "copy",
+            "-avoid_negative_ts", "make_zero",
+            output_path,
+        ]
+
+        try:
+            logger.info("Trimming preview clip: %s [%s-%s]", video_path, start, end)
+            subprocess.run(cmd, capture_output=True, text=True, check=True)
+            return output_path
+        except subprocess.SubprocessError as e:
+            logger.error("Preview trim failed for: %s", video_path, exc_info=e)
+            raise ExternalToolException(f"Gagal membuat preview clip: {str(e)}")
+
     def extract_audio(self, video_path: str, output_wav_path: str) -> str:
         """Extract audio stream to a 16kHz mono 16-bit PCM WAV file."""
         if not Path(video_path).exists():

@@ -199,7 +199,7 @@ def like_candidate(
         raise NotFoundException(f"Candidate {candidate_id} tidak ditemukan")
     return templates.TemplateResponse(
         request=request,
-        name="_like_button.html",
+        name="_like_button_compact.html",
         context={"request": request, "candidate": candidate},
     )
 
@@ -217,7 +217,7 @@ def unlike_candidate(
         raise NotFoundException(f"Candidate {candidate_id} tidak ditemukan")
     return templates.TemplateResponse(
         request=request,
-        name="_like_button.html",
+        name="_like_button_compact.html",
         context={"request": request, "candidate": candidate},
     )
 
@@ -235,7 +235,7 @@ def dislike_candidate(
         raise NotFoundException(f"Candidate {candidate_id} tidak ditemukan")
     return templates.TemplateResponse(
         request=request,
-        name="_like_button.html",
+        name="_like_button_compact.html",
         context={"request": request, "candidate": candidate},
     )
 
@@ -253,7 +253,7 @@ def undislike_candidate(
         raise NotFoundException(f"Candidate {candidate_id} tidak ditemukan")
     return templates.TemplateResponse(
         request=request,
-        name="_like_button.html",
+        name="_like_button_compact.html",
         context={"request": request, "candidate": candidate},
     )
 

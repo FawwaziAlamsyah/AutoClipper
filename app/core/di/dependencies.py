@@ -8,7 +8,6 @@ from fastapi import Depends
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
-from app.services.analysis_service import AnalysisService
 from app.services.candidate_service import CandidateService
 from app.services.clip_service import ClipService
 from app.services.dashboard_service import DashboardService
@@ -70,10 +69,6 @@ def get_preview_service(db: Session = Depends(get_db)) -> PreviewService:
 
 def get_subtitle_service(db: Session = Depends(get_db)) -> SubtitleService:
     return SubtitleService(db)
-
-
-def get_analysis_service(db: Session = Depends(get_db)) -> AnalysisService:
-    return AnalysisService(db)
 
 
 def get_training_import_service(db: Session = Depends(get_db)):
