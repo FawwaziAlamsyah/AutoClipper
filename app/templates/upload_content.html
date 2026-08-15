@@ -5,16 +5,22 @@
       <h3>Upload File Video</h3>
       <p class="text-muted">Pilih file video lokal dari komputer Anda.</p>
 
-      <form hx-post="/upload" hx-target="#upload-status" hx-swap="innerHTML"
-            hx-encoding="multipart/form-data" class="d-flex flex-column flex-grow-1">
+      <form id="localUploadForm" class="d-flex flex-column flex-grow-1">
         <div class="mb-4">
-          <label class="form-label">Pilih file video ({{ allowed_extensions | join(', ') }})</label>
-          <input class="form-control" type="file" name="file" accept=".mp4,.mov,.mkv,.avi" required>
+          <label class="form-label" for="videoFile">Pilih file video ({{ allowed_extensions | join(', ') }})</label>
+          <input class="form-control" type="file" id="videoFile" name="file" accept=".mp4,.mov,.mkv,.avi" required>
           <div class="form-text">Maksimal ukuran file: {{ max_size_mb }} MB.</div>
         </div>
-        <button class="btn btn-primary w-100 mt-auto" type="submit">Upload Video</button>
+
+        <div class="progress mb-3 d-none" id="uploadProgressContainer" style="height: 20px;">
+          <div class="progress-bar progress-bar-striped progress-bar-animated" id="uploadProgressBar" role="progressbar" style="width: 0%">0%</div>
+        </div>
+
+        <div class="alert alert-danger d-none" id="uploadError"></div>
+        <div class="alert alert-success d-none" id="uploadSuccess"></div>
+
+        <button class="btn btn-primary w-100 mt-auto" id="uploadBtn" type="submit">Upload Video</button>
       </form>
-      <div id="upload-status" class="mt-3"></div>
     </div>
   </div>
 
@@ -221,6 +227,95 @@ function initUploadPage() {
     el.classList.add(ok ? 'alert-success' : 'alert-danger');
   }
 
+  function uploadLocalFile() {
+    const fileInput = document.getElementById('videoFile');
+    const btn = document.getElementById('uploadBtn');
+    const errDiv = document.getElementById('uploadError');
+    const succDiv = document.getElementById('uploadSuccess');
+    const progressContainer = document.getElementById('uploadProgressContainer');
+    const progressBar = document.getElementById('uploadProgressBar');
+
+    errDiv.classList.add('d-none');
+    succDiv.classList.add('d-none');
+
+    if (!fileInput || !fileInput.files.length) {
+      showAlert(errDiv, 'Pilih file video terlebih dahulu.', false);
+      return;
+    }
+
+    const file = fileInput.files[0];
+    btn.disabled = true;
+    progressContainer.classList.remove('d-none');
+    progressBar.style.width = '0%';
+    progressBar.textContent = '0%';
+
+    fetch(`/upload/begin?filename=${encodeURIComponent(file.name)}`, { method: 'POST' })
+      .then(async (beginRes) => {
+        if (!beginRes.ok) {
+          let detail = 'Gagal memulai upload.';
+          try {
+            const data = await beginRes.json();
+            detail = data.detail || detail;
+          } catch (e) {}
+          throw new Error(detail);
+        }
+        return beginRes.json();
+      })
+      .then((video) => {
+        addRow(video);
+        return new Promise((resolve, reject) => {
+          const xhr = new XMLHttpRequest();
+          xhr.open('POST', `/upload/${video.id}/finish`, true);
+          xhr.upload.onprogress = (e) => {
+            if (e.lengthComputable) {
+              const pct = Math.round((e.loaded / e.total) * 100);
+              progressBar.style.width = pct + '%';
+              progressBar.textContent = pct + '%';
+            }
+          };
+          xhr.onload = () => {
+            if (xhr.status >= 200 && xhr.status < 300) {
+              let data = video;
+              try { data = JSON.parse(xhr.responseText); } catch (e) {}
+              resolve(data);
+            } else {
+              let detail = 'Gagal mengunggah file.';
+              try { detail = JSON.parse(xhr.responseText).detail || detail; } catch (e) {}
+              reject(new Error(detail));
+            }
+          };
+          xhr.onerror = () => reject(new Error('Koneksi bermasalah atau proses dihentikan.'));
+          const fd = new FormData();
+          fd.append('file', file);
+          xhr.send(fd);
+        });
+      })
+      .then((v) => {
+        btn.disabled = false;
+        progressContainer.classList.add('d-none');
+        showAlert(succDiv, `File berhasil diunggah! ID Video: ${v.id}`, true);
+        const row = document.getElementById(`video-row-${v.id}`);
+        if (row) {
+          row.outerHTML = rowHtml(v);
+          bindRowActions(document.getElementById(`video-row-${v.id}`));
+        }
+        fileInput.value = '';
+      })
+      .catch((err) => {
+        btn.disabled = false;
+        progressContainer.classList.add('d-none');
+        showAlert(errDiv, err.message || 'Gagal mengunggah file.', false);
+      });
+  }
+
+  const localUploadForm = document.getElementById('localUploadForm');
+  if (localUploadForm) {
+    localUploadForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      uploadLocalFile();
+    });
+  }
+
   function bindRowActions(row) {
     const procBtn = row.querySelector('.process-btn');
     const cancelBtn = row.querySelector('.cancel-btn');
@@ -383,5 +478,5 @@ function initUploadPage() {
 // Jalankan saat load langsung (full page) DAN saat di-swap oleh htmx
 if (document.readyState === 'loading') { document.addEventListener('DOMContentLoaded', initUploadPage); }
 else { initUploadPage(); }
-document.addEventListener('htmx:afterSwap', (e) => { if (e.target.id === 'main-content') initUploadPage(); });
+document.addEventListener('htmx:afterSwap', (e) => { if (e.target.id === 'content-area') initUploadPage(); });
 </script>
