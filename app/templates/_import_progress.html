@@ -1,10 +1,4 @@
-<div class="card shadow-sm p-4" 
-     {% if status != 'finished' %}
-     hx-get="/training/bulk-import/{{ import_id }}" 
-     hx-target="#importStatus" 
-     hx-swap="innerHTML" 
-     hx-trigger="load delay:2s, every 3s"
-     {% endif %}>
+<div class="card shadow-sm p-4" data-import-id="{{ import_id }}" data-status="{{ status }}">
   <h5>Progress Import</h5>
   <div class="mb-2">
     {% if status == 'finished' %}

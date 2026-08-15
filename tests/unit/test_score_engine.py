@@ -68,8 +68,8 @@ def test_score_differs_per_candidate_window() -> None:
         bd_a = engine._calculate_score_breakdown(1, cand_a)
         bd_b = engine._calculate_score_breakdown(1, cand_b)
 
-        score_a = sum(v["contribution"] for v in bd_a.values())
-        score_b = sum(v["contribution"] for v in bd_b.values())
+        score_a = sum(v["contribution"] for k, v in bd_a.items() if k != "_meta")
+        score_b = sum(v["contribution"] for k, v in bd_b.items() if k != "_meta")
 
         assert score_a != score_b, f"skor harus beda per window: A={score_a}, B={score_b}"
         assert bd_a["hook"]["score"] == 9.0

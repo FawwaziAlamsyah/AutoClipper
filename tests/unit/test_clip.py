@@ -35,6 +35,7 @@ def test_generate_clip_success() -> None:
     mock_video = MagicMock()
     mock_video.id = 1
     mock_video.file_path = "C:/input/video.mp4"
+    mock_video.is_archived = False
 
     mock_repo = MagicMock()
     mock_repo.get.return_value = mock_candidate
