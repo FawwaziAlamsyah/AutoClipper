@@ -31,14 +31,15 @@
       </div>
 
       <div class="d-none" id="downloadSpinner">
-        <div class="mb-2 d-flex justify-content-between">
-          <span>Sedang mengunduh video...</span>
-          <span id="downloadPct">0%</span>
+        <div class="mb-2 d-flex justify-content-between align-items-center">
+          <span class="text-muted small">⬇ Sedang mengunduh video... (bisa memakan beberapa menit)</span>
+          <span id="downloadPct" class="fw-semibold">0%</span>
         </div>
-        <div class="progress" style="height: 20px;">
+        <div class="progress mb-2" style="height: 20px;">
           <div class="progress-bar progress-bar-striped progress-bar-animated" id="downloadProgressBar"
                role="progressbar" style="width: 0%"></div>
         </div>
+        <p class="text-muted small mb-0">Jangan tutup halaman ini selama proses download berlangsung.</p>
       </div>
 
       <div class="alert alert-danger d-none" id="downloadError"></div>
@@ -313,17 +314,56 @@ function initUploadPage() {
       const res=await fetch('/upload/download',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url})});
       const data=await res.json();
       if(!res.ok){btn.disabled=false;spinner.classList.add('d-none');showAlert(errDiv,data.detail||'Gagal memulai download.',false);return;}
-      const dlId=data.download_id, pctEl=document.getElementById('downloadPct'), bar=document.getElementById('downloadProgressBar');
-      for(let i=0;i<1200;i++){
-        await new Promise(r=>setTimeout(r,800));
-        const pr=await fetch(`/upload/download/${dlId}`); const pd=await pr.json();
-        if(pd.status==='finished'){bar.style.width='100%';pctEl.textContent='100%';btn.disabled=false;spinner.classList.add('d-none');showAlert(succDiv,`Video berhasil di-download! ID: ${pd.video.id}`,true);addRow(pd.video);urlInput.value='';return;}
-        if(pd.status==='error'){btn.disabled=false;spinner.classList.add('d-none');showAlert(errDiv,pd.error||'Gagal.',false);return;}
-        bar.style.width=(pd.percent||0)+'%'; pctEl.textContent=(pd.percent||0)+'%';
-      }
-      btn.disabled=false; spinner.classList.add('d-none'); showAlert(errDiv,'Timeout.',false);
+      sessionStorage.setItem('activeDownloadId', data.download_id);
+      await _runDownloadPolling(data.download_id);
     } catch(e){btn.disabled=false;spinner.classList.add('d-none');showAlert(errDiv,'Kesalahan sistem.',false);}
   });
+
+  // Resume polling kalau ada download aktif saat halaman dimuat ulang
+  const savedDlId = sessionStorage.getItem('activeDownloadId');
+  if (savedDlId) {
+    const spinner = document.getElementById('downloadSpinner');
+    const btn = document.getElementById('downloadBtn');
+    if (spinner) spinner.classList.remove('d-none');
+    if (btn) { btn.disabled = true; btn.textContent = 'Mendownload...'; }
+    _runDownloadPolling(savedDlId);
+  }
+
+  async function _runDownloadPolling(dlId) {
+    const errDiv=document.getElementById('downloadError'), succDiv=document.getElementById('downloadSuccess');
+    const spinner=document.getElementById('downloadSpinner');
+    const btn=document.getElementById('downloadBtn');
+    const urlInput=document.getElementById('videoUrl');
+    const pctEl=document.getElementById('downloadPct'), bar=document.getElementById('downloadProgressBar');
+
+    for(let i=0;i<1200;i++){
+      await new Promise(r=>setTimeout(r,1500));
+      try {
+        const pr=await fetch(`/upload/download/${dlId}`); const pd=await pr.json();
+        if(pd.status==='finished'){
+          bar.style.width='100%'; pctEl.textContent='100%';
+          btn.disabled=false; btn.textContent='Download & Import';
+          spinner.classList.add('d-none');
+          showAlert(succDiv,`Video berhasil di-download! ID: ${pd.video.id}`,true);
+          addRow(pd.video); if(urlInput) urlInput.value='';
+          sessionStorage.removeItem('activeDownloadId');
+          return;
+        }
+        if(pd.status==='error'){
+          btn.disabled=false; btn.textContent='Download & Import';
+          spinner.classList.add('d-none');
+          showAlert(errDiv,pd.error||'Gagal.',false);
+          sessionStorage.removeItem('activeDownloadId');
+          return;
+        }
+        bar.style.width=(pd.percent||0)+'%'; pctEl.textContent=(pd.percent||0)+'%';
+      } catch(e) { /* network blip, lanjut polling */ }
+    }
+    btn.disabled=false; btn.textContent='Download & Import';
+    spinner.classList.add('d-none');
+    showAlert(errDiv,'Timeout — cek tabel video, mungkin sudah selesai.',false);
+    sessionStorage.removeItem('activeDownloadId');
+  }
 
   document.querySelectorAll('#videoTableBody tr').forEach(row=>{
     bindRowActions(row);

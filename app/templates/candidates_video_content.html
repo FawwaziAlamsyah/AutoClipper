@@ -19,26 +19,10 @@
 </div>
 
 {% if candidates %}
-<div class="card shadow-sm">
-  <div class="table-responsive">
-    <table class="table table-hover align-middle mb-0">
-      <thead class="table-light">
-        <tr>
-          <th>ID</th>
-          <th>Window</th>
-          <th>Score</th>
-          <th>Status</th>
-          <th>Label</th>
-          <th>Aksi</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for candidate in candidates %}
-        {% include "_candidate_row.html" %}
-        {% endfor %}
-      </tbody>
-    </table>
-  </div>
+<div class="row g-3">
+  {% for candidate in candidates %}
+  {% include "_candidate_row.html" %}
+  {% endfor %}
 </div>
 
 {% else %}
@@ -47,7 +31,61 @@
 </div>
 {% endif %}
 
+<!-- Modal Like — satu untuk semua card, JS tracking candidateId aktif -->
+<div class="modal fade" id="likeConfirmModal" tabindex="-1">
+  <div class="modal-dialog"><div class="modal-content">
+    <div class="modal-header"><h5 class="modal-title">Konfirmasi Like</h5><button class="btn-close" data-bs-dismiss="modal"></button></div>
+    <div class="modal-body">Tandai clip ini sebagai contoh BAGUS untuk melatih sistem scoring?</div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
+      <button class="btn btn-success" id="likeConfirmBtn">Ya, Like &amp; Latih</button>
+    </div>
+  </div></div>
+</div>
+
+<!-- Modal Dislike -->
+<div class="modal fade" id="dislikeConfirmModal" tabindex="-1">
+  <div class="modal-dialog"><div class="modal-content">
+    <div class="modal-header"><h5 class="modal-title">Konfirmasi Tandai Jelek</h5><button class="btn-close" data-bs-dismiss="modal"></button></div>
+    <div class="modal-body">Tandai clip ini sebagai contoh <strong>BURUK</strong> untuk melatih sistem scoring?</div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
+      <button class="btn btn-danger" id="dislikeConfirmBtn">Ya, Tandai Jelek</button>
+    </div>
+  </div></div>
+</div>
+
 <script>
+let pendingCandidateId = null;
+
+function openLikeModal(candidateId) {
+  pendingCandidateId = candidateId;
+  new bootstrap.Modal(document.getElementById('likeConfirmModal')).show();
+}
+function openDislikeModal(candidateId) {
+  pendingCandidateId = candidateId;
+  new bootstrap.Modal(document.getElementById('dislikeConfirmModal')).show();
+}
+
+document.getElementById('likeConfirmBtn').addEventListener('click', async () => {
+  bootstrap.Modal.getInstance(document.getElementById('likeConfirmModal'))?.hide();
+  await doLikeAction(pendingCandidateId, `/candidates/${pendingCandidateId}/like`);
+});
+document.getElementById('dislikeConfirmBtn').addEventListener('click', async () => {
+  bootstrap.Modal.getInstance(document.getElementById('dislikeConfirmModal'))?.hide();
+  await doLikeAction(pendingCandidateId, `/candidates/${pendingCandidateId}/dislike`);
+});
+
+async function doLikeAction(candidateId, url) {
+  const res = await fetch(url, { method: 'POST', headers: { 'HX-Request': 'true' } });
+  if (res.ok) {
+    const html = await res.text();
+    document.getElementById('like-status-' + candidateId).innerHTML = html;
+  } else {
+    alert('Gagal. Coba lagi.');
+  }
+}
+
 async function generateClipRow(btn, candidateId) {
   if (!confirm('Generate clip untuk candidate #' + candidateId + '?')) return;
   btn.disabled = true;
@@ -94,4 +132,3 @@ async function deleteCandidate(btn, candidateId) {
   }
 }
 </script>
-

@@ -17,18 +17,6 @@ class AnalysisResultRepository(PostgresRepository[AnalysisResultModel]):
             .all()
         )
 
-    def get_by_type(self, job_id: int, analyzer_type: str) -> list[AnalysisResultModel]:
-        """Get analysis results for a specific analyzer type within a job."""
-        return list(
-            self.db.query(AnalysisResultModel)
-            .filter(
-                AnalysisResultModel.job_id == job_id,
-                AnalysisResultModel.analyzer_type == analyzer_type,
-            )
-            .order_by(AnalysisResultModel.start_time)
-            .all()
-        )
-
     def get_by_job_and_window(
         self,
         job_id: int,

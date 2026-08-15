@@ -71,7 +71,7 @@ class Settings(BaseSettings):
     # Semua analyzer sudah diimplementasi asli di app/ai_modules/ — total bobot 100%.
     SCORE_WEIGHT_LLM_CONTENT: float = 0.30
     SCORE_WEIGHT_HOOK: float = 0.10
-    SCORE_WEIGHT_STORY: float = 0.15
+    SCORE_WEIGHT_STORY: float = 0.10
     SCORE_WEIGHT_VOICE_EMOTION: float = 0.10
     SCORE_WEIGHT_FACE_EMOTION: float = 0.08
     SCORE_WEIGHT_GESTURE: float = 0.05
@@ -80,6 +80,7 @@ class Settings(BaseSettings):
     SCORE_WEIGHT_AUDIO: float = 0.05
     SCORE_WEIGHT_CONTEXT: float = 0.05
     SCORE_WEIGHT_ENDING: float = 0.05
+    SCORE_WEIGHT_VIRAL_POTENTIAL: float = 0.05  # total = 1.00
 
     # Training data settings
     MAX_AUTO_NEGATIVES_PER_JOB: int = 5

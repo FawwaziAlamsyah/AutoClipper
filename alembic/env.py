@@ -1,23 +1,10 @@
 from logging.config import fileConfig
 
-from sqlalchemy import engine_from_config
-from sqlalchemy import pool
-
-from alembic import context
-
-# Import settings & metadata
-from app.core.config.settings import settings
-from app.db.base import Base
-import app.models  # Memastikan semua model di-import
-
-from logging.config import fileConfig
-
 from sqlalchemy import create_engine
 from sqlalchemy import pool
 
 from alembic import context
 
-# Import settings & metadata
 from app.core.config.settings import settings
 from app.db.base import Base
 import app.models  # Memastikan semua model di-import

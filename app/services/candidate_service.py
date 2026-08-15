@@ -1,13 +1,11 @@
 """Candidate clip generation service."""
 
 import logging
-from datetime import datetime, UTC
 
 from sqlalchemy.orm import Session
 
 from app.core.config.settings import settings
 from app.models.candidate_model import CandidateModel
-from app.models.job_model import JobModel
 from app.models.video_model import VideoModel
 from app.repositories.candidate_repository import CandidateRepository
 from app.repositories.job_repository import JobRepository
@@ -67,12 +65,6 @@ class CandidateService:
         """Get candidates for a job."""
         return self.candidate_repo.get_by_job(job_id)[:limit]
 
-    def list_latest(self, limit: int = 100) -> list[CandidateModel]:
-        """Return most recent candidates across all videos."""
-        return list(
-            self.db.query(CandidateModel).order_by(CandidateModel.id.desc()).limit(limit).all()
-        )
-
     def list_by_video(self, video_id: int) -> list[CandidateModel]:
         """Return all candidates for a specific video, sorted by score desc."""
         candidates = list(
@@ -125,21 +117,17 @@ class CandidateService:
 
     def select_candidate(self, candidate_id: int) -> CandidateModel:
         """Mark a candidate as selected for clipping."""
-        candidate = self.candidate_repo.get(candidate_id)
+        candidate = self.candidate_repo.update_status(candidate_id, "selected")
         if candidate is None:
             raise ValueError(f"Candidate {candidate_id} not found")
-        candidate.status = "selected"
-        self.db.commit()
-        self.db.refresh(candidate)
         return candidate
 
     def reject_candidate(self, candidate_id: int) -> CandidateModel:
         """Mark a candidate as rejected."""
-        candidate = self.candidate_repo.get(candidate_id)
+        candidate = self.candidate_repo.update_status(candidate_id, "rejected")
         if candidate is None:
             raise ValueError(f"Candidate {candidate_id} not found")
-        candidate.status = "rejected"
-        self.db.commit()
+        return candidate
 
     def mark_as_liked(self, candidate_id: int) -> CandidateModel:
         """Tandai candidate sebagai training example positif dari review manual user."""

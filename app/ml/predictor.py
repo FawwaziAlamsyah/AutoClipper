@@ -1,7 +1,6 @@
 """Load model scoring terlatih dan sediakan fungsi prediksi untuk score_engine."""
 
 import logging
-from pathlib import Path
 
 import joblib
 
