@@ -148,8 +148,8 @@ class VideoService:
         return video
 
     def list_all(self) -> list[VideoModel]:
-        """Return all videos."""
-        return self.repo.list()
+        """Return videos for Upload UI, excluding training-only source videos."""
+        return self.repo.list_for_upload()
 
     def delete(self, video_id: int) -> None:
         """Archive video: hapus file fisik, TAPI simpan semua baris database.
