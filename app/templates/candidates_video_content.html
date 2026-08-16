@@ -31,23 +31,11 @@
 </div>
 {% endif %}
 
-<!-- Modal Like — satu untuk semua card, JS tracking candidateId aktif -->
-<div class="modal fade" id="likeConfirmModal" tabindex="-1">
-  <div class="modal-dialog"><div class="modal-content">
-    <div class="modal-header"><h5 class="modal-title">Konfirmasi Like</h5><button class="btn-close" data-bs-dismiss="modal"></button></div>
-    <div class="modal-body">Tandai clip ini sebagai contoh BAGUS untuk melatih sistem scoring?</div>
-    <div class="modal-footer">
-      <button class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
-      <button class="btn btn-success" id="likeConfirmBtn">Ya, Like &amp; Latih</button>
-    </div>
-  </div></div>
-</div>
-
 <!-- Modal Dislike -->
 <div class="modal fade" id="dislikeConfirmModal" tabindex="-1">
   <div class="modal-dialog"><div class="modal-content">
     <div class="modal-header"><h5 class="modal-title">Konfirmasi Tandai Jelek</h5><button class="btn-close" data-bs-dismiss="modal"></button></div>
-    <div class="modal-body">Tandai clip ini sebagai contoh <strong>BURUK</strong> untuk melatih sistem scoring?</div>
+    <div class="modal-body">Tandai clip ini sebagai clip <strong>jelek</strong> (bukan data training)?</div>
     <div class="modal-footer">
       <button class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
       <button class="btn btn-danger" id="dislikeConfirmBtn">Ya, Tandai Jelek</button>
@@ -58,26 +46,28 @@
 <script>
 let pendingCandidateId = null;
 
-function openLikeModal(candidateId) {
-  pendingCandidateId = candidateId;
-  new bootstrap.Modal(document.getElementById('likeConfirmModal')).show();
-}
 function openDislikeModal(candidateId) {
   pendingCandidateId = candidateId;
   new bootstrap.Modal(document.getElementById('dislikeConfirmModal')).show();
 }
 
-document.getElementById('likeConfirmBtn').addEventListener('click', async () => {
-  bootstrap.Modal.getInstance(document.getElementById('likeConfirmModal'))?.hide();
-  await doLikeAction(pendingCandidateId, `/candidates/${pendingCandidateId}/like`);
-});
 document.getElementById('dislikeConfirmBtn').addEventListener('click', async () => {
   bootstrap.Modal.getInstance(document.getElementById('dislikeConfirmModal'))?.hide();
-  await doLikeAction(pendingCandidateId, `/candidates/${pendingCandidateId}/dislike`);
+  await doRatingAction(pendingCandidateId, `/candidates/${pendingCandidateId}/dislike`, 'POST');
 });
 
-async function doLikeAction(candidateId, url) {
-  const res = await fetch(url, { method: 'POST', headers: { 'HX-Request': 'true' } });
+function submitCategorize(candidateId) {
+  const select = document.getElementById('category-select-' + candidateId);
+  const categoryId = select.value;
+  if (!categoryId) {
+    alert('Pilih kategori dulu.');
+    return;
+  }
+  doRatingAction(candidateId, `/candidates/${candidateId}/categorize?category_id=${categoryId}`, 'POST');
+}
+
+async function doRatingAction(candidateId, url, method) {
+  const res = await fetch(url, { method: method });
   if (res.ok) {
     const html = await res.text();
     document.getElementById('like-status-' + candidateId).innerHTML = html;

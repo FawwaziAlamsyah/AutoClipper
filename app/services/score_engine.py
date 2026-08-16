@@ -51,7 +51,7 @@ class ScoreEngine:
             return 0.0
 
         for candidate in candidates:
-            breakdown = self._calculate_score_breakdown(job_id, candidate)
+            breakdown = self._calculate_score_breakdown(job_id, candidate, job.category_id)
             meta = breakdown.get("_meta", {})
             final_score = (
                 meta["model_predicted_score"]
@@ -105,7 +105,9 @@ class ScoreEngine:
         )
         return selected
 
-    def _calculate_score_breakdown(self, job_id: int, candidate) -> dict[str, dict]:
+    def _calculate_score_breakdown(
+        self, job_id: int, candidate, category_id: int | None = None
+    ) -> dict[str, dict]:
         """Calculate weighted score components for a candidate.
 
         Setiap analyzer jadi dict: {score, weight, contribution, reason}.
@@ -173,7 +175,7 @@ class ScoreEngine:
         # Model terlatih — coba prediksi, None jika model belum ada atau gagal
         model_score = None
         if settings.USE_TRAINED_SCORE_MODEL:
-            model_score = predict_score(cand_analysis)
+            model_score = predict_score(cand_analysis, category_id)
 
         breakdown["_meta"] = {
             "scoring_method": "trained_model" if model_score is not None else "weighted_sum",

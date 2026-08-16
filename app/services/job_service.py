@@ -39,13 +39,20 @@ class JobService:
         self.repo = JobRepository(db)
         self.step_repo = JobStepRepository(db)
 
-    def create(self, video_id: int, pipeline_name: str = "auto_clipper_v1", job_type: str = "discovery") -> JobModel:
+    def create(
+        self,
+        video_id: int,
+        pipeline_name: str = "auto_clipper_v1",
+        job_type: str = "discovery",
+        category_id: int | None = None,
+    ) -> JobModel:
         """Create a job and seed all pipeline steps as pending."""
         job = JobModel(
             video_id=video_id,
             pipeline_name=pipeline_name,
             status="pending",
             job_type=job_type,
+            category_id=category_id,
         )
         job = self.repo.add(job)
 

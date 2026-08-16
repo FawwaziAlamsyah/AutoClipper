@@ -32,7 +32,7 @@ Gunakan prinsip berikut selama pengembangan:
 
 Backend
 
-- Python 3.12+
+- Python 3.14+
 - FastAPI
 - Jinja2 Template
 - HTMX (optional)
@@ -47,22 +47,20 @@ AI
 
 - Faster Whisper
 - OpenAI API (LLM) (buat abstraction sehingga mudah diganti model lain)
+- scikit-learn (GradientBoostingRegressor) — model scoring per kategori
 
 Computer Vision
 
 - OpenCV
-- MediaPipe
-- DeepFace
+- MediaPipe (Tasks API: FaceLandmarker/HandLandmarker)
 
 Audio Analysis
 
 - librosa
-- openSMILE (optional)
-- pyannote.audio (speaker diarization)
 
 Storage
 
-- SQLite (MVP)
+- PostgreSQL 16 (SQLAlchemy ORM + Alembic migration)
 - Folder Storage
 
 ---
@@ -77,6 +75,8 @@ core/
 
 config/
 
+ml/              # feature_builder, trainer, predictor (model per kategori)
+
 routers/
 
 services/
@@ -90,6 +90,8 @@ schemas/
 templates/
 
 static/
+
+db/
 
 uploads/
 
@@ -175,27 +177,10 @@ Misal:
 
 ---
 
-## Content Type
+## Kategori (menggantikan Content Type & Clip Style)
 
-- Podcast
-- Interview
-- Gaming
-- Education
-- Streaming
-- News
-- Motivation
-- Custom
-
----
-
-## Clip Style
-
-- Viral
-- Educational
-- Funny
-- Emotional
-- Storytelling
-- Controversial
+- Category dibuat user di halaman Training (contoh: Podcast, Gaming, News, Motivation, dst).
+- Setiap candidate & job punya `category_id`; model training diisolasi per kategori.
 
 ---
 
@@ -333,13 +318,13 @@ Face Analysis
 
 Step 7
 
-LLM Analysis
+LLM Analysis (hook, story, context, ending)
 
 ↓
 
 Step 8
 
-Score Merge
+Score Merge (weighted-sum + optional model per kategori)
 
 ↓
 
@@ -358,6 +343,19 @@ Generate Preview
 Step 11
 
 Generate Final Clip
+
+---
+
+# Training Pipeline (per kategori)
+
+1. User buat kategori di `/training`.
+2. User label candidate via dropdown kategori (contoh positif) / tombol Jelek (penanda kualitas).
+3. Atau bulk CSV import (`source,actual_score` + kategori).
+4. Kumpulkan ≥20 contoh → klik "Train Model" untuk kategori tersebut.
+5. Model (GradientBoostingRegressor) disimpan ke `data/models/category_{id}/`.
+6. Riwayat run + metrik (val MAE, R²) per kategori.
+7. Aktifkan/rollback model per kategori (tidak memengaruhi kategori lain).
+8. Scoring pakai model terlatih kategori jika ada; fallback weighted-sum kalau tidak.
 
 ---
 
@@ -437,59 +435,67 @@ Kurangi score jika ditemukan:
 
 # Final Score
 
+> **Catatan implementasi:** dokumen ini adalah master prompt awal. Implementasi aktual:
+> skor dinormalisasi **0–10** (bukan 0–100), bobot analyzer di `app/core/config/settings.py`
+> (`SCORE_WEIGHT_*`), ditambah model terlatih per kategori. Detail aktual lihat README & kode.
+
 Gunakan weighted score.
 
 Contoh:
 
 LLM Content
 
-30
+0.30
 
 Hook
 
-10
+0.10
 
 Story
 
-15
+0.10
 
 Voice Emotion
 
-10
+0.10
 
 Face Emotion
 
-8
+0.08
 
 Gesture
 
-5
+0.05
 
 Eye Contact
 
-3
+0.03
 
 Scene
 
-4
+0.04
 
 Audio
 
-5
+0.05
 
 Context
 
-5
+0.05
 
 Ending
 
-5
+0.05
+
+Viral Potential
+
+0.05
 
 Penalty
 
 Negative
 
-Hitung menjadi score 0-100.
+Hitung menjadi score 0-10 (bobot total 1.00).
 
 ---
 
@@ -591,6 +597,8 @@ Analysis
 
 Candidate Clips
 
+Training (manajemen kategori + training model per kategori)
+
 History
 
 Settings
@@ -636,6 +644,10 @@ Misalnya:
 /settings
 
 /preview
+
+/categories (CRUD kategori)
+
+/training (bulk import, train, runs, activate)
 
 ---
 

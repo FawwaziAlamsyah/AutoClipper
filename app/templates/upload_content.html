@@ -69,27 +69,10 @@
       </select>
     </div>
     <div class="col-md-3">
-      <label class="form-label">Content Type</label>
-      <select class="form-select" id="pl-content-type">
-        <option>podcast</option>
-        <option>interview</option>
-        <option selected>gaming</option>
-        <option>education</option>
-        <option>streaming</option>
-        <option>news</option>
-        <option>motivation</option>
-        <option>custom</option>
-      </select>
-    </div>
-    <div class="col-md-3">
-      <label class="form-label">Clip Style</label>
-      <select class="form-select" id="pl-clip-style">
-        <option>viral</option>
-        <option>educational</option>
-        <option selected>funny</option>
-        <option>emotional</option>
-        <option>storytelling</option>
-        <option>controversial</option>
+      <label class="form-label">Clip Style (Kategori)</label>
+      <select class="form-select" id="pl-category-id">
+        <option value="">Default (belum pilih kategori)</option>
+        <!-- diisi JS -->
       </select>
     </div>
     <div class="col-md-3">
@@ -168,7 +151,7 @@
 <script>
 // Re-attach all JS on htmx partial load (htmx:afterSwap fires after content swap)
 function initUploadPage() {
-  const PL_IDS = ['pl-language', 'pl-content-type', 'pl-clip-style', 'pl-num-clips',
+  const PL_IDS = ['pl-language', 'pl-category-id', 'pl-num-clips',
                   'pl-min-duration', 'pl-max-duration', 'pl-keywords', 'pl-skip-keywords'];
   const PL_KEY = 'pipelineSettings';
 
@@ -185,6 +168,19 @@ function initUploadPage() {
   }
   PL_IDS.forEach(id => { const el = document.getElementById(id); if (el) el.addEventListener('change', savePipelineSettings); });
   restorePipelineSettings();
+
+  async function loadCategoryOptions() {
+    const res = await fetch('/categories');
+    const categories = await res.json();
+    const select = document.getElementById('pl-category-id');
+    categories.forEach(c => {
+      const opt = document.createElement('option');
+      opt.value = c.id;
+      opt.textContent = c.name;
+      select.appendChild(opt);
+    });
+  }
+  loadCategoryOptions();
 
   function esc(str) { const d = document.createElement('div'); d.textContent = str == null ? '' : str; return d.innerHTML; }
   function formatDuration(sec) { if (sec == null) return '-'; return `${Math.floor(sec/60)}m ${Math.round(sec%60)}s`; }
@@ -348,8 +344,7 @@ function initUploadPage() {
     btn.disabled = true; const oldText = btn.textContent; btn.textContent = 'Memulai...';
     const params = {
       language: document.getElementById('pl-language').value || null,
-      content_type: document.getElementById('pl-content-type').value,
-      clip_style: document.getElementById('pl-clip-style').value,
+      category_id: document.getElementById('pl-category-id').value || null,
       num_clips: parseInt(document.getElementById('pl-num-clips').value) || 20,
       min_clip_duration: parseInt(document.getElementById('pl-min-duration').value) || 30,
       max_clip_duration: parseInt(document.getElementById('pl-max-duration').value) || 60,

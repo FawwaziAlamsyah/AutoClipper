@@ -1,0 +1,22 @@
+{% if candidate.label_source == "user_liked" %}
+<span class="badge bg-success">✓ {{ candidate.category.name if candidate.category else (candidate.category_name or 'Kategori') }}</span>
+<button class="btn btn-sm btn-link p-0 text-muted"
+        onclick="doRatingAction({{ candidate.id }}, '/candidates/{{ candidate.id }}/uncategorize', 'POST')">batalkan</button>
+{% elif candidate.label_source == "user_disliked" %}
+<span class="badge bg-danger">👎 Jelek</span>
+<button class="btn btn-sm btn-link p-0 text-muted"
+        onclick="doRatingAction({{ candidate.id }}, '/candidates/{{ candidate.id }}/undislike', 'POST')">batalkan</button>
+{% else %}
+<div class="d-flex gap-1 align-items-center flex-wrap">
+  <select class="form-select form-select-sm" style="width:auto;" id="category-select-{{ candidate.id }}">
+    <option value="">Tandai kategori...</option>
+    {% for cat in categories %}
+    <option value="{{ cat.id }}">{{ cat.name }}</option>
+    {% endfor %}
+  </select>
+  <button type="button" class="btn btn-sm btn-outline-success"
+          onclick="submitCategorize({{ candidate.id }})">✓</button>
+  <button type="button" class="btn btn-sm btn-outline-danger"
+          onclick="openDislikeModal({{ candidate.id }})">👎</button>
+</div>
+{% endif %}

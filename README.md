@@ -2,7 +2,7 @@
 
 Tool lokal berbasis AI untuk otomatis mengekstrak klip viral dari video panjang (YouTube, podcast, interview, dll). Menjalankan pipeline penuh: upload/download → transcribe (Whisper) → analisis multi-analyzer → scoring → pilih candidate → render clip + subtitle.
 
-**Dibangun dengan:** Python 3.14 + FastAPI + PostgreSQL + FFmpeg + Faster-Whisper + OpenAI-compatible LLM + MediaPipe/OpenCV + librosa.
+**Dibangun dengan:** Python 3.14 + FastAPI + PostgreSQL + FFmpeg + Faster-Whisper + OpenAI-compatible LLM + MediaPipe/OpenCV + librosa + scikit-learn (model scoring per kategori).
 
 > **Catatan versi:** project ini diuji di **Python 3.14** (Windows). Beberapa dependency (mediapipe) punya wheel khusus untuk Python 3.14 yang berbeda perilakunya dari versi lama — lihat [Troubleshooting](#troubleshooting).
 
@@ -10,8 +10,10 @@ Tool lokal berbasis AI untuk otomatis mengekstrak klip viral dari video panjang 
 
 - ✅ Upload video lokal atau download dari URL (YouTube, TikTok, dll)
 - ✅ Speech-to-text dengan Faster-Whisper (large-v3)
-- ✅ 7 analyzer plugin: LLM content, face emotion, voice emotion, gesture, eye contact, scene change, audio quality
+- ✅ 8 analyzer plugin: LLM content, face emotion, voice emotion, gesture, eye contact, scene change, audio quality, hook/story/context/ending (LLM)
 - ✅ Weighted scoring engine (bobot 100%) + non-overlap candidate selection
+- ✅ **Model scoring per kategori** — tiap kategori (Gaming, Podcast, dsb) punya model terlatih sendiri (scikit-learn GradientBoosting), fallback ke weighted-sum kalau kategori belum dilatih
+- ✅ **Training per kategori** — label candidate via dropdown kategori, training di-isolasi per kategori, riwayat run + rollback/aktifkan model per kategori
 - ✅ Sliding window menyapu seluruh video (bukan potongan linear)
 - ✅ Preview candidate tanpa render penuh
 - ✅ Final clip render dengan FFmpeg (9:16 / 16:9 / 1:1)
@@ -118,18 +120,26 @@ YouTube sering memblokir dengan error `Sign in to confirm you're not a bot`. Pro
 - **Download URL:** masukkan URL YouTube/TikTok → progress bar persen realtime.
 
 ### 2. Atur Pipeline
-Bahasa, content type, clip style, jumlah clip, durasi min/max, keyword boost, skip keywords. Setting tersimpan per-session browser (tidak reset saat pindah halaman).
+Bahasa, **kategori** (dropdown, diisi dari halaman Training), jumlah clip, durasi min/max, keyword boost, skip keywords. Setting tersimpan per-session browser (tidak reset saat pindah halaman).
 
 ### 3. Proses Pipeline
 Tombol **Proses** → job berjalan di background dengan progress step realtime (`extract → transcribe → analyze → score → complete` + 7 sub-step analyzer). Video yang sudah pernah diproses (status `ready`) diminta konfirmasi sebelum diproses ulang.
 
 ### 4. Review Candidate
 - **Candidates** → tabel skor. Klik **Detail** → breakdown per analyzer (skor + kontribusi), preview video, generate clip.
+- **Label training**: pilih kategori dari dropdown di tiap card candidate → tombol ✓ untuk menandai contoh positif kategori itu. Tombol 👎 hanya penanda kualitas (bukan data training).
 - Window tersebar di seluruh video (sliding window), top-N dipilih non-overlap.
 
 ### 5. Generate Final Clip & Subtitle
 - Generate clip (FFmpeg, pilih aspect ratio).
 - Generate subtitle (SRT/VTT, style minimal/tiktok/youtube).
+
+### 6. Training Model per Kategori
+- **Halaman Training** (`/training`) — buat/rename/hapus kategori, pilih kategori aktif via tombol di dashboard.
+- **Data training** — kumpulkan ≥20 contoh per kategori lewat dropdown di candidate grid ATAU bulk CSV import (`/training`, CSV berformat `source,actual_score` + pilihan kategori).
+- **Train Model** — klik per kategori, model disimpan ke `data/models/category_{id}/`, riwayat run + metrik (val MAE / R²) per kategori.
+- **Aktifkan/Rollback** — pilih run historis kategori tertentu jadi aktif tanpa memengaruhi kategori lain.
+- Scoring pakai model terlatih kategori jika ada; kalau belum dilatih/kategori kosong → fallback weighted-sum.
 
 ## Struktur Folder
 
@@ -140,18 +150,19 @@ ai-auto-clipper/
 │   │   ├── base/            #   AnalyzerInterface + AnalysisResult
 │   │   ├── registry.py      #   daftar analyzer aktif
 │   │   ├── speech_to_text/  #   whisper
-│   │   ├── llm_analysis/    #   llm_content
+│   │   ├── llm_analysis/    #   llm_content (hook/story/context/ending)
 │   │   ├── face_analysis/   #   face_emotion, eye_contact
 │   │   ├── gesture_analysis/#   gesture
 │   │   ├── scene_analysis/  #   scene
 │   │   └── voice_analysis/  #   voice_emotion, audio
 │   ├── core/                # config, logging (console + error.log), exceptions, DI
 │   ├── db/                  # koneksi DB (PostgreSQL)
-│   ├── models/              # SQLAlchemy ORM
+│   ├── ml/                  # training & prediksi model scoring (feature_builder, trainer, predictor)
+│   ├── models/              # SQLAlchemy ORM (termasuk CategoryModel, TrainingRunModel)
 │   ├── repositories/        # data access layer
 │   ├── schemas/             # Pydantic DTO
-│   ├── services/            # business logic (analysis, score, process, dll)
-│   ├── routers/             # FastAPI endpoints
+│   ├── services/            # business logic (analysis, score, process, category, training, dll)
+│   ├── routers/             # FastAPI endpoints (termasuk category_router, training_router)
 │   ├── templates/           # Jinja2 HTML
 │   ├── static/              # CSS/JS
 │   └── main.py
@@ -160,11 +171,11 @@ ai-auto-clipper/
 │   ├── uploads/             # video input
 │   ├── outputs/             # final clips + subtitle
 │   ├── cache/               # audio hasil extract
-│   ├── models/              # CV .tflite (auto-download, git-ignored)
+│   ├── models/              # CV .tflite (auto-download, git-ignored) + category_{id}/ model per kategori
 │   ├── cookies.txt          # cookies YouTube (git-ignored)
 │   └── ...
 ├── logs/                    # error.log saja (progress di terminal via log.debug)
-├── tests/                   # pytest (46 test)
+├── tests/                   # pytest (55 test)
 ├── .env.example
 ├── requirements.txt
 └── README.md
@@ -206,6 +217,8 @@ Tambah analyzer baru **tanpa mengubah pipeline**:
 | COOKIES_FILE | data/cookies.txt | Cookies YouTube (kosong = cookiesfrombrowser) |
 | MAX_UPLOAD_SIZE_MB | 2048 | Max upload size |
 | LOG_LEVEL | INFO | Level log |
+| USE_TRAINED_SCORE_MODEL | true | Pakai model terlatih per kategori; false = paksa weighted-sum |
+| LIKED_CLIP_DEFAULT_SCORE | 8.0 | Skor default candidate yang ditandai contoh positif via kategori |
 
 ## Testing
 

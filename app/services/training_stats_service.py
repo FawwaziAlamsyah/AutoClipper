@@ -9,7 +9,7 @@ from app.repositories.training_run_repository import TrainingRunRepository
 
 logger = logging.getLogger(__name__)
 
-LABEL_SOURCES = ("real_performance", "user_liked", "user_disliked")
+LABEL_SOURCES = ("real_performance", "user_liked")
 
 
 class TrainingStatsService:
@@ -21,9 +21,9 @@ class TrainingStatsService:
         self.candidate_repo = CandidateRepository(db)
         self.run_repo = TrainingRunRepository(db)
 
-    def get_stats(self) -> dict:
-        """Return jumlah training example per label_source + daftar semua training runs."""
-        candidates = self.candidate_repo.get_training_examples()
+    def get_stats(self, category_id: int) -> dict:
+        """Return jumlah training example + riwayat runs UNTUK SATU KATEGORI."""
+        candidates = self.candidate_repo.get_training_examples(category_id=category_id)
 
         counts_by_source = {src: 0 for src in LABEL_SOURCES}
         for cand in candidates:
@@ -33,11 +33,11 @@ class TrainingStatsService:
 
         total = len(candidates)
 
-        # Semua riwayat training run dari database (terbaru dulu)
-        training_runs = self.run_repo.get_all()
+        # Semua riwayat training run untuk kategori ini (terbaru dulu)
+        training_runs = self.run_repo.get_all(category_id)
 
-        # Model aktif saat ini (untuk tampilan "Model Terakhir")
-        active_run = self.run_repo.get_active()
+        # Model aktif untuk kategori ini (untuk tampilan "Model Terakhir")
+        active_run = self.run_repo.get_active(category_id)
 
         # Urutkan feature_importance descending untuk tampilan UI (jika ada)
         for run in training_runs:

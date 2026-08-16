@@ -7,8 +7,8 @@ from pathlib import Path
 
 import joblib
 from sklearn.ensemble import GradientBoostingRegressor
-from sklearn.model_selection import train_test_split
 from sklearn.metrics import mean_absolute_error, r2_score
+from sklearn.model_selection import train_test_split
 from sqlalchemy.orm import Session
 
 from app.ml.feature_builder import FEATURE_ORDER, build_feature_vector
@@ -27,10 +27,6 @@ LABEL_SOURCE_WEIGHTS = {
     "user_disliked": 0.6,
 }
 
-# File aktif yang dibaca predictor.py — path tetap sama dari TrainingClip 4.
-MODEL_PATH = Path("data/models/score_model.pkl")
-VERSIONED_MODEL_DIR = Path("data/models/versions")
-
 
 class ModelTrainer:
     """Latih dan simpan model scoring dari training_example candidates."""
@@ -42,12 +38,12 @@ class ModelTrainer:
         self.analysis_repo = AnalysisResultRepository(db)
         self.run_repo = TrainingRunRepository(db)
 
-    def train(self) -> TrainingRunModel:
-        """Latih model, simpan versioned + aktif, return TrainingRunModel."""
-        candidates = self.candidate_repo.get_training_examples()
+    def train(self, category_id: int) -> TrainingRunModel:
+        """Latih model untuk satu kategori, simpan versioned + aktif."""
+        candidates = self.candidate_repo.get_training_examples(category_id=category_id)
         if len(candidates) < 20:
             raise ValueError(
-                f"Data training terlalu sedikit ({len(candidates)} row). "
+                f"Data training kategori ini terlalu sedikit ({len(candidates)} row). "
                 "Minimal 20 contoh (disarankan 100+) sebelum training."
             )
 
@@ -74,24 +70,24 @@ class ModelTrainer:
         mae = mean_absolute_error(y_val, y_pred)
         r2 = r2_score(y_val, y_pred)
 
-        # Simpan versioned file — TIDAK ditimpa run berikutnya.
-        VERSIONED_MODEL_DIR.mkdir(parents=True, exist_ok=True)
+        category_dir = Path(f"data/models/category_{category_id}")
+        versioned_dir = category_dir / "versions"
+        versioned_dir.mkdir(parents=True, exist_ok=True)
         timestamp = datetime.now(UTC).strftime("%Y%m%d_%H%M%S")
-        versioned_path = VERSIONED_MODEL_DIR / f"score_model_{timestamp}.pkl"
+        versioned_path = versioned_dir / f"score_model_{timestamp}.pkl"
         joblib.dump(model, versioned_path)
 
-        # Salin jadi model aktif — ini yang dibaca predictor.py (path tetap sama,
-        # tidak perlu ubah apa pun di predictor.py dari TrainingClip 4).
-        MODEL_PATH.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy(versioned_path, MODEL_PATH)
+        active_path = category_dir / "score_model.pkl"
+        shutil.copy(versioned_path, active_path)
 
         feature_importance = dict(zip(FEATURE_ORDER, model.feature_importances_.tolist()))
 
         run = self.run_repo.add(TrainingRunModel(
+            category_id=category_id,
             sample_count=len(candidates),
             real_performance_count=label_sources.count("real_performance"),
             user_liked_count=label_sources.count("user_liked"),
-            auto_rejected_count=label_sources.count("user_disliked"),
+            auto_rejected_count=0,
             val_mae=round(mae, 3),
             val_r2=round(r2, 3),
             feature_importance=feature_importance,
@@ -99,12 +95,14 @@ class ModelTrainer:
             is_active=True,
         ))
 
-        # Matikan flag aktif di run-run sebelumnya.
-        self.db.query(TrainingRunModel).filter(TrainingRunModel.id != run.id).update({"is_active": False})
+        self.db.query(TrainingRunModel).filter(
+            TrainingRunModel.category_id == category_id,
+            TrainingRunModel.id != run.id,
+        ).update({"is_active": False})
         self.db.commit()
 
         logger.info(
-            "Model trained (run %d): %d samples, val_mae=%.3f, val_r2=%.3f",
-            run.id, len(candidates), mae, r2,
+            "Model kategori %d trained (run %d): %d samples, val_mae=%.3f, val_r2=%.3f",
+            category_id, run.id, len(candidates), mae, r2,
         )
         return run

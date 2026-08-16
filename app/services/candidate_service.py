@@ -144,21 +144,22 @@ class CandidateService:
             raise ValueError(f"Candidate {candidate_id} not found")
         return candidate
 
-    def mark_as_liked(self, candidate_id: int) -> CandidateModel:
-        """Tandai candidate sebagai training example positif dari review manual user."""
+    def categorize(self, candidate_id: int, category_id: int) -> CandidateModel:
+        """Tandai candidate sebagai contoh POSITIF untuk kategori tertentu."""
         candidate = self.candidate_repo.get(candidate_id)
         if candidate is None:
             raise ValueError(f"Candidate {candidate_id} not found")
         candidate.actual_score = settings.LIKED_CLIP_DEFAULT_SCORE
         candidate.is_training_example = True
         candidate.label_source = "user_liked"
+        candidate.category_id = category_id
         self.db.commit()
         self.db.refresh(candidate)
-        logger.info("Candidate %d ditandai liked untuk training", candidate_id)
+        logger.info("Candidate %d ditandai contoh kategori %d", candidate_id, category_id)
         return candidate
 
-    def unmark_liked(self, candidate_id: int) -> CandidateModel:
-        """Batalkan status liked — kembalikan ke kondisi bukan training example."""
+    def uncategorize(self, candidate_id: int) -> CandidateModel:
+        """Batalkan penandaan kategori — kembalikan ke kondisi bukan training example."""
         candidate = self.candidate_repo.get(candidate_id)
         if candidate is None:
             raise ValueError(f"Candidate {candidate_id} not found")
@@ -166,21 +167,25 @@ class CandidateService:
             candidate.actual_score = None
             candidate.is_training_example = False
             candidate.label_source = None
+            candidate.category_id = None
             self.db.commit()
             self.db.refresh(candidate)
         return candidate
 
     def mark_as_disliked(self, candidate_id: int) -> CandidateModel:
-        """Tandai candidate sebagai contoh JELEK untuk training (dari review manual user)."""
+        """Tandai candidate sebagai clip JELEK — cuma penanda kualitas, TIDAK
+        dipakai sebagai data training (beda dari desain lama). Cukup untuk
+        menyembunyikan/menandai, fokus training murni dari kategori positif.
+        """
         candidate = self.candidate_repo.get(candidate_id)
         if candidate is None:
             raise ValueError(f"Candidate {candidate_id} not found")
-        candidate.actual_score = settings.DISLIKED_CLIP_DEFAULT_SCORE
-        candidate.is_training_example = True
         candidate.label_source = "user_disliked"
+        # is_training_example & actual_score SENGAJA tidak diisi — dislike
+        # tidak lagi berkontribusi ke data training sama sekali.
         self.db.commit()
         self.db.refresh(candidate)
-        logger.info("Candidate %d ditandai jelek untuk training", candidate_id)
+        logger.info("Candidate %d ditandai jelek (bukan data training)", candidate_id)
         return candidate
 
     def unmark_disliked(self, candidate_id: int) -> CandidateModel:

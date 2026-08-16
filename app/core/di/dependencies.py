@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.db.session import get_db
 from app.services.candidate_service import CandidateService
+from app.services.category_service import CategoryService
 from app.services.clip_service import ClipService
 from app.services.dashboard_service import DashboardService
 from app.services.download_service import DownloadService
@@ -57,6 +58,10 @@ def get_transcript_service(db: Session = Depends(get_db)) -> TranscriptService:
 
 def get_candidate_service(db: Session = Depends(get_db)) -> CandidateService:
     return CandidateService(db)
+
+
+def get_category_service(db: Session = Depends(get_db)) -> CategoryService:
+    return CategoryService(db)
 
 
 def get_clip_service(db: Session = Depends(get_db)) -> ClipService:
