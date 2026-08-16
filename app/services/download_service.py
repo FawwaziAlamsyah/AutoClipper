@@ -140,8 +140,8 @@ class DownloadService:
             progress_cb(pct)
 
         base_opts = {
-            # Pilih format video mp4 terbaik atau format default dengan ekstensi aman
-            "format": "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best",
+            # Pilih FullHD terbaik yang tersedia, lalu fallback ke kualitas tertinggi.
+            "format": "bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=1080]+bestaudio/best[height<=1080]/bestvideo+bestaudio/best",
             "outtmpl": out_tmpl,
             "quiet": True,
             "no_warnings": True,
@@ -164,20 +164,19 @@ class DownloadService:
         # Susun daftar strategi dicoba berurutan: (label, ydl_opts).
         attempts: list[tuple[str, dict]] = []
 
-        # 1. Client Android tanpa cookies — percobaan pertama, paling murah (tak perlu
-        #    login/browser sama sekali) dan sering lolos "Sign in to confirm you're not a bot".
-        android_opts = dict(base_opts)
-        android_opts["extractor_args"] = {"youtube": {"player_client": ["android"]}}
-        attempts.append(("android (tanpa cookies)", android_opts))
-
-        # 2. Cookies file manual (export via ekstensi browser) — prioritas kalau tersedia.
+        # 1. Cookies file manual (export via ekstensi browser) — prioritas kalau tersedia.
         if settings.COOKIES_FILE and Path(settings.COOKIES_FILE).exists():
             cookie_file_opts = dict(base_opts)
             cookie_file_opts["cookiesfile"] = settings.COOKIES_FILE
             attempts.append(("web + cookies file", cookie_file_opts))
 
-        # 3. Terakhir: coba tanpa cookies sama sekali (client web default).
+        # 2. Coba tanpa cookies sama sekali (client web default) untuk dapat stream tertinggi.
         attempts.append(("web tanpa cookies", dict(base_opts)))
+
+        # 3. Android tanpa cookies — fallback terakhir kalau web kena pembatasan bot/SABR.
+        android_opts = dict(base_opts)
+        android_opts["extractor_args"] = {"youtube": {"player_client": ["android"]}}
+        attempts.append(("android (tanpa cookies)", android_opts))
 
         last_error: str | None = None
         for label, opts in attempts:
