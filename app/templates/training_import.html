@@ -66,6 +66,15 @@ https://www.tiktok.com/@user/video/123,7.5</pre>
       <!-- Form Upload -->
       <form id="importForm">
         <div class="mb-3">
+          <label class="form-label fw-semibold">Kategori</label>
+          <select class="form-select" name="category_id" id="categoryId" required>
+            <option value="">-- Pilih kategori --</option>
+            {% for cat in categories %}
+            <option value="{{ cat.id }}">{{ cat.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="mb-3">
           <label class="form-label fw-semibold">File CSV</label>
           <input type="file" class="form-control" id="importFile" name="file" accept=".csv,text/csv" required>
           <div class="form-text">Format: .csv — maks beberapa ratus baris per upload.</div>
@@ -179,6 +188,12 @@ https://www.tiktok.com/@user/video/123,7.5</pre>
     const btn = document.getElementById('importBtn');
     const progressPanel = getProgressPanel();
 
+    const categoryInput = document.getElementById('categoryId');
+    if (!categoryInput || !categoryInput.value) {
+      alert('Pilih kategori terlebih dahulu.');
+      return;
+    }
+
     if (!fileInput.files.length) {
       alert('Pilih file CSV terlebih dahulu.');
       return;
@@ -194,6 +209,7 @@ https://www.tiktok.com/@user/video/123,7.5</pre>
     try {
       const formData = new FormData();
       formData.append('file', fileInput.files[0]);
+      formData.append('category_id', categoryInput.value);
 
       const res = await fetch('/training/bulk-import', {
         method: 'POST',

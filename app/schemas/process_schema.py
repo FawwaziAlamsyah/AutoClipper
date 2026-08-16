@@ -9,13 +9,8 @@ class ProcessRequest(BaseModel):
     language: str | None = Field(
         "id", description="id, en, atau kosong untuk auto-detect"
     )
-    content_type: str = Field(
-        "podcast",
-        description="podcast | interview | gaming | education | streaming | news | motivation | custom",
-    )
-    clip_style: str = Field(
-        "viral",
-        description="viral | educational | funny | emotional | storytelling | controversial",
+    category_id: int | None = Field(
+        None, description="ID kategori clip style (dari tabel categories). None = scoring default/weighted-sum."
     )
     clip_objective: str | None = Field(None, description="Instruksi bebas, mis. cari bagian tentang investasi")
     min_clip_duration: int = Field(30, ge=5, le=600, description="Durasi minimum klip (detik)")

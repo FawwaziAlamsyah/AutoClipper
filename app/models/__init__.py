@@ -13,6 +13,7 @@ from app.models.subtitle_model import SubtitleModel
 from app.models.history_model import HistoryModel
 from app.models.cache_entry_model import CacheEntryModel
 from app.models.training_run_model import TrainingRunModel
+from app.models.category_model import CategoryModel
 
 __all__ = [
     "VideoModel",

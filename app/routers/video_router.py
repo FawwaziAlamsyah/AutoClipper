@@ -200,7 +200,7 @@ def process_video(
     if req is None:
         req = ProcessRequest()
 
-    job_id = service.create_job(video_id)
+    job_id = service.create_job(video_id, category_id=req.category_id)
     thread = threading.Thread(target=_run_process, args=(video_id, job_id, req), daemon=True)
     thread.start()
     return {"job_id": job_id, "status": "running"}

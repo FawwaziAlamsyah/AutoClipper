@@ -28,13 +28,14 @@ class CandidateRepository(PostgresRepository[CandidateModel]):
         self.db.refresh(candidate)
         return candidate
 
-    def get_training_examples(self) -> list[CandidateModel]:
-        """Get all candidates marked as training examples with a real score."""
+    def get_training_examples(self, category_id: int) -> list[CandidateModel]:
+        """Get training examples for one category only."""
         return list(
             self.db.query(CandidateModel)
             .filter(
                 CandidateModel.is_training_example == True,  # noqa: E712
                 CandidateModel.actual_score.isnot(None),
+                CandidateModel.category_id == category_id,
             )
             .all()
         )

@@ -97,8 +97,10 @@ class TrainingImportService:
 
         return rows
 
-    def enqueue_bulk_ingest(self, rows: list[dict]) -> tuple[str, list]:
+    def enqueue_bulk_ingest(self, rows: list[dict], category_id: int) -> tuple[str, list]:
         """Enqueue setiap baris sebagai background training_ingest job.
+
+        SEMUA baris ditandai kategori yang sama (category_id).
 
         Return (import_id, job_ids_placeholder) — job_ids diisi async
         setelah setiap baris selesai diproses.
@@ -147,6 +149,7 @@ class TrainingImportService:
                     job_id=job_id,
                     num_clips=1,
                     actual_score=actual_score,
+                    category_id=category_id,
                 )
 
                 _IMPORTS[import_id]["completed"] += 1

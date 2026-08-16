@@ -3,12 +3,13 @@
 import logging
 import shutil
 
-from fastapi import APIRouter, Depends, File, Request, UploadFile
+from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 
 from app.core.config.settings import settings
 from app.core.di.dependencies import (
+    get_category_service,
     get_model_trainer,
     get_training_import_service,
     get_training_run_repo,
@@ -16,8 +17,9 @@ from app.core.di.dependencies import (
 )
 from app.core.exceptions.base import NotFoundException, ValidationException
 from app.core.htmx import render
-from app.ml.trainer import MODEL_PATH, ModelTrainer
+from app.ml.trainer import ModelTrainer
 from app.repositories.training_run_repository import TrainingRunRepository
+from app.services.category_service import CategoryService
 from app.services.training_import_service import TrainingImportService
 from app.services.training_stats_service import TrainingStatsService
 
@@ -28,8 +30,12 @@ templates = Jinja2Templates(directory="app/templates")
 
 
 @router.get("", response_class=HTMLResponse)
-def training_import_page(request: Request) -> HTMLResponse:
+def training_import_page(
+    request: Request,
+    category_service: CategoryService = Depends(get_category_service),
+) -> HTMLResponse:
     """Render halaman bulk CSV import untuk training clip."""
+    categories = category_service.list_categories()
     return render(
         request,
         templates,
@@ -37,6 +43,7 @@ def training_import_page(request: Request) -> HTMLResponse:
         context={
             "request": request,
             "app_name": settings.APP_NAME,
+            "categories": categories,
         },
     )
 
@@ -63,6 +70,7 @@ def download_template_csv():
 async def bulk_import_training(
     request: Request,
     file: UploadFile = File(...),
+    category_id: int = Form(...),
     service: TrainingImportService = Depends(get_training_import_service),
 ) -> HTMLResponse:
     """CSV format: source,actual_score
@@ -70,9 +78,10 @@ async def bulk_import_training(
     Contoh baris:
         /path/to/clip1.mp4,8.5
         https://youtu.be/xxxxx,9.0
+    Semua baris ditandai kategori yang sama (category_id dari form).
     """
     rows = await service.parse_csv(file)
-    import_id, job_ids = service.enqueue_bulk_ingest(rows)
+    import_id, job_ids = service.enqueue_bulk_ingest(rows, category_id=category_id)
     progress = service.get_import_progress(import_id)  # context lengkap dari awal
     return templates.TemplateResponse(
         request=request,
@@ -106,17 +115,28 @@ def get_import_progress(
 @router.get("/dashboard", response_class=HTMLResponse)
 def training_dashboard(
     request: Request,
-    service: TrainingStatsService = Depends(get_training_stats_service),
+    category_id: int | None = None,
+    stats_service: TrainingStatsService = Depends(get_training_stats_service),
+    category_service: CategoryService = Depends(get_category_service),
 ) -> HTMLResponse:
-    """Halaman ringkasan data training + riwayat training runs."""
-    stats = service.get_stats()
+    """Halaman training dashboard — per kategori, dipilih lewat dropdown."""
+    categories = category_service.list_categories()
+
+    if category_id is None and categories:
+        category_id = categories[0].id  # default ke kategori pertama
+
+    stats = stats_service.get_stats(category_id) if category_id else {
+        "total": 0, "counts_by_source": {}, "training_runs": [], "active_run": None,
+    }
+
     return render(
-        request,
-        templates,
+        request, templates,
         partial_name="training_dashboard_content.html",
         context={
             "request": request,
             "app_name": settings.APP_NAME,
+            "categories": categories,
+            "selected_category_id": category_id,
             **stats,
         },
     )
@@ -125,12 +145,12 @@ def training_dashboard(
 @router.post("/train")
 def train_model(
     request: Request,
+    category_id: int,
     service: ModelTrainer = Depends(get_model_trainer),
-    stats_service: TrainingStatsService = Depends(get_training_stats_service),
 ):
-    """Latih model dari semua training example yang terkumpul, return run metrics."""
+    """Latih model untuk SATU kategori."""
     try:
-        run = service.train()
+        run = service.train(category_id)
     except ValueError as e:
         raise ValidationException(str(e))
 
@@ -155,13 +175,15 @@ def train_model(
 
 @router.get("/runs")
 def list_training_runs(
+    category_id: int,
     repo: TrainingRunRepository = Depends(get_training_run_repo),
 ) -> list:
-    """Semua riwayat training, terbaru dulu."""
-    runs = repo.get_all()
+    """Semua riwayat training untuk satu kategori, terbaru dulu."""
+    runs = repo.get_all(category_id)
     return [
         {
             "id": r.id,
+            "category_id": r.category_id,
             "trained_at": r.trained_at.isoformat() if r.trained_at else None,
             "sample_count": r.sample_count,
             "real_performance_count": r.real_performance_count,
@@ -182,6 +204,7 @@ def activate_training_run(
     run_id: int,
     repo: TrainingRunRepository = Depends(get_training_run_repo),
     stats_service: TrainingStatsService = Depends(get_training_stats_service),
+    category_service: CategoryService = Depends(get_category_service),
 ):
     """Rollback/aktifkan model dari run tertentu (bukan cuma yang terbaru)."""
     run = repo.get(run_id)
@@ -192,16 +215,21 @@ def activate_training_run(
     model_path = Path(run.model_file_path)
     if not model_path.exists():
         raise NotFoundException(
-            f"File model untuk run {run_id} tidak ditemukan di disk: {run.model_file_path}"
+            f"File model untuk run {run_id} tidak ditemukan di disk"
         )
 
-    shutil.copy(model_path, MODEL_PATH)
+    # GANTI dari MODEL_PATH (sudah dihapus sejak file 07) jadi path per-kategori:
+    active_path = Path(f"data/models/category_{run.category_id}/score_model.pkl")
+    active_path.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy(model_path, active_path)
+
     activated = repo.set_active(run_id)
-    logger.info("Model run %d diaktifkan manual (rollback/switch)", run_id)
+    logger.info("Model run %d (kategori %d) diaktifkan manual", run_id, run.category_id)
 
     # Return full dashboard partial for htmx, JSON for API
     if request.headers.get("HX-Request"):
-        stats = stats_service.get_stats()
+        categories = category_service.list_categories()
+        stats = stats_service.get_stats(run.category_id)
         return render(
             request,
             templates,
@@ -209,6 +237,8 @@ def activate_training_run(
             context={
                 "request": request,
                 "app_name": settings.APP_NAME,
+                "categories": categories,
+                "selected_category_id": run.category_id,
                 **stats,
             },
         )

@@ -11,9 +11,21 @@ class JobCreate(BaseModel):
     video_id: int
     pipeline_name: str = "auto_clipper_v1"
     language: str | None = None
-    content_type: str = "podcast"
-    clip_style: str = "viral"
+    category_id: int | None = None
     clip_objective: str | None = None
+    min_clip_duration: int = 30
+    max_clip_duration: int = 60
+    num_clips: int = 5
+    keyword_boost: list[str] = []
+    skip_keywords: list[str] = []
+    analyze_start_time: float | None = None
+    analyze_end_time: float | None = None
+    subtitle_enabled: bool = False
+    subtitle_style: str = "minimal"
+    auto_reframe: bool = False
+    face_tracking: bool = False
+    voice_emotion: bool = True
+    face_emotion: bool = False
     min_clip_duration: int = 30
     max_clip_duration: int = 60
     num_clips: int = 5

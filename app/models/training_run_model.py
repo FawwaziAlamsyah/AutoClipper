@@ -2,7 +2,7 @@
 
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, Float, Integer, Text, func
+from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, Text, func
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -25,5 +25,6 @@ class TrainingRunModel(Base, TimestampMixin):
     val_mae: Mapped[float] = mapped_column(Float, nullable=False)
     val_r2: Mapped[float] = mapped_column(Float, nullable=False)
     feature_importance: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    category_id: Mapped[int] = mapped_column(ForeignKey("categories.id"), nullable=False)
     model_file_path: Mapped[str] = mapped_column(Text, nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)

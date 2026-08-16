@@ -1,16 +1,18 @@
-# Database Schema Design — AI Auto Clipper
+# Database Schema — AI Auto Clipper
 
-Desain tabel untuk mendukung pipeline: `Upload → Extract → Transcribe → Analyze → Score → Generate → Export`,
-plus History & Cache. Ini masih **desain/konsep** — belum diimplementasikan sebagai SQLAlchemy model,
-menunggu prompt teknis Anda berikutnya.
+Skema **terimplementasi** (SQLAlchemy model di `app/models/`, dikelola lewat Alembic migration di `alembic/versions/`).
+Pipeline: `Upload → Extract → Transcribe → Analyze → Score → Generate → Export`, plus History, Cache,
+Kategori, dan Training model.
 
 ---
 
 ## 1. Prinsip Desain
 
-- **Satu tabel generik `analysis_results`** untuk menampung output SEMUA analyzer (voice, face, gesture, scene, keyword, hook, LLM), bukan satu tabel per analyzer. Alasan: konsisten dengan `ai_modules/` yang plugin-ready — menambah analyzer baru tidak perlu migrasi tabel baru, cukup `analyzer_type` baru + isi `result_data` (JSONB) sesuai kebutuhannya.
-- **`jobs` + `job_steps`** memisahkan "satu kali proses video" dari "riwayat tiap tahap pipeline" — ini yang nanti dipakai Monitoring Module.
+- **Satu tabel generik `analysis_results`** untuk menampung output SEMUA analyzer (voice, face, gesture, scene, hook, LLM, dst), bukan satu tabel per analyzer. Alasan: konsisten dengan `ai_modules/` yang plugin-ready — menambah analyzer baru tidak perlu migrasi tabel baru, cukup `analyzer_type` baru + isi `result_data` (JSONB) sesuai kebutuhannya.
+- **`jobs` + `job_steps`** memisahkan "satu kali proses video" dari "riwayat tiap tahap pipeline" — dipakai Monitoring.
 - **`candidates` vs `clips`** dipisah: `candidates` = hasil Score Engine & Candidate Generator (kandidat sebelum dipilih), `clips` = hasil akhir setelah Render/Export (bisa 1 candidate → beberapa clip, mis. versi 9:16 dan 1:1).
+- **Kategori (`categories`)** dipakai untuk mengelompokkan konten (Gaming, Podcast, dsb) — `candidates`, `jobs`, dan `training_runs` punya FK `category_id`.
+- **`training_runs`** menyimpan riwayat training model per kategori (tidak menimpa), plus pointer file model + metrik validasi.
 - Semua tabel punya `created_at`; tabel yang bisa berubah status punya `updated_at`.
 
 ---
@@ -33,6 +35,8 @@ Video sumber (hasil upload atau download).
 | fps | FLOAT NULL | |
 | file_size_bytes | INTEGER NULL | |
 | status | TEXT | `uploaded` \| `processing` \| `ready` \| `failed` |
+| is_archived | BOOLEAN | arsip (soft-delete) |
+| archived_at | DATETIME NULL | |
 | created_at | DATETIME | |
 | updated_at | DATETIME | |
 
@@ -43,8 +47,10 @@ Satu kali eksekusi pipeline untuk satu video.
 |---|---|---|
 | id | INTEGER PK | |
 | video_id | INTEGER FK → videos.id | |
+| category_id | INTEGER FK → categories.id NULL | kategori konten (ondelete SET NULL) |
 | pipeline_name | TEXT | mis. `auto_clipper_v1` |
 | status | TEXT | `pending` \| `running` \| `completed` \| `failed` |
+| job_type | TEXT | `discovery` \| `training_ingest` |
 | current_step | TEXT NULL | step yang sedang/terakhir jalan |
 | started_at | DATETIME NULL | |
 | finished_at | DATETIME NULL | |
@@ -124,12 +130,16 @@ Hasil Score Engine + Candidate Generator — kandidat klip sebelum di-render.
 | id | INTEGER PK | |
 | video_id | INTEGER FK → videos.id | |
 | job_id | INTEGER FK → jobs.id | |
+| category_id | INTEGER FK → categories.id NULL | kategori yang ditandai user (ondelete SET NULL) |
 | start_time | FLOAT | |
 | end_time | FLOAT | |
 | final_score | FLOAT | skor gabungan |
 | score_breakdown | JSONB | kontribusi tiap analyzer ke final_score |
 | hook_text | TEXT NULL | cuplikan teks hook yang terdeteksi |
 | status | TEXT | `candidate` \| `selected` \| `rejected` |
+| actual_score | FLOAT NULL | skor label training (dari CSV / kategori user) |
+| is_training_example | BOOLEAN | true = dipakai data training |
+| label_source | TEXT NULL | `real_performance` \| `user_liked` \| `user_disliked` |
 | created_at | DATETIME | |
 
 ### `clips`
@@ -186,11 +196,44 @@ Metadata cache hasil antara (file besar tetap di `data/cache/`, tabel ini index-
 | expires_at | DATETIME NULL | |
 | created_at | DATETIME | |
 
+### `categories`
+Kategori clip style yang dibuat user (Gaming, Podcast, dsb) — basis isolasi model training.
+
+| Kolom | Tipe | Keterangan |
+|---|---|---|
+| id | INTEGER PK | |
+| name | VARCHAR(100) UNIQUE | nama kategori |
+| created_at | DATETIME | |
+| updated_at | DATETIME | |
+
+### `training_runs`
+Riwayat eksekusi training model per kategori (tidak menimpa run lama).
+
+| Kolom | Tipe | Keterangan |
+|---|---|---|
+| id | INTEGER PK | |
+| trained_at | DATETIME | waktu training |
+| category_id | INTEGER FK → categories.id | kategori run ini |
+| sample_count | INTEGER | jumlah contoh training |
+| real_performance_count | INTEGER | contoh dari label `real_performance` (CSV) |
+| user_liked_count | INTEGER | contoh dari label kategori user |
+| auto_rejected_count | INTEGER | (legacy, selalu 0 sejak dislike tidak jadi training) |
+| val_mae | FLOAT | MAE validasi |
+| val_r2 | FLOAT | R² validasi |
+| feature_importance | JSONB | pentingnya tiap feature model |
+| model_file_path | TEXT | path ke `data/models/category_{id}/versions/score_model_{ts}.pkl` |
+| is_active | BOOLEAN | model aktif kategori ini (maks 1 per kategori) |
+| created_at | DATETIME | |
+| updated_at | DATETIME | |
+
 ---
 
 ## 3. Relasi (ERD ringkas)
 
 ```
+categories 1───N jobs
+categories 1───N candidates
+categories 1───N training_runs
 videos 1───N jobs 1───N job_steps
 videos 1───N transcripts 1───N transcript_segments N───1 speakers
 videos 1───N speakers
@@ -208,4 +251,4 @@ Kalau tiap analyzer (`voice_analysis`, `face_analysis`, `gesture_analysis`, dst)
 
 ---
 
-Belum diimplementasikan sebagai kode (SQLAlchemy model). Beri tahu saya kapan siap, atau lanjutkan dulu prompt teknis berikutnya.
+Implementasi: SQLAlchemy model di `app/models/`, skema dikelola via Alembic migration (`alembic upgrade head`).

@@ -7,9 +7,14 @@ from fastapi.templating import Jinja2Templates
 from app.core.config.settings import settings
 from app.core.exceptions.base import NotFoundException
 from app.core.htmx import render
-from app.core.di.dependencies import get_candidate_service, get_preview_service
+from app.core.di.dependencies import (
+    get_candidate_service,
+    get_category_service,
+    get_preview_service,
+)
 from app.schemas.candidate_schema import CandidateDetail
 from app.services.candidate_service import CandidateService
+from app.services.category_service import CategoryService
 from app.services.preview_service import PreviewService
 
 router = APIRouter(prefix="/candidates", tags=["candidates"])
@@ -68,6 +73,8 @@ def candidates_by_video(
             "actual_score": c.actual_score,
             "job_id": c.job_id,
             "clip_filename": clip_filename,
+            "category": c.category.name if c.category else None,
+            "category_name": c.category.name if c.category else None,
         })
 
     return render(
@@ -186,39 +193,38 @@ def delete_candidate(
     return HTMLResponse("")  # Return empty HTML — htmx swap=outerHTML akan menghapus <tr> dari DOM
 
 
-@router.post("/{candidate_id}/like", response_class=HTMLResponse)
-def like_candidate(
+@router.post("/{candidate_id}/categorize", response_class=HTMLResponse)
+def categorize_candidate(
     request: Request,
     candidate_id: int,
+    category_id: int,
     service: CandidateService = Depends(get_candidate_service),
+    category_service: CategoryService = Depends(get_category_service),
 ) -> HTMLResponse:
-    """Tandai candidate sebagai contoh bagus untuk training (dari review manual)."""
-    try:
-        candidate = service.mark_as_liked(candidate_id)
-    except ValueError:
-        raise NotFoundException(f"Candidate {candidate_id} tidak ditemukan")
+    """Tandai candidate sebagai contoh positif kategori tertentu."""
+    candidate = service.categorize(candidate_id, category_id)
+    categories = category_service.list_categories()
     return templates.TemplateResponse(
         request=request,
-        name="_like_button_compact.html",
-        context={"request": request, "candidate": candidate},
+        name="_rating_control.html",
+        context={"request": request, "candidate": candidate, "categories": categories},
     )
 
 
-@router.post("/{candidate_id}/unlike", response_class=HTMLResponse)
-def unlike_candidate(
+@router.post("/{candidate_id}/uncategorize", response_class=HTMLResponse)
+def uncategorize_candidate(
     request: Request,
     candidate_id: int,
     service: CandidateService = Depends(get_candidate_service),
+    category_service: CategoryService = Depends(get_category_service),
 ) -> HTMLResponse:
-    """Batalkan status liked (jaga-jaga salah klik meski sudah ada konfirmasi)."""
-    try:
-        candidate = service.unmark_liked(candidate_id)
-    except ValueError:
-        raise NotFoundException(f"Candidate {candidate_id} tidak ditemukan")
+    """Batalkan penandaan kategori candidate."""
+    candidate = service.uncategorize(candidate_id)
+    categories = category_service.list_categories()
     return templates.TemplateResponse(
         request=request,
-        name="_like_button_compact.html",
-        context={"request": request, "candidate": candidate},
+        name="_rating_control.html",
+        context={"request": request, "candidate": candidate, "categories": categories},
     )
 
 
@@ -227,16 +233,18 @@ def dislike_candidate(
     request: Request,
     candidate_id: int,
     service: CandidateService = Depends(get_candidate_service),
+    category_service: CategoryService = Depends(get_category_service),
 ) -> HTMLResponse:
-    """Tandai candidate sebagai contoh JELEK untuk training (dari review manual)."""
+    """Tandai candidate sebagai clip jelek (bukan data training)."""
     try:
         candidate = service.mark_as_disliked(candidate_id)
     except ValueError:
         raise NotFoundException(f"Candidate {candidate_id} tidak ditemukan")
+    categories = category_service.list_categories()
     return templates.TemplateResponse(
         request=request,
-        name="_like_button_compact.html",
-        context={"request": request, "candidate": candidate},
+        name="_rating_control.html",
+        context={"request": request, "candidate": candidate, "categories": categories},
     )
 
 
@@ -245,16 +253,18 @@ def undislike_candidate(
     request: Request,
     candidate_id: int,
     service: CandidateService = Depends(get_candidate_service),
+    category_service: CategoryService = Depends(get_category_service),
 ) -> HTMLResponse:
     """Batalkan status disliked."""
     try:
         candidate = service.unmark_disliked(candidate_id)
     except ValueError:
         raise NotFoundException(f"Candidate {candidate_id} tidak ditemukan")
+    categories = category_service.list_categories()
     return templates.TemplateResponse(
         request=request,
-        name="_like_button_compact.html",
-        context={"request": request, "candidate": candidate},
+        name="_rating_control.html",
+        context={"request": request, "candidate": candidate, "categories": categories},
     )
 
 

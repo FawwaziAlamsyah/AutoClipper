@@ -36,12 +36,17 @@ class ProcessService:
         self.analysis_service = analysis_service or AnalysisService(db)
         self.score_engine = ScoreEngine(db)
 
-    def create_job(self, video_id: int, job_type: str = "discovery") -> int:
+    def create_job(
+        self,
+        video_id: int,
+        job_type: str = "discovery",
+        category_id: int | None = None,
+    ) -> int:
         """Create a pipeline job and return its ID (for async processing)."""
         video = self.video_repo.get(video_id)
         if video is None:
             raise NotFoundException(f"Video {video_id} tidak ditemukan")
-        job = self.job_service.create(video_id, job_type=job_type)
+        job = self.job_service.create(video_id, job_type=job_type, category_id=category_id)
         return job.id
 
     def process_video(
@@ -57,6 +62,7 @@ class ProcessService:
         analyze_start_time: float | None = None,
         analyze_end_time: float | None = None,
         actual_score: float | None = None,
+        category_id: int | None = None,
     ) -> dict:
         """Run pipeline and return generated candidates with real scores."""
         video = self.video_repo.get(video_id)
@@ -116,10 +122,12 @@ class ProcessService:
             training_candidate.actual_score = actual_score
             training_candidate.is_training_example = True
             training_candidate.label_source = "real_performance"
+            if category_id is not None:
+                training_candidate.category_id = category_id
             self.db.commit()
             logger.info(
-                "Labeled candidate %d sebagai training example dengan actual_score=%.2f",
-                training_candidate.id, actual_score,
+                "Labeled candidate %d sebagai training example dengan actual_score=%.2f (kategori %s)",
+                training_candidate.id, actual_score, category_id,
             )
 
         logger.debug("Process job %d: step complete start", job.id)

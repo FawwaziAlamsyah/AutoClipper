@@ -85,7 +85,6 @@ class Settings(BaseSettings):
     # Training data settings
     MAX_AUTO_NEGATIVES_PER_JOB: int = 5
     LIKED_CLIP_DEFAULT_SCORE: float = 8.0
-    DISLIKED_CLIP_DEFAULT_SCORE: float = 2.0
 
     # Model scoring toggle — set False di .env untuk paksa pakai weighted-sum lama
     USE_TRAINED_SCORE_MODEL: bool = True
