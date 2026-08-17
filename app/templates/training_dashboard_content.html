@@ -179,12 +179,10 @@ async function trainModel(btn) {
     const res = await fetch(`/training/train?category_id=${categoryId}`, { method: 'POST' });
     const data = await res.json();
     if (res.ok) {
-      btn.textContent = '✅ Selesai — Train Ulang';
-      btn.disabled = false;
-      resultDiv.innerHTML = `<div class="alert alert-success small mb-0">Training selesai (Run #${data.id}).<br>
-        <strong>Samples:</strong> ${data.sample_count} &nbsp;
-        <strong>Val MAE:</strong> ${data.val_mae} &nbsp;
-        <strong>Val R²:</strong> ${data.val_r2}</div>`;
+      const pageRes = await fetch(`/training/dashboard?category_id=${categoryId}`, { headers: { 'HX-Request': 'true' } });
+      if (pageRes.ok) {
+        document.getElementById('main-content').innerHTML = await pageRes.text();
+      }
     } else {
       resultDiv.innerHTML = `<div class="alert alert-danger small mb-0">${data.detail || 'Gagal training.'}</div>`;
       btn.disabled = false;
