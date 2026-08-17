@@ -31,31 +31,7 @@
 </div>
 {% endif %}
 
-<!-- Modal Dislike -->
-<div class="modal fade" id="dislikeConfirmModal" tabindex="-1">
-  <div class="modal-dialog"><div class="modal-content">
-    <div class="modal-header"><h5 class="modal-title">Konfirmasi Tandai Jelek</h5><button class="btn-close" data-bs-dismiss="modal"></button></div>
-    <div class="modal-body">Tandai clip ini sebagai clip <strong>jelek</strong> (bukan data training)?</div>
-    <div class="modal-footer">
-      <button class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
-      <button class="btn btn-danger" id="dislikeConfirmBtn">Ya, Tandai Jelek</button>
-    </div>
-  </div></div>
-</div>
-
 <script>
-let pendingCandidateId = null;
-
-function openDislikeModal(candidateId) {
-  pendingCandidateId = candidateId;
-  new bootstrap.Modal(document.getElementById('dislikeConfirmModal')).show();
-}
-
-document.getElementById('dislikeConfirmBtn').addEventListener('click', async () => {
-  bootstrap.Modal.getInstance(document.getElementById('dislikeConfirmModal'))?.hide();
-  await doRatingAction(pendingCandidateId, `/candidates/${pendingCandidateId}/dislike`, 'POST');
-});
-
 function submitCategorize(candidateId) {
   const select = document.getElementById('category-select-' + candidateId);
   const categoryId = select.value;

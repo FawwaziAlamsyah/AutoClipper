@@ -45,6 +45,7 @@ def candidates_by_video(
     request: Request,
     video_id: int,
     service: CandidateService = Depends(get_candidate_service),
+    category_service: CategoryService = Depends(get_category_service),
 ) -> HTMLResponse:
     """Render tabel candidates untuk satu video."""
     from app.models.video_model import VideoModel
@@ -54,6 +55,7 @@ def candidates_by_video(
 
     candidates = service.list_by_video(video_id)
     clip_by_candidate = service.get_completed_clips([c.id for c in candidates])
+    categories = category_service.list_categories()
 
     # Build plain dicts untuk render — hindari lazy-load issue di Jinja2
     candidate_rows = []
@@ -86,6 +88,7 @@ def candidates_by_video(
             "app_name": settings.APP_NAME,
             "video": video,
             "candidates": candidate_rows,
+            "categories": categories,
         },
     )
 

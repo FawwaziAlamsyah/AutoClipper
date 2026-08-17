@@ -1,5 +1,6 @@
 {% if candidate.label_source == "user_liked" %}
-<span class="badge bg-success">✓ {{ candidate.category.name if candidate.category else (candidate.category_name or 'Kategori') }}</span>
+{% set cat_display = candidate.category_name if candidate.category_name is defined else (candidate.category.name if candidate.category else none) %}
+<span class="badge bg-success">✓ {{ cat_display or 'Kategori' }}</span>
 <button class="btn btn-sm btn-link p-0 text-muted"
         onclick="doRatingAction({{ candidate.id }}, '/candidates/{{ candidate.id }}/uncategorize', 'POST')">batalkan</button>
 {% elif candidate.label_source == "user_disliked" %}
@@ -17,6 +18,6 @@
   <button type="button" class="btn btn-sm btn-outline-success"
           onclick="submitCategorize({{ candidate.id }})">✓</button>
   <button type="button" class="btn btn-sm btn-outline-danger"
-          onclick="openDislikeModal({{ candidate.id }})">👎</button>
+          onclick="doRatingAction({{ candidate.id }}, '/candidates/{{ candidate.id }}/dislike', 'POST')">👎</button>
 </div>
 {% endif %}
