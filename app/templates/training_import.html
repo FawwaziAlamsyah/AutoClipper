@@ -1,6 +1,10 @@
 <div class="card shadow-sm p-4 mb-4">
   <div class="d-flex justify-content-between align-items-start flex-wrap gap-3">
     <div>
+      <a href="/training/dashboard"
+         hx-get="/training/dashboard"
+         hx-target="#main-content" hx-push-url="true"
+         class="btn btn-outline-secondary btn-sm mb-2">← Kembali ke Training Dashboard</a>
       <h3 class="mb-1">Bulk Training Import</h3>
       <p class="text-muted mb-0">
         Upload file CSV berisi daftar clip video beserta skor performanya.

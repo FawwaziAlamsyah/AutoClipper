@@ -119,8 +119,21 @@ def training_dashboard(
     stats_service: TrainingStatsService = Depends(get_training_stats_service),
     category_service: CategoryService = Depends(get_category_service),
 ) -> HTMLResponse:
-    """Halaman training dashboard — per kategori, dipilih lewat dropdown."""
+    """Halaman training dashboard — per kategori, dipilih lewat dropdown.
+
+    Kategori terakhir yang dipilih disimpan di cookie (training_category_id),
+    jadi pindah page / kembali dari bulk import tidak me-reset ke kategori
+    pertama. Query param ?category_id tetap menang kalau diberikan.
+    """
     categories = category_service.list_categories()
+
+    if category_id is None:
+        # Fallback ke cookie (kategori terakhir) kalau kategori tsb masih ada
+        saved = request.cookies.get("training_category_id")
+        if saved and saved.isdigit():
+            candidate = int(saved)
+            if any(c.id == candidate for c in categories):
+                category_id = candidate
 
     if category_id is None and categories:
         category_id = categories[0].id  # default ke kategori pertama
@@ -129,7 +142,7 @@ def training_dashboard(
         "total": 0, "counts_by_source": {}, "training_runs": [], "active_run": None,
     }
 
-    return render(
+    tpl = render(
         request, templates,
         partial_name="training_dashboard_content.html",
         context={
@@ -140,6 +153,9 @@ def training_dashboard(
             **stats,
         },
     )
+    if category_id is not None:
+        tpl.set_cookie("training_category_id", str(category_id))
+    return tpl
 
 
 @router.post("/train")
