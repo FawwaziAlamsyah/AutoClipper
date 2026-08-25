@@ -2,7 +2,7 @@
 
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, Text
+from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base, TimestampMixin
@@ -23,6 +23,7 @@ class ClipModel(Base, TimestampMixin):
     has_subtitle: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     status: Mapped[str] = mapped_column(Text, nullable=False, default="rendering")
     exported_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    edited_file_path: Mapped[str | None] = mapped_column(String(1024))
 
     candidate: Mapped["CandidateModel | None"] = relationship(back_populates="clips")
     video: Mapped["VideoModel"] = relationship(back_populates="clips")

@@ -10,6 +10,10 @@ from app.core.exceptions.base import ExternalToolException
 
 logger = logging.getLogger(__name__)
 
+# Windows default encoding (cp1252) crash kalau ffprobe/ffmpeg emit byte non-ASCII
+# (judul YouTube, metadata). Paksa UTF-8 + replace supaya stdout selalu str.
+_SUBPROCESS_KW = {"capture_output": True, "text": True, "encoding": "utf-8", "errors": "replace"}
+
 
 class FFmpegService:
     """Wrapper service for FFmpeg and ffprobe operations."""
@@ -34,7 +38,7 @@ class FFmpegService:
         ]
 
         try:
-            result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+            result = subprocess.run(cmd, check=True, **_SUBPROCESS_KW)
             probe_data = json.loads(result.stdout)
             
             metadata = {
@@ -97,7 +101,7 @@ class FFmpegService:
 
         try:
             logger.info("Trimming preview clip: %s [%s-%s]", video_path, start, end)
-            subprocess.run(cmd, capture_output=True, text=True, check=True)
+            subprocess.run(cmd, check=True, **_SUBPROCESS_KW)
             return output_path
         except subprocess.SubprocessError as e:
             logger.error("Preview trim failed for: %s", video_path, exc_info=e)
@@ -124,7 +128,7 @@ class FFmpegService:
 
         try:
             logger.info("Running FFmpeg extraction command: %s", " ".join(cmd))
-            subprocess.run(cmd, capture_output=True, text=True, check=True)
+            subprocess.run(cmd, check=True, **_SUBPROCESS_KW)
             logger.info("Extracted audio successfully to: %s", output_wav_path)
             return output_wav_path
         except subprocess.SubprocessError as e:

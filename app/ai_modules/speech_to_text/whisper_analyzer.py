@@ -68,6 +68,11 @@ class WhisperAnalyzer(AnalyzerInterface):
         """Lazy load whisper model untuk hemat memori."""
         if self.model is None:
             _add_nvidia_dll_dirs()
+            # Disable MediaPipe telemetry — clearcut uploader retry loop
+            # bikin transcription lambat di Windows.
+            os.environ.setdefault("MEDIAPIPE_DISABLE_TELEMETRY", "1")
+            os.environ.setdefault("TF_CPP_MIN_LOG_LEVEL", "3")
+            os.environ.setdefault("GLOG_minloglevel", "3")
             self.model = WhisperModel(
                 self.model_size,
                 device=self.device,

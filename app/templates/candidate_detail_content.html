@@ -81,6 +81,125 @@
 
 {% if clip %}
 <div class="card shadow-sm p-4 mt-3">
+  <h5 class="mb-3">Edit Clip (Opsional, Sebelum Upload)</h5>
+
+  <div id="clip-edit-preview-wrapper">
+    {% include "_clip_edit_preview.html" %}
+  </div>
+
+  <ul class="nav nav-tabs mt-3" role="tablist">
+    <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tab-text">Text</button></li>
+    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-crop">Crop</button></li>
+    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-sound">Sound</button></li>
+  </ul>
+
+  <div class="tab-content border border-top-0 p-3">
+    <!-- Tab Text -->
+    <div class="tab-pane fade show active" id="tab-text">
+      <form onsubmit="return submitEditForm(event, '/clips/{{ clip.id }}/edit/text')">
+        <div class="mb-2">
+          <input type="text" name="text" class="form-control" placeholder="Teks overlay..." required>
+        </div>
+        <div class="row g-2 mb-2">
+          <div class="col">
+            <select name="position" class="form-select form-select-sm">
+              <option value="top">Atas</option>
+              <option value="middle">Tengah</option>
+              <option value="bottom" selected>Bawah</option>
+            </select>
+          </div>
+          <div class="col">
+            <input type="number" name="font_size" class="form-control form-control-sm" value="48" min="12" max="120">
+          </div>
+          <div class="col">
+            <input type="color" name="color" class="form-control form-control-sm form-control-color" value="#ffffff">
+          </div>
+        </div>
+        <button type="submit" class="btn btn-sm btn-primary">Tambah Text</button>
+      </form>
+    </div>
+
+    <!-- Tab Crop -->
+    <div class="tab-pane fade" id="tab-crop">
+      <p class="text-muted small">Trim video berdasarkan waktu (dalam detik).</p>
+      <form onsubmit="return submitEditForm(event, '/clips/{{ clip.id }}/edit/crop')">
+        <div class="row g-2 mb-2">
+          <div class="col">
+            <label class="form-label small">Start (detik)</label>
+            <input type="number" name="start_time" class="form-control form-control-sm" value="0" min="0" step="0.1">
+          </div>
+          <div class="col">
+            <label class="form-label small">End (detik)</label>
+            <input type="number" name="end_time" class="form-control form-control-sm" value="30" min="0" step="0.1">
+          </div>
+        </div>
+        <button type="submit" class="btn btn-sm btn-primary">Terapkan Trim</button>
+      </form>
+    </div>
+
+    <!-- Tab Sound -->
+    <div class="tab-pane fade" id="tab-sound">
+      <!-- Edit Volume Saja -->
+      <div class="mb-3 pb-3 border-bottom">
+        <p class="small fw-semibold mb-2">Edit Volume Suara Asli</p>
+        <form onsubmit="return submitEditForm(event, '/clips/{{ clip.id }}/edit/volume')">
+          <div class="row g-2 align-items-center mb-2">
+            <div class="col">
+              <label class="form-label small">Volume (0–2)</label>
+              <input type="range" name="video_volume" class="form-range" min="0" max="2" step="0.1" value="1"
+                oninput="this.nextElementSibling.textContent = parseFloat(this.value).toFixed(1)">
+              <small class="text-muted">1.0</small>
+            </div>
+          </div>
+          <button type="submit" class="btn btn-sm btn-outline-primary">Terapkan Volume</button>
+        </form>
+      </div>
+      <!-- Tambah Audio -->
+      <p class="small fw-semibold mb-2">Tambah Audio</p>
+      <form onsubmit="return submitEditFormFile(event, '/clips/{{ clip.id }}/edit/sound')" enctype="multipart/form-data">
+        <div class="mb-2">
+          <label class="form-label small">File Audio</label>
+          <input type="file" name="audio_file" accept="audio/*" class="form-control form-control-sm" required>
+        </div>
+        <div class="row g-2 mb-2">
+          <div class="col">
+            <label class="form-label small">Mulai di detik ke</label>
+            <input type="number" name="audio_start" class="form-control form-control-sm" value="0" min="0" step="0.1">
+          </div>
+        </div>
+        <div class="row g-2 mb-2">
+          <div class="col">
+            <label class="form-label small">Vol. asli di luar range audio (0–2)</label>
+            <input type="range" name="video_volume" class="form-range" min="0" max="2" step="0.1" value="1"
+              oninput="this.nextElementSibling.textContent = parseFloat(this.value).toFixed(1)">
+            <small class="text-muted">1.0</small>
+          </div>
+          <div class="col">
+            <label class="form-label small">Vol. asli saat audio tambahan (0–2)</label>
+            <input type="range" name="duck_volume" class="form-range" min="0" max="2" step="0.1" value="0.3"
+              oninput="this.nextElementSibling.textContent = parseFloat(this.value).toFixed(1)">
+            <small class="text-muted">0.3</small>
+          </div>
+          <div class="col">
+            <label class="form-label small">Vol. audio tambahan (0–2)</label>
+            <input type="range" name="audio_volume" class="form-range" min="0" max="2" step="0.1" value="1"
+              oninput="this.nextElementSibling.textContent = parseFloat(this.value).toFixed(1)">
+            <small class="text-muted">1.0</small>
+          </div>
+        </div>
+        <button type="submit" class="btn btn-sm btn-primary">Tambah Audio</button>
+      </form>
+    </div>
+  </div>
+
+  <button class="btn btn-sm btn-outline-secondary mt-3" onclick="resetClipEdit({{ clip.id }})">
+    ↺ Reset ke Original
+  </button>
+</div>
+{% endif %}
+
+{% if clip %}
+<div class="card shadow-sm p-4 mt-3">
   <h5>Subtitle</h5>
   <div class="row g-2 align-items-end">
     <div class="col-auto">
@@ -116,6 +235,90 @@
 {% endif %}
 
 <script>
+async function submitEditForm(event, url) {
+  event.preventDefault();
+  const form = event.target;
+  const btn = form.querySelector('button[type=submit]');
+  const formData = new URLSearchParams(new FormData(form));
+  _startEditProgress(btn);
+  const res = await fetch(url, { method: 'POST', body: formData });
+  _stopEditProgress(btn);
+  if (res.ok) {
+    document.getElementById('clip-edit-preview-wrapper').innerHTML = await res.text();
+  } else {
+    const err = await res.json().catch(() => ({}));
+    alert(err.detail || 'Gagal edit clip.');
+  }
+  return false;
+}
+
+async function submitEditFormFile(event, url) {
+  event.preventDefault();
+  const form = event.target;
+  const btn = form.querySelector('button[type=submit]');
+  _startEditProgress(btn);
+  const res = await fetch(url, { method: 'POST', body: new FormData(form) });
+  _stopEditProgress(btn);
+  if (res.ok) {
+    document.getElementById('clip-edit-preview-wrapper').innerHTML = await res.text();
+  } else {
+    const err = await res.json().catch(() => ({}));
+    alert(err.detail || 'Gagal edit clip.');
+  }
+  return false;
+}
+
+// Progress bar helper — estimasi visual, increment 0→90% selama proses, 100% saat selesai
+let _progressTimer = null;
+function _startEditProgress(btn) {
+  btn.disabled = true;
+  const origText = btn.textContent;
+  btn.dataset.origText = origText;
+  // Sisipkan progress bar di atas form
+  const wrapper = document.getElementById('clip-edit-preview-wrapper');
+  let bar = document.getElementById('edit-progress-bar');
+  if (!bar) {
+    const div = document.createElement('div');
+    div.id = 'edit-progress-bar';
+    div.className = 'mb-2';
+    div.innerHTML = '<div class="progress" style="height:6px"><div class="progress-bar progress-bar-striped progress-bar-animated bg-primary" id="edit-progress-inner" style="width:0%"></div></div><small class="text-muted" id="edit-progress-label">Memproses... 0%</small>';
+    wrapper.parentNode.insertBefore(div, wrapper);
+    bar = div;
+  }
+  bar.style.display = 'block';
+  let pct = 0;
+  const inner = document.getElementById('edit-progress-inner');
+  const label = document.getElementById('edit-progress-label');
+  _progressTimer = setInterval(() => {
+    // Increment cepat sampai 60%, lalu melambat sampai 90%
+    const step = pct < 60 ? 3 : (pct < 85 ? 0.8 : 0.1);
+    pct = Math.min(pct + step, 90);
+    inner.style.width = pct.toFixed(1) + '%';
+    label.textContent = `Memproses... ${Math.round(pct)}%`;
+  }, 300);
+}
+function _stopEditProgress(btn) {
+  clearInterval(_progressTimer);
+  const inner = document.getElementById('edit-progress-inner');
+  const label = document.getElementById('edit-progress-label');
+  const bar = document.getElementById('edit-progress-bar');
+  if (inner) { inner.style.width = '100%'; inner.classList.remove('progress-bar-animated'); }
+  if (label) label.textContent = 'Selesai 100%';
+  setTimeout(() => { if (bar) bar.style.display = 'none'; }, 800);
+  btn.disabled = false;
+  btn.textContent = btn.dataset.origText || btn.textContent;
+}
+
+async function resetClipEdit(clipId) {
+  if (!confirm('Reset semua edit dan kembali ke clip original?')) return;
+  const res = await fetch(`/clips/${clipId}/edit/reset`, { method: 'POST' });
+  if (res.ok) {
+    document.getElementById('clip-edit-preview-wrapper').innerHTML = await res.text();
+  } else {
+    alert('Gagal reset.');
+  }
+}
+
 async function generateSubtitle(btn, clipId) {
   const format = document.getElementById('subFormat').value;
   const style = document.getElementById('subStyle').value;

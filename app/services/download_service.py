@@ -72,7 +72,7 @@ class DownloadService:
 
         dl_id = _new_download_id()
         _DOWNLOADS[dl_id] = {"percent": 0, "status": "downloading", "video": None, "error": None}
-        logger.debug("Download process %s: start untuk URL %s", dl_id, url)
+        logger.info("[download] Mulai download: %s (id: %s)", url, dl_id)
 
         def _run() -> None:
             from app.db.session import SessionLocal
@@ -86,7 +86,7 @@ class DownloadService:
                     "video": _video_payload(video),
                     "error": None,
                 }
-                logger.debug("Download process %s: success, video %d terdaftar", dl_id, video.id)
+                logger.info("[download] Selesai: video %d terdaftar", video.id)
             except Exception as e:
                 logger.error("Download %s failed: %s", dl_id, e)
                 _DOWNLOADS[dl_id]["status"] = "error"
@@ -110,14 +110,10 @@ class DownloadService:
 
         progress_cb dipanggil dengan persen (0-100) via yt-dlp progress_hooks.
 
-        Strategi dicoba berurutan, berhenti di percobaan pertama yang sukses:
-        1. player_client "android" TANPA cookies — client Android sering lolos
-           pengecekan bot YouTube tanpa perlu login sama sekali (ini yang dipakai
-           kebanyakan situs downloader publik, bukan cookies).
-        2. Kalau gagal dan COOKIES_FILE tersedia → pakai file cookies manual.
-        3. Kalau tidak ada cookies file → coba baca cookies dari browser
-           (Chrome → Firefox → Edge) secara berurutan.
-        4. Terakhir, coba tanpa cookies sama sekali (client web default).
+        Strategi sederhana — coba berurutan, berhenti di pertama yang sukses:
+        1. Cookies file manual (kalau ada) + web client.
+        2. Android client tanpa cookies — lolos bot YouTube tanpa login.
+        3. Web client tanpa cookies — fallback terakhir.
         """
         if not url:
             raise ValidationException("URL tidak boleh kosong")
@@ -125,7 +121,6 @@ class DownloadService:
         upload_dir: Path = settings.UPLOAD_DIR
         upload_dir.mkdir(parents=True, exist_ok=True)
 
-        # Gunakan uuid unik agar nama file tidak bertabrakan
         unique_id = str(uuid.uuid4())[:8]
         out_tmpl = str(upload_dir / f"{unique_id}_%(title)s.%(ext)s")
 
@@ -139,56 +134,50 @@ class DownloadService:
             pct = int(done * 100 / total) if total else 0
             progress_cb(pct)
 
-        base_opts = {
-            # Pilih FullHD terbaik yang tersedia, lalu fallback ke kualitas tertinggi.
-            "format": "bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=1080]+bestaudio/best[height<=1080]/bestvideo+bestaudio/best",
+        ydl_opts = {
+            # Max 1080p — prioritas format sudah merged (video+audio), baru split.
+            # Format split (bestvideo+bestaudio) sering gagal merge → audio hilang
+            # atau kualitas jelek. Merged lebih reliable.
+            "format": "best[height<=1080][ext=mp4]/best[height<=1080]/bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=1080]+bestaudio/best",
             "outtmpl": out_tmpl,
             "quiet": True,
             "no_warnings": True,
             "logger": _YtDlpLogger(),
             "merge_output_format": "mp4",
             "progress_hooks": [_hook] if progress_cb else [],
-            # User-agent realistis + header HTTP — hindari 403 anti-bot YouTube
             "http_headers": {
                 "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
                 "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
                 "Accept-Language": "en-US,en;q=0.9",
             },
             "extractor_retries": 3,
+            "retries": 3,
+            "socket_timeout": 30,
             "noplaylist": True,
-            # yt-dlp gagal auto-deteksi Node untuk n-challenge YouTube (2026.07).
-            # Paksa pakai Node — tanpanya format video disembunyikan (cuma storyboard).
             "js_runtimes": {"node": {}},
+            # Android client — lolos bot YouTube tanpa perlu cookies/login.
+            "extractor_args": {"youtube": {"player_client": ["android"]}},
         }
 
-        # Susun daftar strategi dicoba berurutan: (label, ydl_opts).
-        attempts: list[tuple[str, dict]] = []
+        # Strategi: android dulu (lolos bot), web sebagai fallback (kualitas lebih banyak).
+        android_opts = dict(ydl_opts)
+        web_opts = dict(ydl_opts)
+        web_opts.pop("extractor_args", None)
 
-        # 1. Cookies file manual (export via ekstensi browser) — prioritas kalau tersedia.
-        if settings.COOKIES_FILE and Path(settings.COOKIES_FILE).exists():
-            cookie_file_opts = dict(base_opts)
-            cookie_file_opts["cookiesfile"] = settings.COOKIES_FILE
-            attempts.append(("web + cookies file", cookie_file_opts))
-
-        # 2. Coba tanpa cookies sama sekali (client web default) untuk dapat stream tertinggi.
-        attempts.append(("web tanpa cookies", dict(base_opts)))
-
-        # 3. Android tanpa cookies — fallback terakhir kalau web kena pembatasan bot/SABR.
-        android_opts = dict(base_opts)
-        android_opts["extractor_args"] = {"youtube": {"player_client": ["android"]}}
-        attempts.append(("android (tanpa cookies)", android_opts))
+        attempts = [
+            ("android", android_opts),
+            ("web", web_opts),
+        ]
 
         last_error: str | None = None
-        for label, opts in attempts:
+        for i, (label, opts) in enumerate(attempts, 1):
+            logger.info("[download] Strategi %d/%d: %s", i, len(attempts), label)
             try:
                 return self._extract_and_register(url, opts)
             except yt_dlp.utils.DownloadError as e:
                 msg = str(e)
                 last_error = msg
-                logger.debug(
-                    "Download process: strategi '%s' gagal (%s), coba strategi berikutnya",
-                    label, msg[:120],
-                )
+                logger.warning("[download] Strategi '%s' gagal: %s", label, msg[:150])
                 continue
 
         raise ValidationException(self._user_friendly_download_error(last_error or "unknown"))
@@ -223,31 +212,30 @@ class DownloadService:
         return f"Gagal mendownload video: {msg}"
 
     def _extract_and_register(self, url: str, ydl_opts: dict) -> VideoModel:
-        """Jalankan yt-dlp dengan satu opsi cookies, lalu daftarkan video ke DB."""
+        """Jalankan yt-dlp dengan satu opsi, register ke DB."""
         try:
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                logger.debug("Download process: ambil info video %s", url)
+                logger.info("[download] Mengambil info video...")
                 info = ydl.extract_info(url, download=True)
                 if not info:
                     raise ValidationException("Gagal mengambil informasi video dari URL")
-                logger.debug("Download process: info didapat, title=%s", info.get("title"))
+                title = info.get("title", "unknown")
+                logger.info("[download] Info didapat: %s", title)
 
                 filename = ydl.prepare_filename(info)
-                # Ganti ekstensi output sesuai format penggabungan jika yt-dlp mengubahnya
                 dest_path = Path(filename)
                 if not dest_path.exists():
-                    # coba cari dengan ekstensi .mp4
                     mp4_path = dest_path.with_suffix(".mp4")
                     if mp4_path.exists():
                         dest_path = mp4_path
                     else:
                         raise ValidationException("File hasil download tidak ditemukan di disk")
 
-                original_filename = info.get("title", "downloaded_video") + ".mp4"
                 file_size = dest_path.stat().st_size
-                duration = info.get("duration")
+                logger.info("[download] File tersimpan: %s (%.1f MB)", dest_path.name, file_size / 1e6)
 
-                logger.debug("Download process: file siap %s (%.1f MB)", dest_path.name, file_size / 1e6)
+                original_filename = title + ".mp4"
+                duration = info.get("duration")
 
                 video = VideoModel(
                     original_filename=original_filename,
@@ -258,22 +246,19 @@ class DownloadService:
                     file_size_bytes=file_size,
                     status="uploaded",
                 )
-                logger.debug("Download process: import process ke DB (video %s)", video.original_filename)
                 video = self.repo.add(video)
 
-                # Log to history
                 self.history_service.log(
                     action="video_downloaded",
                     description=f"Downloaded video from {url}",
                     video_id=video.id,
                 )
 
-                logger.info("Video downloaded from URL successfully: %s", url)
+                logger.info("[download] Video didaftarkan ke DB (id=%d)", video.id)
                 return video
 
-        except yt_dlp.utils.DownloadError:
-            # Propagasi polos — caller (download_video) yang handle fallback strategi lain
-            raise
+        except yt_dlp.utils.DownloadError as e:
+            raise ValidationException(self._user_friendly_download_error(str(e)))
         except Exception as e:
             logger.error("Failed to download video from URL: %s", url, exc_info=e)
             if isinstance(e, ValidationException):
