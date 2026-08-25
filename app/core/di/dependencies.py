@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from app.db.session import get_db
 from app.services.candidate_service import CandidateService
 from app.services.category_service import CategoryService
+from app.services.clip_editor_service import ClipEditorService
 from app.services.clip_service import ClipService
 from app.services.dashboard_service import DashboardService
 from app.services.download_service import DownloadService
@@ -66,6 +67,10 @@ def get_category_service(db: Session = Depends(get_db)) -> CategoryService:
 
 def get_clip_service(db: Session = Depends(get_db)) -> ClipService:
     return ClipService(db)
+
+
+def get_clip_editor_service(db: Session = Depends(get_db)) -> ClipEditorService:
+    return ClipEditorService(db)
 
 
 def get_preview_service(db: Session = Depends(get_db)) -> PreviewService:

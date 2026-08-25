@@ -88,7 +88,7 @@ alembic upgrade head
 
 ```bash
 # --no-access-log: terminal fokus ke log.debug proses, bukan request per-halaman
-uvicorn app.main:app --reload --no-access-log
+.\.venv\Scripts\uvicorn app.main:app --reload
 # atau .venv\Scripts\uvicorn app.main:app --reload --no-access-log
 ```
 

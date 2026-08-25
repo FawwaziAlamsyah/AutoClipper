@@ -77,6 +77,7 @@ def candidates_by_video(
             "clip_filename": clip_filename,
             "category": c.category.name if c.category else None,
             "category_name": c.category.name if c.category else None,
+            "video_is_archived": video.is_archived,
         })
 
     return render(

@@ -1,13 +1,19 @@
 """Generate final clip endpoints."""
 
-from fastapi import APIRouter, Depends, Query, Request
-from fastapi.responses import HTMLResponse
+import re
+import threading
+import time
+from pathlib import Path
+
+from fastapi import APIRouter, Depends, File, Form, Query, Request, UploadFile
+from fastapi.responses import HTMLResponse, StreamingResponse
 from fastapi.templating import Jinja2Templates
 
-from app.core.di.dependencies import get_clip_service, get_candidate_service
+from app.core.di.dependencies import get_candidate_service, get_clip_editor_service, get_clip_service
 from app.schemas.clip_schema import ClipGenerateRequest
-from app.services.clip_service import ClipService
 from app.services.candidate_service import CandidateService
+from app.services.clip_editor_service import ClipEditorService
+from app.services.clip_service import ClipService
 
 router = APIRouter(prefix="/clips", tags=["clips"])
 templates = Jinja2Templates(directory="app/templates")
@@ -115,4 +121,99 @@ def generate_clip_detail(
                 "filename": filename,
             }
         }
+    )
+
+
+@router.post("/{clip_id}/edit/text", response_class=HTMLResponse)
+def edit_add_text(
+    request: Request,
+    clip_id: int,
+    text: str = Form(...),
+    position: str = Form("bottom"),
+    font_size: int = Form(48),
+    color: str = Form("white"),
+    service: ClipEditorService = Depends(get_clip_editor_service),
+):
+    clip = service.add_text(clip_id, text, position, font_size, color)
+    return templates.TemplateResponse(
+        request=request, name="_clip_edit_preview.html", context={"request": request, "clip": clip, "ts": int(time.time())},
+    )
+
+
+@router.post("/{clip_id}/edit/crop", response_class=HTMLResponse)
+def edit_crop(
+    request: Request,
+    clip_id: int,
+    start_time: float = Form(...),
+    end_time: float = Form(...),
+    service: ClipEditorService = Depends(get_clip_editor_service),
+):
+    clip = service.crop(clip_id, start_time, end_time)
+    return templates.TemplateResponse(
+        request=request, name="_clip_edit_preview.html", context={"request": request, "clip": clip, "ts": int(time.time())},
+    )
+
+
+@router.post("/{clip_id}/edit/sound", response_class=HTMLResponse)
+async def edit_mix_sound(
+    request: Request,
+    clip_id: int,
+    audio_file: UploadFile = File(...),
+    audio_start: float = Form(0.0),
+    duck_volume: float = Form(0.3),
+    audio_volume: float = Form(1.0),
+    video_volume: float = Form(1.0),
+    service: ClipEditorService = Depends(get_clip_editor_service),
+):
+    # Simpan upload audio ke temp dulu sebelum diproses FFmpeg
+    temp_dir = Path("data/temp")
+    temp_dir.mkdir(parents=True, exist_ok=True)
+    temp_audio_path = temp_dir / f"upload_{clip_id}_{audio_file.filename}"
+    with open(temp_audio_path, "wb") as f:
+        f.write(await audio_file.read())
+
+    try:
+        clip = service.mix_sound(clip_id, str(temp_audio_path), audio_start, video_volume, duck_volume, audio_volume)
+    finally:
+        temp_audio_path.unlink(missing_ok=True)
+
+    return templates.TemplateResponse(
+        request=request, name="_clip_edit_preview.html", context={"request": request, "clip": clip, "ts": int(time.time())},
+    )
+
+
+@router.post("/{clip_id}/edit/volume", response_class=HTMLResponse)
+def edit_adjust_volume(
+    request: Request,
+    clip_id: int,
+    video_volume: float = Form(...),
+    service: ClipEditorService = Depends(get_clip_editor_service),
+):
+    clip = service.adjust_volume(clip_id, video_volume)
+    return templates.TemplateResponse(
+        request=request, name="_clip_edit_preview.html", context={"request": request, "clip": clip, "ts": int(time.time())},
+    )
+
+
+# In-memory progress store: {clip_id: {"pct": 0-100, "done": bool, "error": str|None}}
+_edit_progress: dict[int, dict] = {}
+
+
+@router.get("/{clip_id}/edit/progress")
+def edit_progress(clip_id: int):
+    """Poll endpoint — return JSON progress untuk edit yang sedang berjalan."""
+    from fastapi.responses import JSONResponse
+    state = _edit_progress.get(clip_id, {"pct": 0, "done": True, "error": None})
+    return JSONResponse(state)
+
+
+@router.post("/{clip_id}/edit/reset", response_class=HTMLResponse)
+def edit_reset(
+    request: Request,
+    clip_id: int,
+    service: ClipEditorService = Depends(get_clip_editor_service),
+):
+    clip = service.reset(clip_id)
+    return templates.TemplateResponse(
+        request=request, name="_clip_edit_preview.html", context={"request": request, "clip": clip, "ts": int(time.time())},
     )

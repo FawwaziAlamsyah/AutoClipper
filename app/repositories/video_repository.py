@@ -23,7 +23,7 @@ class VideoRepository(PostgresRepository[VideoModel]):
         return video
 
     def list_for_upload(self) -> list[VideoModel]:
-        """List videos for Upload UI, excluding training-only source videos."""
+        """List videos for Upload UI, excluding training-only source videos and archived videos."""
         has_job = exists().where(JobModel.video_id == VideoModel.id)
         has_normal_job = exists().where(
             JobModel.video_id == VideoModel.id,
@@ -31,7 +31,10 @@ class VideoRepository(PostgresRepository[VideoModel]):
         )
         return list(
             self.db.query(VideoModel)
-            .filter(or_(~has_job, has_normal_job))
+            .filter(
+                or_(~has_job, has_normal_job),
+                VideoModel.is_archived == False,  # noqa: E712
+            )
             .order_by(VideoModel.id.desc())
             .all()
         )

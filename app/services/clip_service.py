@@ -145,7 +145,7 @@ class ClipService:
         ]
 
         logger.info("Running FFmpeg: %s", " ".join(cmd))
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
+        result = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=600)
         if result.returncode != 0:
             logger.error("FFmpeg failed: %s", result.stderr)
             raise RuntimeError(f"FFmpeg error: {result.stderr}")
