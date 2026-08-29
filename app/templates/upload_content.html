@@ -52,6 +52,13 @@
       <div class="alert alert-success d-none" id="downloadSuccess"></div>
 
       <button class="btn btn-dark w-100 mt-auto" id="downloadBtn">Download &amp; Import</button>
+
+      <hr class="my-3">
+
+      <button class="btn btn-sm btn-outline-danger w-100" onclick="startYoutubeCookieLogin()">
+        🔑 Login YouTube (Sekali Saja)
+      </button>
+      <div id="cookie-login-status" class="mt-2"></div>
     </div>
   </div>
 </div>
@@ -468,6 +475,33 @@ function initUploadPage() {
       });
     }
   });
+}
+
+async function startYoutubeCookieLogin() {
+  const statusEl = document.getElementById('cookie-login-status');
+  statusEl.innerHTML = '<span class="text-muted">Membuka jendela browser — silakan login di sana...</span>';
+
+  const res = await fetch('/upload/youtube-cookie-login', { method: 'POST' });
+  const { session_id } = await res.json();
+  pollCookieLoginStatus(session_id, statusEl);
+}
+
+async function pollCookieLoginStatus(sessionId, statusEl) {
+  const res = await fetch(`/upload/youtube-cookie-login/${sessionId}/status`);
+  const data = await res.json();
+
+  if (data.status === 'success') {
+    statusEl.innerHTML = '<span class="text-success">✓ Login berhasil, cookies tersimpan. Download berikutnya otomatis pakai ini.</span>';
+    setTimeout(() => { statusEl.innerHTML = ''; }, 8000);
+    return;
+  }
+  if (data.status === 'error') {
+    statusEl.innerHTML = `<span class="text-danger">✗ Gagal: ${data.error || data.message || 'unknown'}</span>`;
+    setTimeout(() => { statusEl.innerHTML = ''; }, 15000);
+    return;
+  }
+  statusEl.innerHTML = `<span class="text-muted"><span class="spinner-border spinner-border-sm me-1"></span>${data.message || 'Menunggu Anda login di jendela browser...'}</span>`;
+  setTimeout(() => pollCookieLoginStatus(sessionId, statusEl), 2000);
 }
 
 // Jalankan saat load langsung (full page) DAN saat di-swap oleh htmx

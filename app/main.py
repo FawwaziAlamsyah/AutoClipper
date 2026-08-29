@@ -3,6 +3,8 @@
 Menjalankan: uvicorn app.main:app --reload
 """
 
+from pathlib import Path
+
 from fastapi import Depends, FastAPI, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -51,6 +53,10 @@ app.include_router(storage_router.router)
 @app.on_event("startup")
 def cleanup_stale_jobs() -> None:
     """Mark jobs/videos stuck as failed after a server restart."""
+    # Reset cookies YouTube — tiap app berhenti, login ikut reset. User wajib
+    # login ulang via tombol 🔑 (untuk ambil cookies terbaru).
+    _reset_youtube_cookies()
+
     db = SessionLocal()
     try:
         job_service = JobService(db)
@@ -59,6 +65,29 @@ def cleanup_stale_jobs() -> None:
         video_service.mark_stale_uploading_failed()
     finally:
         db.close()
+
+
+def _reset_youtube_cookies() -> None:
+    """Hapus cookies.txt + profil login Playwright supaya sesi login lama tak kepakai."""
+    import shutil
+    from pathlib import Path
+    from app.core.config.settings import settings
+
+    cookies_path = Path(settings.COOKIES_FILE) if settings.COOKIES_FILE else None
+    if cookies_path and cookies_path.exists():
+        try:
+            cookies_path.unlink()
+            logger.info("Cookies YouTube di-reset: %s dihapus", cookies_path)
+        except OSError as e:
+            logger.warning("Gagal hapus cookies %s: %s", cookies_path, e)
+
+    profile_dir = Path(settings.DATA_DIR) / "cookie-capture-profile"
+    if profile_dir.exists():
+        try:
+            shutil.rmtree(profile_dir)
+            logger.info("Profil login Playwright di-reset: %s", profile_dir)
+        except OSError as e:
+            logger.warning("Gagal hapus profil %s: %s", profile_dir, e)
 
 
 @app.get("/")

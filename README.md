@@ -30,7 +30,7 @@ Tool lokal berbasis AI untuk otomatis mengekstrak klip viral dari video panjang 
 | Audio/Video | FFmpeg, ffprobe, OpenCV, MediaPipe, librosa |
 | Speech-to-Text | Faster-Whisper |
 | AI | OpenAI-compatible LLM API (default gpt-4o-mini) |
-| Download | yt-dlp + curl_cffi + yt-dlp-ejs |
+| Download | yt-dlp + curl_cffi + yt-dlp-ejs + Playwright (cookie auto-capture) |
 | Frontend | Bootstrap 5, vanilla JS |
 | Testing | pytest |
 
@@ -60,6 +60,9 @@ python -m venv .venv
 
 # 3. Install dependencies
 pip install -r requirements.txt
+
+# 3b. Install browser Chromium untuk login YouTube otomatis (WAJIB, sekali saja)
+playwright install chromium
 
 # 4. Copy .env & isi
 cp .env.example .env
@@ -103,13 +106,15 @@ Buka browser: **http://127.0.0.1:8000**
 
 YouTube sering memblokir dengan error `Sign in to confirm you're not a bot`. Project menangani ini berlapis:
 
-1. **`COOKIES_FILE`** (rekomendasi) — export cookies login dari browser:
+1. **Login YouTube sekali klik** (rekomendasi) — di halaman Upload, klik tombol **🔑 Login YouTube (Sekali Saja)**. Jendela Chromium muncul, login manual di sana. Cookies otomatis tersimpan ke `data/cookies.txt`. Tidak perlu export ekstensi.
+2. **`COOKIES_FILE`** (alternatif manual) — export cookies login dari browser:
    - Install ekstensi **"Get cookies.txt LOCALLY"** di Chrome
    - Buka `youtube.com`, login, klik ekstensi → **Export** → simpan sebagai `data/cookies.txt`
    - Set `COOKIES_FILE=data/cookies.txt` di `.env`
    - **Penting:** cookies harus dari sesi LOGIN (bukan guest — cek `SID` value tidak berawal `g.a000BAnon`)
-2. **Fallback otomatis** — kalau `COOKIES_FILE` kosong, app coba `cookiesfrombrowser` berurutan: Chrome → Firefox → Edge → tanpa cookies.
-3. **Node.js** — wajib terpasang; tanpanya format video disembunyikan (error `n challenge solving failed`).
+3. **Fallback tanpa cookies** — kalau `COOKIES_FILE` kosong/tidak ada, app coba client android lalu web.
+4. **Node.js** — wajib terpasang; tanpanya format video disembunyikan (error `n challenge solving failed`).
+5. **Playwright Chromium** — wajib untuk tombol login YouTube. Setelah `pip install -r requirements.txt`, jalankan sekali: `playwright install chromium`. Kalau langkah ini kelewat, tombol login akan error saat pertama dipakai.
 
 `data/cookies.txt` dan `data/models/` sudah di-`.gitignore` — tidak akan ter-push.
 
