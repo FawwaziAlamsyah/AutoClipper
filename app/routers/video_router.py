@@ -156,6 +156,20 @@ def get_download_progress(
     return service.get_download_progress(download_id)
 
 
+@router.post("/youtube-cookie-login")
+def start_youtube_cookie_login() -> dict:
+    """Mulai proses login YouTube interaktif, browser akan muncul di layar user."""
+    from app.services.youtube_cookie_capture_service import start_capture_session
+    session_id = start_capture_session()
+    return {"session_id": session_id, "status": "waiting_login"}
+
+
+@router.get("/youtube-cookie-login/{session_id}/status")
+def check_youtube_cookie_login_status(session_id: str) -> dict:
+    from app.services.youtube_cookie_capture_service import get_capture_status
+    return get_capture_status(session_id)
+
+
 def _run_process(video_id: int, job_id: int, req: ProcessRequest) -> None:
     """Run pipeline in background thread with its own DB session."""
     from app.db.session import SessionLocal

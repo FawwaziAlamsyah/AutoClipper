@@ -20,6 +20,8 @@ data/temp/*
 data/models/*
 # Cookies export — rahasia, jangan pernah ke git
 data/cookies.txt
+# Profil browser utk cookie capture — cache/session ribuan file, jgn ke git
+data/cookie-capture-profile/
 !data/**/.gitkeep
 
 logs/*
