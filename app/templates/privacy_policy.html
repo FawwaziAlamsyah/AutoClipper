@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+
+{% block title %}Privacy Policy - {{ app_name }}{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-lg-9">
+    <h1 class="mb-1">Privacy Policy</h1>
+    <p class="text-muted">Last Updated: {{ last_updated }}</p>
+    <hr>
+
+    <h2 class="fs-4 mt-4">About Daboclip</h2>
+    <p>
+      {{ app_name }} (Daboclip) adalah aplikasi <strong>personal / lokal video
+      processing tool</strong>. Aplikasi digunakan terutama oleh developer-nya
+      untuk penggunaan pribadi — aplikasi ini bukan marketplace, bukan SaaS
+      publik, tidak memiliki sistem iklan, dan tidak menjual data pengguna.
+    </p>
+
+    <h2 class="fs-4 mt-4">Data yang Diproses</h2>
+    <p>
+      Video, audio, dan transcript yang Anda masukkan <strong>diproses terutama
+      secara lokal</strong> di komputer tempat aplikasi berjalan. Hasil analisis,
+      candidate clips, dan video pendek juga diproses dan disimpan secara lokal.
+    </p>
+    <p>
+      Beberapa fitur (misalnya analisis berbasis Large Language Model) dapat
+      mengirim sebagian data — seperti teks transcript — ke penyedia AI pihak
+      ketiga bila diaktifkan, sesuai konfigurasi yang Anda pilih sendiri.
+    </p>
+
+    <h2 class="fs-4 mt-4">Data yang Tidak Kami Lakukan</h2>
+    <ul>
+      <li>Daboclip <strong>tidak menjual data pengguna</strong> kepada pihak ketiga.</li>
+      <li>Daboclip <strong>tidak menggunakan data untuk advertising</strong> atau penargetan iklan.</li>
+      <li>Daboclip <strong>tidak mengumpulkan data Anda untuk tujuan komersial</strong>.</li>
+      <li>Tanpa izin Anda, tidak ada data video/audio yang diunggah ke layanan publik oleh aplikasi itu sendiri.</li>
+    </ul>
+
+    <h2 class="fs-4 mt-4">Integrasi Pihak Ketiga</h2>
+    <p>
+      Integrasi pihak ketiga — seperti API TikTok untuk membantu proses upload —
+      hanya digunakan untuk fitur yang <strong>secara eksplisit dipilih oleh
+      pengguna</strong>. Aplikasi tidak mengaktifkan integrasi tersebut tanpa
+      tindakan Anda.
+    </p>
+    <ul>
+      <li>Data TikTok digunakan <strong>hanya untuk fitur integrasi yang Anda izinkan</strong> (misalnya mengunggah video atas perintah Anda).</li>
+      <li>Token atau authorization credentials harus <strong>diperlakukan secara
+        aman</strong> — disimpan secara lokal, tidak dibagikan, dan tidak digunakan
+        di luar keperluan fitur integrasi yang Anda aktifkan.</li>
+      <li>Praktik data platform pihak ketiga (TikTok dsb.) diatur oleh kebijakan
+        privasi masing-masing platform, bukan kebijakan ini.</li>
+    </ul>
+
+    <h2 class="fs-4 mt-4">Contact</h2>
+    {% if contact_email %}
+    <p>Untuk pertanyaan soal kebijakan privasi, hubungi:
+      <a href="mailto:{{ contact_email }}">{{ contact_email }}</a>.
+    </p>
+    {% else %}
+    <p>Kontak belum dikonfigurasi. Developer aplikasi ini dapat dihubungi langsung
+      melalui jejaring lokal / repository project.</p>
+    {% endif %}
+
+    <p class="text-muted small mt-4">URL halaman ini: <code>{{ legal_base_url }}/privacy-policy</code></p>
+  </div>
+</div>
+{% endblock %}

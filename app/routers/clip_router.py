@@ -7,7 +7,8 @@ from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, Form, Query, Request, UploadFile
 from fastapi.responses import HTMLResponse, StreamingResponse
-from fastapi.templating import Jinja2Templates
+from fastapi.templating import Jinja2Templates  # noqa: F401 (ke AppTemplates)
+from app.core.jinja import AppTemplates
 
 from app.core.di.dependencies import get_candidate_service, get_clip_editor_service, get_clip_service
 from app.schemas.clip_schema import ClipGenerateRequest
@@ -16,7 +17,7 @@ from app.services.clip_editor_service import ClipEditorService
 from app.services.clip_service import ClipService
 
 router = APIRouter(prefix="/clips", tags=["clips"])
-templates = Jinja2Templates(directory="app/templates")
+templates = AppTemplates(directory="app/templates")
 
 
 @router.post("", response_class=HTMLResponse)

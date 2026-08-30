@@ -2,13 +2,14 @@
 
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse
-from fastapi.templating import Jinja2Templates
+from fastapi.templating import Jinja2Templates  # noqa: F401 (ke AppTemplates)
+from app.core.jinja import AppTemplates
 
 from app.core.di.dependencies import get_subtitle_service
 from app.services.subtitle_service import SubtitleService
 
 router = APIRouter(prefix="/subtitle", tags=["subtitle"])
-templates = Jinja2Templates(directory="app/templates")
+templates = AppTemplates(directory="app/templates")
 
 
 @router.post("/clips/{clip_id}", response_class=HTMLResponse)

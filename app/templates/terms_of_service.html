@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+
+{% block title %}Terms of Service - {{ app_name }}{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-lg-9">
+    <h1 class="mb-1">Terms of Service</h1>
+    <p class="text-muted">Last Updated: {{ last_updated }}</p>
+    <hr>
+
+    <h2 class="fs-4 mt-4">About Daboclip</h2>
+    <p>
+      {{ app_name }} (Daboclip) adalah aplikasi <strong>personal-use</strong>
+      video processing tool. Aplikasi disediakan untuk penggunaan
+      pribadi/development oleh developer-nya. Ini bukan layanan publik dan
+      tidak melayani pengguna umum secara komersial.
+    </p>
+
+    <h2 class="fs-4 mt-4">Tanggung Jawab Pengguna</h2>
+    <p>Dengan menggunakan aplikasi ini, Anda bertanggung jawab untuk:</p>
+    <ul>
+      <li>Video yang diproses dan/atau di-upload — termasuk memastikan Anda
+        <strong>memiliki hak atau izin</strong> untuk menggunakan konten yang
+        diproses.</li>
+      <li>Mematuhi aturan platform pihak ketiga yang Anda gunakan, seperti
+        <strong>TikTok</strong> (dan platform lain) saat mengunggah video.</li>
+      <li>Tidak menggunakan aplikasi untuk konten yang melanggar hukum atau
+        melanggar hak orang lain.</li>
+    </ul>
+
+    <h2 class="fs-4 mt-4">Hasil AI dan Analisis</h2>
+    <p>
+      Aplikasi ini menggunakan model AI untuk menganalisis video, audio, dan
+      transcript serta menghasilkan candidate clips (Auto Clipper). Kami
+      <strong>tidak memberikan jaminan bahwa semua hasil AI selalu akurat</strong>.
+    </p>
+    <p>
+      Hasil dan analisis AI <strong>harus tetap dapat direview oleh Anda</strong>
+      sebelum digunakan — termasuk sebelum video di-upload ke platform mana pun.
+    </p>
+
+    <h2 class="fs-4 mt-4">Lingkup Penggunaan</h2>
+    <p>
+      Perangkat lunak ini disediakan <strong>sebagaimana adanya</strong>
+      (as-is) untuk penggunaan pribadi/development. Tidak ada jaminan mengenai
+      ketersediaan, akurasi, atau kelayakan untuk tujuan tertentu.
+    </p>
+
+    <h2 class="fs-4 mt-4">Contact</h2>
+    {% if contact_email %}
+    <p>Untuk pertanyaan soal ketentuan layanan, hubungi:
+      <a href="mailto:{{ contact_email }}">{{ contact_email }}</a>.
+    </p>
+    {% else %}
+    <p>Kontak belum dikonfigurasi. Developer aplikasi ini dapat dihubungi langsung
+      melalui jejaring lokal / repository project.</p>
+    {% endif %}
+
+    <p class="text-muted small mt-4">URL halaman ini: <code>{{ legal_base_url }}/terms-of-service</code></p>
+  </div>
+</div>
+{% endblock %}

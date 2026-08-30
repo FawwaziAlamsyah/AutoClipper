@@ -4,7 +4,8 @@ import logging
 
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse
-from fastapi.templating import Jinja2Templates
+from fastapi.templating import Jinja2Templates  # noqa: F401 (ke AppTemplates)
+from app.core.jinja import AppTemplates
 
 from app.core.config.settings import settings
 from app.core.di.dependencies import get_history_service
@@ -15,7 +16,7 @@ from app.services.history_service import HistoryService
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/history", tags=["history"])
-templates = Jinja2Templates(directory="app/templates")
+templates = AppTemplates(directory="app/templates")
 
 
 @router.get("", response_class=HTMLResponse)

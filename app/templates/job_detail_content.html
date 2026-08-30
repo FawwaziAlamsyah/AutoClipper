@@ -18,7 +18,7 @@
       {% if status.error_message %}<div class="alert alert-danger mt-2 mb-0">{{ status.error_message }}</div>{% endif %}
     </div>
     <button class="btn btn-sm btn-warning"
-            onclick="cancelJob(this, {{ status.job_id }})">Cancel Job</button>
+            onclick="cancelJob(this, {{ status.job_id }})">{{ t("job.cancel") }}</button>
   </div>
 
   <!-- Progress bar diupdate via htmx polling -->
@@ -34,11 +34,11 @@
 </div>
 
 <div class="card shadow-sm p-4">
-  <h5>Step Pipeline</h5>
+  <h5>{{ t("job.steps") }}</h5>
   <div class="table-responsive mt-2">
     <table class="table table-striped align-middle">
       <thead>
-        <tr><th>Step</th><th>Status</th><th>Mulai</th><th>Selesai</th><th>Durasi</th><th>Error</th></tr>
+        <tr><th>{{ t("job.step") }}</th><th>{{ t("job.status") }}</th><th>{{ t("job.start") }}</th><th>{{ t("job.end") }}</th><th>{{ t("job.duration") }}</th><th>{{ t("job.error") }}</th></tr>
       </thead>
       <tbody>
         {% for s in steps %}
@@ -53,7 +53,7 @@
           <td class="text-danger">{{ s.error_message or '-' }}</td>
         </tr>
         {% else %}
-        <tr><td colspan="6" class="text-center text-muted">Belum ada step tercatat.</td></tr>
+        <tr><td colspan="6" class="text-center text-muted">{{ t("job.noSteps") }}</td></tr>
         {% endfor %}
       </tbody>
     </table>
@@ -76,12 +76,12 @@ async function cancelJob(btn, jobId) {
     } else {
       alert('Gagal cancel job.');
       btn.disabled = false;
-      btn.textContent = 'Cancel Job';
+      btn.textContent = '{{ t("job.cancel") }}';
     }
   } catch (e) {
     alert('Terjadi kesalahan.');
     btn.disabled = false;
-    btn.textContent = 'Cancel Job';
+    btn.textContent = '{{ t("job.cancel") }}';
   }
 }
 </script>

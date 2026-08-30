@@ -7,7 +7,8 @@ from pathlib import Path
 
 from fastapi import Depends, FastAPI, Request
 from fastapi.staticfiles import StaticFiles
-from fastapi.templating import Jinja2Templates
+from fastapi.templating import Jinja2Templates  # noqa: F401 (ke AppTemplates)
+from app.core.jinja import AppTemplates
 
 from app.core.config.settings import settings
 from app.core.di.dependencies import get_dashboard_service
@@ -21,9 +22,10 @@ from app.db.session import SessionLocal
 from app.services.dashboard_service import DashboardService
 from app.services.job_service import JobService
 from app.services.video_service import VideoService
-from app.routers import health_router, video_router, history_router, transcript_router, candidate_router, category_router, clip_router, preview_router, subtitle_router, job_router
+from app.routers import health_router, video_router, history_router, transcript_router, candidate_router, category_router, clip_router, preview_router, subtitle_router, job_router, legal_router, settings_router
 from app.routers import training_router
 from app.routers import storage_router
+from app.routers import tiktok_router
 
 setup_logging()
 
@@ -34,7 +36,7 @@ register_exception_handlers(app)
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 app.mount("/data/uploads", StaticFiles(directory="data/uploads"), name="uploads")
 app.mount("/data/outputs", StaticFiles(directory="data/outputs"), name="outputs")
-templates = Jinja2Templates(directory="app/templates")
+templates = AppTemplates(directory="app/templates")
 
 app.include_router(health_router.router)
 app.include_router(video_router.router)
@@ -46,17 +48,16 @@ app.include_router(clip_router.router)
 app.include_router(preview_router.router)
 app.include_router(subtitle_router.router)
 app.include_router(job_router.router)
+app.include_router(legal_router.router)
+app.include_router(settings_router.router)
 app.include_router(training_router.router)
 app.include_router(storage_router.router)
+app.include_router(tiktok_router.router)
 
 
 @app.on_event("startup")
 def cleanup_stale_jobs() -> None:
     """Mark jobs/videos stuck as failed after a server restart."""
-    # Reset cookies YouTube — tiap app berhenti, login ikut reset. User wajib
-    # login ulang via tombol 🔑 (untuk ambil cookies terbaru).
-    _reset_youtube_cookies()
-
     db = SessionLocal()
     try:
         job_service = JobService(db)
@@ -65,29 +66,6 @@ def cleanup_stale_jobs() -> None:
         video_service.mark_stale_uploading_failed()
     finally:
         db.close()
-
-
-def _reset_youtube_cookies() -> None:
-    """Hapus cookies.txt + profil login Playwright supaya sesi login lama tak kepakai."""
-    import shutil
-    from pathlib import Path
-    from app.core.config.settings import settings
-
-    cookies_path = Path(settings.COOKIES_FILE) if settings.COOKIES_FILE else None
-    if cookies_path and cookies_path.exists():
-        try:
-            cookies_path.unlink()
-            logger.info("Cookies YouTube di-reset: %s dihapus", cookies_path)
-        except OSError as e:
-            logger.warning("Gagal hapus cookies %s: %s", cookies_path, e)
-
-    profile_dir = Path(settings.DATA_DIR) / "cookie-capture-profile"
-    if profile_dir.exists():
-        try:
-            shutil.rmtree(profile_dir)
-            logger.info("Profil login Playwright di-reset: %s", profile_dir)
-        except OSError as e:
-            logger.warning("Gagal hapus profil %s: %s", profile_dir, e)
 
 
 @app.get("/")

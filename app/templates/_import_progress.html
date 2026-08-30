@@ -1,10 +1,10 @@
 <div class="card shadow-sm p-4" data-import-id="{{ import_id }}" data-status="{{ status }}">
-  <h5>Progress Import</h5>
+  <h5>{{ t("import.progressTitle") }}</h5>
   <div class="mb-2">
     {% if status == 'finished' %}
-    <span class="badge bg-success">selesai</span>
+    <span class="badge bg-success">{{ t("import.done") }}</span>
     {% else %}
-    <span class="badge bg-warning text-dark">berjalan</span>
+    <span class="badge bg-warning text-dark">{{ t("import.running") }}</span>
     {% endif %}
     <small class="text-muted ms-2">ID: {{ import_id }}</small>
   </div>
@@ -18,19 +18,19 @@
   <table class="table table-sm table-borderless mb-0">
     <tbody>
       <tr>
-        <td class="text-muted">Total</td>
+        <td class="text-muted">{{ t("import.total") }}</td>
         <td>{{ total }}</td>
       </tr>
       <tr>
-        <td class="text-muted">Selesai</td>
+        <td class="text-muted">{{ t("import.finished") }}</td>
         <td class="text-success">{{ completed }}</td>
       </tr>
       <tr>
-        <td class="text-muted">Gagal</td>
+        <td class="text-muted">{{ t("import.failed") }}</td>
         <td class="text-danger">{{ failed }}</td>
       </tr>
       <tr>
-        <td class="text-muted">Antrian</td>
+        <td class="text-muted">{{ t("import.queued") }}</td>
         <td>{{ queued }}</td>
       </tr>
     </tbody>
@@ -39,7 +39,7 @@
   
   {% if status == 'finished' %}
   <div class="alert alert-success mt-3">
-    Import selesai! Lihat hasil di <a href="/candidates">halaman Candidates</a>.
+    Import {{ t("import.done") }}! Lihat hasil di <a href="/candidates">{{ t("import.candidatesPage") }}</a>.
   </div>
   {% endif %}
 </div>

@@ -53,11 +53,10 @@ def test_download_strategy_order_no_cookies(mock_extract: MagicMock, db_session:
     mock_extract.side_effect = yt_dlp.utils.DownloadError("boom")
     service = DownloadService(db_session)
 
-    with patch("app.core.config.settings.settings.COOKIES_FILE", ""):  # paksa tanpa cookies
-        try:
-            service.download_video("https://www.youtube.com/watch?v=mock")
-        except Exception:
-            pass
+    try:
+        service.download_video("https://www.youtube.com/watch?v=mock")
+    except Exception:
+        pass
 
     assert mock_extract.call_count >= 2
     first_opts = mock_extract.call_args_list[0].args[1]
@@ -88,8 +87,7 @@ def test_download_strategy_android_fallback_logs_warning(mock_extract: MagicMock
     mock_extract.side_effect = _fake
     service = DownloadService(db_session)
 
-    with patch("app.services.download_service.logger.warning") as mock_warn, \
-         patch("app.core.config.settings.settings.COOKIES_FILE", ""):
+    with patch("app.services.download_service.logger.warning") as mock_warn:
         result = service.download_video("https://www.youtube.com/watch?v=mock")
 
     assert result == "android-result"
@@ -112,8 +110,7 @@ def test_download_hang_detected_and_aborts(mock_ytdl: MagicMock, mock_abort: Mag
     instance.extract_info.side_effect = _slow_extract
 
     service = DownloadService(db_session)
-    with patch("app.core.config.settings.settings.COOKIES_FILE", ""), \
-         patch("app.services.download_service.HANG_TIMEOUT_SEC", 0.2), \
+    with patch("app.services.download_service.HANG_TIMEOUT_SEC", 0.2), \
          patch("app.services.download_service.ABORT_GRACE_SEC", 0.1):
         try:
             service.download_video("https://www.youtube.com/watch?v=mock")

@@ -2,25 +2,25 @@
   <!-- Stats Cards -->
   <div class="col-md-3">
     <div class="card text-center p-3 shadow-sm">
-      <h5 class="text-muted">Total Videos</h5>
+      <h5 class="text-muted">{{ t("dash.totalVideos") }}</h5>
       <h2 class="text-primary">{{ stats.total_videos or 0 }}</h2>
     </div>
   </div>
   <div class="col-md-3">
     <div class="card text-center p-3 shadow-sm">
-      <h5 class="text-muted">Jobs Completed</h5>
+      <h5 class="text-muted">{{ t("dash.jobsCompleted") }}</h5>
       <h2 class="text-success">{{ stats.completed_jobs or 0 }}</h2>
     </div>
   </div>
   <div class="col-md-3">
     <div class="card text-center p-3 shadow-sm">
-      <h5 class="text-muted">Clips Generated</h5>
+      <h5 class="text-muted">{{ t("dash.clipsGenerated") }}</h5>
       <h2 class="text-info">{{ stats.total_clips or 0 }}</h2>
     </div>
   </div>
   <div class="col-md-3">
     <div class="card text-center p-3 shadow-sm">
-      <h5 class="text-muted">Pending Jobs</h5>
+      <h5 class="text-muted">{{ t("dash.pendingJobs") }}</h5>
       <h2 class="text-warning">{{ stats.pending_jobs or 0 }}</h2>
     </div>
   </div>
@@ -28,7 +28,7 @@
   <!-- Quick Actions -->
   <div class="col-12">
     <div class="card p-4 shadow-sm">
-      <h3>Quick Actions</h3>
+      <h3>{{ t("dash.quickActions") }}</h3>
       <div class="row g-3 mt-3">
         <div class="col-md-4">
           <a href="/upload"
@@ -37,19 +37,19 @@
              hx-push-url="true"
              class="btn btn-primary w-100 h-100 d-flex align-items-center justify-content-center flex-column">
             <i class="bi bi-cloud-upload me-2 fs-4"></i>
-            <span>Upload / Download</span>
+            <span>{{ t("dash.uploadDownload") }}</span>
           </a>
         </div>
         <div class="col-md-4">
           <button class="btn btn-outline-secondary w-100 h-100 d-flex align-items-center justify-content-center flex-column" disabled>
             <i class="bi bi-play-circle me-2 fs-4"></i>
-            <span>Job History</span>
+            <span>{{ t("dash.jobHistory") }}</span>
           </button>
         </div>
         <div class="col-md-4">
           <button class="btn btn-outline-secondary w-100 h-100 d-flex align-items-center justify-content-center flex-column" disabled>
             <i class="bi bi-gear me-2 fs-4"></i>
-            <span>Settings</span>
+            <span>{{ t("dash.settings") }}</span>
           </button>
         </div>
       </div>
@@ -59,14 +59,14 @@
   <!-- Recent Activity -->
   <div class="col-12">
     <div class="card p-4 shadow-sm">
-      <h3>Recent Activity</h3>
+      <h3>{{ t("dash.recentActivity") }}</h3>
       <div class="table-responsive mt-3">
         <table class="table table-striped">
           <thead>
             <tr>
-              <th>Time</th>
-              <th>Action</th>
-              <th>Details</th>
+              <th>{{ t("dash.time") }}</th>
+              <th>{{ t("dash.action") }}</th>
+              <th>{{ t("dash.details") }}</th>
             </tr>
           </thead>
           <tbody>
@@ -78,7 +78,7 @@
             </tr>
             {% endfor %}
             {% if not recent_history %}
-            <tr><td colspan="3" class="text-center text-muted">No recent activity</td></tr>
+            <tr><td colspan="3" class="text-center text-muted">{{ t("dash.noRecent") }}</td></tr>
             {% endif %}
           </tbody>
         </table>

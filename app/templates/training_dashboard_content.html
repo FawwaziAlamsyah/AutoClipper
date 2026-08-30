@@ -29,26 +29,26 @@
 <div class="card shadow-sm p-4 mb-4">
   <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
     <div>
-      <h3 class="mb-1">Training Dashboard</h3>
-      <p class="text-muted mb-0">Ringkasan data training yang terkumpul dan riwayat model.</p>
+      <h3 class="mb-1">{{ t("train.title") }}</h3>
+      <p class="text-muted mb-0">{{ t("train.desc") }}</p>
     </div>
-    <a href="/training" hx-get="/training" hx-target="#main-content" hx-push-url="true" class="btn btn-outline-secondary btn-sm">Bulk CSV Import</a>
+    <a href="/training" hx-get="/training" hx-target="#main-content" hx-push-url="true" class="btn btn-outline-secondary btn-sm">{{ t("train.bulkImport") }}</a>
   </div>
 </div>
 
 <div class="row g-4 mb-4">
   <div class="col-lg-4">
     <div class="card shadow-sm p-4 h-100">
-      <h5>Data Training</h5>
+      <h5>{{ t("train.dataTitle") }}</h5>
       <p class="text-muted small mb-3">Total: <strong>{{ total }}</strong> contoh</p>
       <table class="table table-sm table-borderless mb-0">
         <tbody>
-          <tr><td><span class="badge bg-success">real_performance</span></td><td class="text-end fw-semibold">{{ counts_by_source.real_performance or 0 }}</td><td class="text-muted small">Views/likes nyata</td></tr>
-          <tr><td><span class="badge bg-primary">user_liked</span></td><td class="text-end fw-semibold">{{ counts_by_source.user_liked or 0 }}</td><td class="text-muted small">Dari dropdown kategori</td></tr>
+          <tr><td><span class="badge bg-success">real_performance</span></td><td class="text-end fw-semibold">{{ counts_by_source.real_performance or 0 }}</td><td class="text-muted small">{{ t("train.viewsLikes") }}</td></tr>
+          <tr><td><span class="badge bg-primary">user_liked</span></td><td class="text-end fw-semibold">{{ counts_by_source.user_liked or 0 }}</td><td class="text-muted small">{{ t("train.fromCategory") }}</td></tr>
         </tbody>
       </table>
       {% if total < 20 %}
-      <div class="alert alert-warning mt-3 mb-0 small"><strong>Data belum cukup.</strong> Minimal 20 contoh. Saat ini: {{ total }} contoh.</div>
+      <div class="alert alert-warning mt-3 mb-0 small"><strong>{{ t("train.notEnough") }}</strong> Minimal 20 contoh. Saat ini: {{ total }} contoh.</div>
       {% endif %}
     </div>
   </div>
@@ -56,42 +56,42 @@
   <div class="col-lg-4">
     <div class="card shadow-sm p-4 h-100 d-flex flex-column justify-content-between">
       <div>
-        <h5>Train Model</h5>
+        <h5>{{ t("train.trainBtn") }}</h5>
         <p class="text-muted small">Latih model scoring dari semua data training. Setiap klik menghasilkan run baru.</p>
       </div>
       <button class="btn btn-primary btn-lg w-100" id="trainBtn"
               {% if total < 20 %}disabled{% endif %}
-              onclick="trainModel(this)">🚀 Train Model Sekarang</button>
+              onclick="trainModel(this)">🚀 {{ t("train.trainBtn") }} Sekarang</button>
       <div id="trainResult" class="mt-3"></div>
     </div>
   </div>
 
   <div class="col-lg-4">
     <div class="card shadow-sm p-4 h-100">
-      <h5>Model Aktif</h5>
+      <h5>{{ t("train.activeModel") }}</h5>
       {% if active_run %}
       <p class="text-muted small mb-2">Run <strong>#{{ active_run.id }}</strong> — {{ active_run.trained_at.strftime('%Y-%m-%d %H:%M') }}</p>
       <table class="table table-sm table-borderless mb-0">
         <tbody>
-          <tr><td class="text-muted">Samples</td><td><strong>{{ active_run.sample_count }}</strong></td></tr>
-          <tr><td class="text-muted">Val MAE</td><td><strong>{{ active_run.val_mae }}</strong></td></tr>
-          <tr><td class="text-muted">Val R²</td><td><strong>{{ active_run.val_r2 }}</strong></td></tr>
+          <tr><td class="text-muted">{{ t("train.samples") }}</td><td><strong>{{ active_run.sample_count }}</strong></td></tr>
+          <tr><td class="text-muted">{{ t("train.valMAE") }}</td><td><strong>{{ active_run.val_mae }}</strong></td></tr>
+          <tr><td class="text-muted">{{ t("train.valR2") }}</td><td><strong>{{ active_run.val_r2 }}</strong></td></tr>
         </tbody>
       </table>
       {% else %}
-      <p class="text-muted small">Belum ada model yang dilatih.</p>
+      <p class="text-muted small">{{ t("train.noModel") }}</p>
       {% endif %}
     </div>
   </div>
 </div>
 
 <div class="card shadow-sm p-4 mb-4">
-  <h5>Riwayat Training</h5>
-  <p class="text-muted small">Klik "Aktifkan" untuk rollback ke model dari run tertentu.</p>
+  <h5>{{ t("train.history") }}</h5>
+  <p class="text-muted small">{{ t("train.historyDesc") }}</p>
   {% if training_runs %}
   <div class="table-responsive">
     <table class="table table-sm align-middle">
-      <thead><tr><th>#</th><th>Tanggal</th><th>Sample</th><th>MAE</th><th>R²</th><th>Sumber Data</th><th></th></tr></thead>
+      <thead><tr><th>#</th><th>{{ t("train.date") }}</th><th>Sample</th><th>MAE</th><th>R²</th><th>{{ t("train.source") }}</th><th></th></tr></thead>
       <tbody>
         {% for run in training_runs %}
         <tr class="{{ 'table-success' if run.is_active else '' }}">
@@ -104,7 +104,7 @@
           <td>
             {% if run.is_active %}<span class="badge bg-success">Aktif</span>
             {% else %}<button class="btn btn-sm btn-outline-primary"
-                              onclick="activateRun(this, {{ run.id }})">Aktifkan</button>{% endif %}
+                              onclick="activateRun(this, {{ run.id }})">{{ t("train.activate") }}</button>{% endif %}
           </td>
         </tr>
         {% endfor %}
@@ -112,17 +112,17 @@
     </table>
   </div>
   {% else %}
-  <p class="text-muted small">Belum ada riwayat training.</p>
+  <p class="text-muted small">{{ t("train.noHistory") }}</p>
   {% endif %}
 </div>
 
 {% if active_run and active_run.feature_importance %}
 <div class="card shadow-sm p-4">
-  <h5>Feature Importance — Model Aktif (Run #{{ active_run.id }})</h5>
-  <p class="text-muted small">Diurutkan descending.</p>
+  <h5>{{ t("train.feature") }} {{ t("train.importance") }} — {{ t("train.activeModel") }} (Run #{{ active_run.id }})</h5>
+  <p class="text-muted small">{{ t("train.sorted") }}</p>
   <div class="table-responsive">
     <table class="table table-striped align-middle">
-      <thead><tr><th>Feature</th><th>Importance</th><th style="width:40%">Visual</th></tr></thead>
+      <thead><tr><th>{{ t("train.feature") }}</th><th>{{ t("train.importance") }}</th><th style="width:40%">{{ t("train.visual") }}</th></tr></thead>
       <tbody>
         {% for name, val in active_run.feature_importance.items() %}
         <tr>
@@ -186,17 +186,17 @@ async function trainModel(btn) {
     } else {
       resultDiv.innerHTML = `<div class="alert alert-danger small mb-0">${data.detail || 'Gagal training.'}</div>`;
       btn.disabled = false;
-      btn.textContent = '🚀 Train Model Sekarang';
+      btn.textContent = '🚀 {{ t("train.trainBtn") }} Sekarang';
     }
   } catch (e) {
-    resultDiv.innerHTML = `<div class="alert alert-danger small mb-0">Terjadi kesalahan.</div>`;
+    resultDiv.innerHTML = `<div class="alert alert-danger small mb-0">{{ t("train.error") }}</div>`;
     btn.disabled = false;
-    btn.textContent = '🚀 Train Model Sekarang';
+    btn.textContent = '🚀 {{ t("train.trainBtn") }} Sekarang';
   }
 }
 
 async function activateRun(btn, runId) {
-  if (!confirm('Aktifkan model Run #' + runId + '?')) return;
+  if (!confirm('{{ t("train.activate") }} model Run #' + runId + '?')) return;
   btn.disabled = true;
   btn.textContent = '...';
   try {
@@ -210,12 +210,12 @@ async function activateRun(btn, runId) {
       const data = await res.json();
       alert(data.detail || 'Gagal mengaktifkan.');
       btn.disabled = false;
-      btn.textContent = 'Aktifkan';
+      btn.textContent = '{{ t("train.activate") }}';
     }
   } catch (e) {
-    alert('Terjadi kesalahan.');
+    alert('{{ t("train.error") }}');
     btn.disabled = false;
-    btn.textContent = 'Aktifkan';
+    btn.textContent = '{{ t("train.activate") }}';
   }
 }
 </script>

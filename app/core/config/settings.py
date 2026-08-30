@@ -24,6 +24,16 @@ class Settings(BaseSettings):
     APP_PORT: int = 8000
     DEBUG: bool = True
 
+    # Contact legal pages — placeholder email utk halaman Privacy/Terms.
+    # Ganti lewat env var (.env: APP_CONTACT_EMAIL=...). Kosong = link "About" saja.
+    APP_CONTACT_EMAIL: str = ""
+    # Base URL publik (kalau nanti punya domain) — kosong = detected dari request.
+    APP_PUBLIC_URL: str = ""
+
+    # Preferences UI (bisa diubah user lewat menu Settings)
+    APP_DEFAULT_LANGUAGE: str = "en"  # en | id
+    APP_DEFAULT_THEME: str = "light"  # light | dark
+
     # Paths (relatif terhadap root project)
     BASE_DIR: Path = Path(__file__).resolve().parents[3]
     DATA_DIR: Path = BASE_DIR / "data"
@@ -51,11 +61,6 @@ class Settings(BaseSettings):
     # FFmpeg
     FFMPEG_PATH: str = "ffmpeg"
     FFPROBE_PATH: str = "ffprobe"
-
-    # Cookies file untuk yt-dlp (hindari 403 anti-bot YouTube).
-    # Kosong = pakai cookiesfrombrowser fallback. Isi path cookies.txt untuk
-    # export manual (Get cookies.txt LOCALLY extension).
-    COOKIES_FILE: str = ""
 
     # Whisper
     WHISPER_MODEL: str = "large-v3"
@@ -88,6 +93,13 @@ class Settings(BaseSettings):
 
     # Model scoring toggle — set False di .env untuk paksa pakai weighted-sum lama
     USE_TRAINED_SCORE_MODEL: bool = True
+
+    # TikTok Content Posting API — kredensial app dari dashboard TikTok for Developers.
+    # WAJIB lewat .env — nilai default sengaja kosong, jangan di-hardcode di source.
+    TIKTOK_CLIENT_KEY: str = ""
+    TIKTOK_CLIENT_SECRET: str = ""
+    TIKTOK_REDIRECT_URI: str = "http://localhost:8000/tiktok/oauth/callback"
+    TIKTOK_TOKEN_ENCRYPTION_KEY: str = ""  # generate sekali, simpan di .env (lihat instruksi di bawah)
 
 
 @lru_cache

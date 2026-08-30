@@ -5,7 +5,8 @@ import shutil
 
 from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
 from fastapi.responses import HTMLResponse
-from fastapi.templating import Jinja2Templates
+from fastapi.templating import Jinja2Templates  # noqa: F401 (ke AppTemplates)
+from app.core.jinja import AppTemplates
 
 from app.core.config.settings import settings
 from app.core.di.dependencies import (
@@ -26,7 +27,7 @@ from app.services.training_stats_service import TrainingStatsService
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/training", tags=["training"])
-templates = Jinja2Templates(directory="app/templates")
+templates = AppTemplates(directory="app/templates")
 
 
 @router.get("", response_class=HTMLResponse)

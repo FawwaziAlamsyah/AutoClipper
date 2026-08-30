@@ -26,16 +26,16 @@
     <div class="card-footer bg-transparent border-top-0 pt-0 pb-3 px-3">
       <div class="d-flex flex-wrap gap-1">
         {% if candidate.clip_filename %}
-        <a class="btn btn-sm btn-success" target="_blank" href="/data/outputs/{{ candidate.clip_filename }}">Open</a>
+        <a class="btn btn-sm btn-success" target="_blank" href="/data/outputs/{{ candidate.clip_filename }}">{{ t("widget.open") }}</a>
         {% elif not candidate.video_is_archived %}
-        <button class="btn btn-sm btn-primary" onclick="generateClipRow(this, {{ candidate.id }})">Generate</button>
+        <button class="btn btn-sm btn-primary" onclick="generateClipRow(this, {{ candidate.id }})">{{ t("widget.generate") }}</button>
         {% endif %}
         <a class="btn btn-sm btn-outline-info"
            href="/candidates/{{ candidate.id }}"
            hx-get="/candidates/{{ candidate.id }}"
            hx-target="#main-content"
-           hx-push-url="true">Detail</a>
-        <button class="btn btn-sm btn-outline-danger" onclick="deleteCandidate(this, {{ candidate.id }})">Hapus</button>
+           hx-push-url="true">{{ t("widget.detail") }}</a>
+        <button class="btn btn-sm btn-outline-danger" onclick="deleteCandidate(this, {{ candidate.id }})">{{ t("widget.delete") }}</button>
       </div>
     </div>
   </div>

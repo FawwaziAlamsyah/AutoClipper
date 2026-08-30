@@ -2,7 +2,8 @@
 
 from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import HTMLResponse
-from fastapi.templating import Jinja2Templates
+from fastapi.templating import Jinja2Templates  # noqa: F401 (ke AppTemplates)
+from app.core.jinja import AppTemplates
 
 from app.core.config.settings import settings
 from app.core.exceptions.base import NotFoundException
@@ -18,7 +19,7 @@ from app.services.category_service import CategoryService
 from app.services.preview_service import PreviewService
 
 router = APIRouter(prefix="/candidates", tags=["candidates"])
-templates = Jinja2Templates(directory="app/templates")
+templates = AppTemplates(directory="app/templates")
 
 
 @router.get("", response_class=HTMLResponse)

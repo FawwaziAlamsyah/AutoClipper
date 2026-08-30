@@ -1,16 +1,16 @@
 <div class="card shadow-sm p-4">
-  <h3>Riwayat &amp; Log Audit</h3>
-  <p class="text-muted">Log proses aktivitas global dari system auto clipper.</p>
+  <h3>{{ t("hist.title") }}</h3>
+  <p class="text-muted">{{ t("hist.subtitle") }}</p>
 
   <div class="table-responsive mt-3">
     <table class="table table-striped table-hover">
       <thead>
         <tr>
-          <th>Tanggal &amp; Waktu</th>
-          <th>Action</th>
-          <th>Deskripsi</th>
-          <th>ID Video</th>
-          <th>ID Job</th>
+          <th>{{ t("hist.date") }}</th>
+          <th>{{ t("hist.action") }}</th>
+          <th>{{ t("hist.desc") }}</th>
+          <th>{{ t("hist.videoId") }}</th>
+          <th>{{ t("hist.jobId") }}</th>
         </tr>
       </thead>
       <tbody>
@@ -24,7 +24,7 @@
         </tr>
         {% else %}
         <tr>
-          <td colspan="5" class="text-center text-muted">Belum ada riwayat aktivitas.</td>
+          <td colspan="5" class="text-center text-muted">{{ t("hist.empty") }}</td>
         </tr>
         {% endfor %}
       </tbody>

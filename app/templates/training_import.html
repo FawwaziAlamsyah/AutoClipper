@@ -4,8 +4,8 @@
       <a href="/training/dashboard"
          hx-get="/training/dashboard"
          hx-target="#main-content" hx-push-url="true"
-         class="btn btn-outline-secondary btn-sm mb-2">← Kembali ke Training Dashboard</a>
-      <h3 class="mb-1">Bulk Training Import</h3>
+         class="btn btn-outline-secondary btn-sm mb-2">← <-back</a>
+      <h3 class="mb-1">{{ t("trainImport.title") }}</h3>
       <p class="text-muted mb-0">
         Upload file CSV berisi daftar clip video beserta skor performanya.
         Setiap baris akan diproses sebagai <code>training_ingest</code> job di background —
@@ -24,7 +24,7 @@
     <div class="card shadow-sm p-4 h-100">
 
       <!-- Penjelasan Format -->
-      <h5>Format CSV</h5>
+      <h5>{{ t("trainImport.formatCsv") }}</h5>
       <p class="text-muted small mb-2">
         2 kolom wajib: <code>source</code> dan <code>actual_score</code>.<br>
         Baris header <strong>boleh ada atau tidak</strong> — sistem otomatis detect.
@@ -34,9 +34,9 @@
         <table class="table table-sm table-bordered small mb-0">
           <thead class="table-light">
             <tr>
-              <th>Kolom</th>
-              <th>Isi</th>
-              <th>Contoh</th>
+              <th>{{ t("trainImport.columns") }}</th>
+              <th>{{ t("trainImport.content") }}</th>
+              <th>{{ t("trainImport.example") }}</th>
             </tr>
           </thead>
           <tbody>
@@ -54,7 +54,7 @@
         </table>
       </div>
 
-      <p class="text-muted small mb-1"><strong>Contoh isi file CSV:</strong></p>
+      <p class="text-muted small mb-1"><strong>{{ t("trainImport.exampleContent") }}</strong></p>
       <pre class="bg-light p-3 rounded small mb-3">source,actual_score
 C:\Users\Anda\Videos\gaming_highlight.mp4,9.2
 C:\Users\Anda\Videos\reaction_clip.mp4,6.5
@@ -62,7 +62,7 @@ https://youtu.be/xxxxxxxxxxx,8.0
 https://www.tiktok.com/@user/video/123,7.5</pre>
 
       <div class="alert alert-info small py-2 mb-3">
-        💡 <strong>Tips:</strong> Skor 8–10 = konten yang sangat viral/bagus.
+        💡 <strong>{{ t("trainImport.tips") }}</strong> Skor 8–10 = konten yang sangat viral/bagus.
         Skor 4–7 = performa sedang. Skor 0–3 = konten yang tidak perform.
         Semakin banyak data, semakin akurat model scoring-nya.
       </div>
@@ -70,18 +70,18 @@ https://www.tiktok.com/@user/video/123,7.5</pre>
       <!-- Form Upload -->
       <form id="importForm">
         <div class="mb-3">
-          <label class="form-label fw-semibold">Kategori</label>
+          <label class="form-label fw-semibold">{{ t("trainImport.category") }}</label>
           <select class="form-select" name="category_id" id="categoryId" required>
-            <option value="">-- Pilih kategori --</option>
+            <option value="">-- {{ t("trainImport.plsSelectCat") }} --</option>
             {% for cat in categories %}
             <option value="{{ cat.id }}">{{ cat.name }}</option>
             {% endfor %}
           </select>
         </div>
         <div class="mb-3">
-          <label class="form-label fw-semibold">File CSV</label>
+          <label class="form-label fw-semibold">{{ t("trainImport.csvFile") }}</label>
           <input type="file" class="form-control" id="importFile" name="file" accept=".csv,text/csv" required>
-          <div class="form-text">Format: .csv — maks beberapa ratus baris per upload.</div>
+          <div class="form-text">{{ t("trainImport.csvFormat") }}</div>
         </div>
         <div class="d-flex gap-2 align-items-center flex-wrap">
           <button type="submit" class="btn btn-primary" id="importBtn">
@@ -101,8 +101,8 @@ https://www.tiktok.com/@user/video/123,7.5</pre>
       <!-- Akan diisi setelah upload CSV -->
       <div class="card shadow-sm p-4 text-center text-muted" style="border-style:dashed;">
         <div class="fs-1 mb-2">📊</div>
-        <p class="mb-1">Progress import akan muncul di sini</p>
-        <p class="small">Upload file CSV di sebelah kiri untuk memulai.</p>
+        <p class="mb-1">{{ t("trainImport.progressHere") }}</p>
+        <p class="small">{{ t("trainImport.uploadLeft") }}</p>
       </div>
     </div>
   </div>
@@ -172,7 +172,7 @@ https://www.tiktok.com/@user/video/123,7.5</pre>
     const progressPanel = getProgressPanel();
     if (!progressPanel) return;
 
-    progressPanel.innerHTML = '<div class="card shadow-sm p-4 text-center text-muted"><div class="spinner-border spinner-border-sm me-2"></div>Memulihkan progress import...</div>';
+    progressPanel.innerHTML = '<div class="card shadow-sm p-4 text-center text-muted"><div class="spinner-border spinner-border-sm me-2"></div>{{ t("trainImport.restoring") }}</div>';
     try {
       const info = await refreshImport(savedImportId);
       if (info && info.status !== 'finished') startImportPoll(savedImportId);
@@ -194,7 +194,7 @@ https://www.tiktok.com/@user/video/123,7.5</pre>
 
     const categoryInput = document.getElementById('categoryId');
     if (!categoryInput || !categoryInput.value) {
-      alert('Pilih kategori terlebih dahulu.');
+      alert('{{ t("trainImport.plsSelectCategory") }}');
       return;
     }
 
@@ -208,7 +208,7 @@ https://www.tiktok.com/@user/video/123,7.5</pre>
 
     btn.disabled = true;
     btn.textContent = 'Mengupload...';
-    progressPanel.innerHTML = '<div class="card shadow-sm p-4 text-center text-muted"><div class="spinner-border spinner-border-sm me-2"></div>Memproses CSV...</div>';
+    progressPanel.innerHTML = '<div class="card shadow-sm p-4 text-center text-muted"><div class="spinner-border spinner-border-sm me-2"></div>{{ t("trainImport.processing") }}</div>';
 
     try {
       const formData = new FormData();
