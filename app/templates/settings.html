@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t("nav.settings") }} - {{ app_name }}{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-lg-8">
+    <h1 class="mb-1">{{ t("nav.settings") }}</h1>
+    <p class="text-muted">{{ t("settings.subtitle") }}</p>
+    <hr>
+
+    <form method="post" action="/settings/save"
+          class="card p-4 shadow-sm"
+          onsubmit="return confirmSave()">
+      <div class="mb-4">
+        <label class="form-label fw-semibold">{{ t("settings.language") }}</label>
+        <p class="text-muted small">{{ t("settings.languageDesc") }}</p>
+        <div class="d-flex gap-4">
+          <div class="form-check">
+            <input class="form-check-input" type="radio" name="lang" value="en"
+                   id="lang-en" {% if current_lang == "en" %}checked{% endif %}>
+            <label class="form-check-label" for="lang-en">{{ t("settings.english") }}</label>
+          </div>
+          <div class="form-check">
+            <input class="form-check-input" type="radio" name="lang" value="id"
+                   id="lang-id" {% if current_lang == "id" %}checked{% endif %}>
+            <label class="form-check-label" for="lang-id">{{ t("settings.indonesian") }}</label>
+          </div>
+        </div>
+      </div>
+
+      <div class="mb-4">
+        <label class="form-label fw-semibold">{{ t("settings.theme") }}</label>
+        <p class="text-muted small">{{ t("settings.themeDesc") }}</p>
+        <div class="d-flex gap-4">
+          <div class="form-check">
+            <input class="form-check-input" type="radio" name="theme" value="light"
+                   id="theme-light" {% if theme == "light" %}checked{% endif %}>
+            <label class="form-check-label" for="theme-light">{{ t("nav.light") }}</label>
+          </div>
+          <div class="form-check">
+            <input class="form-check-input" type="radio" name="theme" value="dark"
+                   id="theme-dark" {% if theme == "dark" %}checked{% endif %}>
+            <label class="form-check-label" for="theme-dark">{{ t("nav.dark") }}</label>
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <button type="submit" class="btn btn-primary">{{ t("settings.save") }}</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function confirmSave() {
+  return true; // submit langsung; halaman ter-render ulang dengan preferensi baru
+}
+</script>
+{% endblock %}

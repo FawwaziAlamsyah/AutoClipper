@@ -1,15 +1,19 @@
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <div></div>
+  <div id="tiktok-connect-status"></div>
+</div>
 <div class="row g-4 justify-content-center">
   <!-- Card Upload File -->
   <div class="col-md-6">
     <div class="card shadow-sm h-100 p-4">
-      <h3>Upload File Video</h3>
-      <p class="text-muted">Pilih file video lokal dari komputer Anda.</p>
+      <h3>{{ t("upload.uploadTab") }}</h3>
+      <p class="text-muted">{{ t("upload.uploadDesc") }}</p>
 
       <form id="localUploadForm" class="d-flex flex-column flex-grow-1">
         <div class="mb-4">
           <label class="form-label" for="videoFile">Pilih file video ({{ allowed_extensions | join(', ') }})</label>
           <input class="form-control" type="file" id="videoFile" name="file" accept=".mp4,.mov,.mkv,.avi" required>
-          <div class="form-text">Maksimal ukuran file: {{ max_size_mb }} MB.</div>
+          <div class="form-text">{{ t("upload.maxSize") }}</div>
         </div>
 
         <div class="progress mb-3 d-none" id="uploadProgressContainer" style="height: 20px;">
@@ -19,7 +23,7 @@
         <div class="alert alert-danger d-none" id="uploadError"></div>
         <div class="alert alert-success d-none" id="uploadSuccess"></div>
 
-        <button class="btn btn-primary w-100 mt-auto" id="uploadBtn" type="submit">Upload Video</button>
+        <button class="btn btn-primary w-100 mt-auto" id="uploadBtn" type="submit">{{ t("upload.uploadBtn") }}</button>
       </form>
     </div>
   </div>
@@ -27,96 +31,89 @@
   <!-- Card Download URL -->
   <div class="col-md-6">
     <div class="card shadow-sm h-100 p-4">
-      <h3>Download dari URL</h3>
-      <p class="text-muted">Masukkan link URL video (YouTube, TikTok, dll).</p>
+      <h3>{{ t("upload.downloadTab") }}</h3>
+      <p class="text-muted">{{ t("upload.urlDesc") }}</p>
 
       <div class="mb-4">
-        <label for="videoUrl" class="form-label">URL Video</label>
+        <label for="videoUrl" class="form-label">{{ t("upload.urlLabel") }}</label>
         <input class="form-control" type="url" id="videoUrl" placeholder="https://www.youtube.com/watch?v=...">
-        <div class="form-text">Video akan di-download secara otomatis dan di-import.</div>
+        <div class="form-text">{{ t("upload.urlNote") }}</div>
       </div>
 
       <div class="d-none" id="downloadSpinner">
         <div class="mb-2 d-flex justify-content-between align-items-center">
-          <span class="text-muted small">⬇ Sedang mengunduh video... (bisa memakan beberapa menit)</span>
+          <span class="text-muted small">{{ t("upload.downloading") }}</span>
           <span id="downloadPct" class="fw-semibold">0%</span>
         </div>
         <div class="progress mb-2" style="height: 20px;">
           <div class="progress-bar progress-bar-striped progress-bar-animated" id="downloadProgressBar"
                role="progressbar" style="width: 0%"></div>
         </div>
-        <p class="text-muted small mb-0">Jangan tutup halaman ini selama proses download berlangsung.</p>
+        <p class="text-muted small mb-0">{{ t("upload.dontClose") }}</p>
       </div>
 
       <div class="alert alert-danger d-none" id="downloadError"></div>
       <div class="alert alert-success d-none" id="downloadSuccess"></div>
 
-      <button class="btn btn-dark w-100 mt-auto" id="downloadBtn">Download &amp; Import</button>
-
-      <hr class="my-3">
-
-      <button class="btn btn-sm btn-outline-danger w-100" onclick="startYoutubeCookieLogin()">
-        🔑 Login YouTube (Sekali Saja)
-      </button>
-      <div id="cookie-login-status" class="mt-2"></div>
+      <button class="btn btn-dark w-100 mt-auto" id="downloadBtn">{{ t("upload.downloadBtn") }}</button>
     </div>
   </div>
 </div>
 
 <div class="card shadow-sm p-4 mt-4">
-  <h3>Pengaturan Pipeline</h3>
-  <p class="text-muted">Parameter ini dipakai saat tombol Proses di tabel video diklik.</p>
+  <h3>{{ t("upload.pipeline") }}</h3>
+  <p class="text-muted">{{ t("upload.pipelineDesc") }}</p>
   <div class="row g-3">
     <div class="col-md-3">
-      <label class="form-label">Bahasa</label>
+      <label class="form-label">{{ t("upload.langLabel") }}</label>
       <select class="form-select" id="pl-language">
-        <option value="">Auto Detect</option>
-        <option value="id" selected>Indonesia</option>
-        <option value="en">English</option>
+        <option value="">{{ t("upload.autoDetect") }}</option>
+        <option value="id" selected>{{ t("upload.indonesia") }}</option>
+        <option value="en">{{ t("upload.english") }}</option>
       </select>
     </div>
     <div class="col-md-3">
-      <label class="form-label">Clip Style (Kategori)</label>
+      <label class="form-label">{{ t("upload.clipStyle") }}</label>
       <select class="form-select" id="pl-category-id">
-        <option value="">Default (belum pilih kategori)</option>
+        <option value="">{{ t("upload.default") }}</option>
         <!-- diisi JS -->
       </select>
     </div>
     <div class="col-md-3">
-      <label class="form-label">Jumlah Clip</label>
+      <label class="form-label">{{ t("upload.numClips") }}</label>
       <input class="form-control" type="number" id="pl-num-clips" value="20" min="1" max="20">
     </div>
     <div class="col-md-3">
-      <label class="form-label">Durasi Min (detik)</label>
+      <label class="form-label">{{ t("upload.minDuration") }}</label>
       <input class="form-control" type="number" id="pl-min-duration" value="30" min="5">
     </div>
     <div class="col-md-3">
-      <label class="form-label">Durasi Maks (detik)</label>
+      <label class="form-label">{{ t("upload.maxDuration") }}</label>
       <input class="form-control" type="number" id="pl-max-duration" value="60" min="10">
     </div>
     <div class="col-md-3">
-      <label class="form-label">Keyword Boost (koma)</label>
+      <label class="form-label">{{ t("upload.keywordBoost") }}</label>
       <input class="form-control" type="text" id="pl-keywords" placeholder="bitcoin, ai, investasi">
     </div>
     <div class="col-md-3">
-      <label class="form-label">Skip Keywords (koma)</label>
+      <label class="form-label">{{ t("upload.skipKeywords") }}</label>
       <input class="form-control" type="text" id="pl-skip-keywords" placeholder="sponsor, subscribe, iklan">
     </div>
   </div>
 </div>
 
 <div class="card shadow-sm p-4 mt-4">
-  <h3>Video Terupload</h3>
+  <h3>{{ t("upload.videoTable") }}</h3>
   <div class="table-responsive">
     <table class="table table-striped align-middle">
       <thead>
         <tr>
           <th>ID</th>
-          <th>Nama File</th>
-          <th>Status</th>
-          <th>Tipe</th>
-          <th>Durasi</th>
-          <th>Aksi</th>
+          <th>{{ t("upload.fileName") }}</th>
+          <th>{{ t("upload.status") }}</th>
+          <th>{{ t("upload.type") }}</th>
+          <th>{{ t("upload.duration") }}</th>
+          <th>{{ t("upload.action") }}</th>
         </tr>
       </thead>
       <tbody id="videoTableBody">
@@ -136,7 +133,7 @@
             <button class="btn btn-sm btn-warning cancel-btn" data-job-id="{{ rj.job_id }}">Cancel</button>
             {% elif video.status == 'uploading' %}
             <button class="btn btn-sm btn-outline-secondary process-btn" data-video-id="{{ video.id }}" data-uploading="1" disabled>
-              <span class="spinner-border spinner-border-sm me-1"></span>Uploading...
+              <span class="spinner-border spinner-border-sm me-1"></span>{{ t("upload.uploading") }}
             </button>
             {% else %}
             <button class="btn btn-sm btn-success process-btn" data-video-id="{{ video.id }}">Proses</button>
@@ -148,7 +145,7 @@
           </td>
         </tr>
         {% else %}
-        <tr id="empty-row"><td colspan="6" class="text-center text-muted">Belum ada video.</td></tr>
+        <tr id="empty-row"><td colspan="6" class="text-center text-muted">{{ t("upload.noVideo") }}</td></tr>
         {% endfor %}
       </tbody>
     </table>
@@ -189,13 +186,28 @@ function initUploadPage() {
   }
   loadCategoryOptions();
 
+  async function checkTikTokConnection() {
+    const el = document.getElementById('tiktok-connect-status');
+    if (!el) return;
+    try {
+      const res = await fetch('/tiktok/status');
+      const data = await res.json();
+      if (data.connected) {
+        el.innerHTML = `<span class="badge bg-success">✓ TikTok terhubung</span>`;
+      } else {
+        el.innerHTML = `<a href="/tiktok/oauth/login" class="btn btn-sm btn-dark">🔗 Connect Akun TikTok</a>`;
+      }
+    } catch (e) {}
+  }
+  checkTikTokConnection();
+
   function esc(str) { const d = document.createElement('div'); d.textContent = str == null ? '' : str; return d.innerHTML; }
   function formatDuration(sec) { if (sec == null) return '-'; return `${Math.floor(sec/60)}m ${Math.round(sec%60)}s`; }
 
   function rowHtml(v) {
     const statusBadge = `<span class="badge bg-${v.status==='ready'?'success':(v.status==='uploading'?'warning':'secondary')}">${esc(v.status)}</span>`;
     const actions = v.status==='uploading'
-      ? `<button class="btn btn-sm btn-outline-secondary process-btn" data-video-id="${v.id}" data-uploading="1" disabled><span class="spinner-border spinner-border-sm me-1"></span>Uploading...</button>`
+      ? `<button class="btn btn-sm btn-outline-secondary process-btn" data-video-id="${v.id}" data-uploading="1" disabled><span class="spinner-border spinner-border-sm me-1"></span>{{ t("upload.uploading") }}</button>`
       : `<button class="btn btn-sm btn-success process-btn" data-video-id="${v.id}">Proses</button>`;
     const archiveBtn = v.is_archived
       ? `<span class="badge bg-warning text-dark">📦 Archived</span>`
@@ -219,7 +231,7 @@ function initUploadPage() {
     let cancelBtn = cell.querySelector('.cancel-btn');
     if (!cancelBtn) {
       cancelBtn = document.createElement('button');
-      cancelBtn.className = 'btn btn-sm btn-warning cancel-btn'; cancelBtn.textContent = 'Cancel';
+      cancelBtn.className = 'btn btn-sm btn-warning cancel-btn'; cancelBtn.textContent = __t('upload.cancel');
       cancelBtn.addEventListener('click', () => cancelJob(cancelBtn)); cell.appendChild(cancelBtn);
     }
     cancelBtn.dataset.jobId = jobId; cancelBtn.disabled = false;
@@ -242,7 +254,7 @@ function initUploadPage() {
     succDiv.classList.add('d-none');
 
     if (!fileInput || !fileInput.files.length) {
-      showAlert(errDiv, 'Pilih file video terlebih dahulu.', false);
+      showAlert(errDiv, __t('upload.jsNeedFile'), false);
       return;
     }
 
@@ -255,7 +267,7 @@ function initUploadPage() {
     fetch(`/upload/begin?filename=${encodeURIComponent(file.name)}`, { method: 'POST' })
       .then(async (beginRes) => {
         if (!beginRes.ok) {
-          let detail = 'Gagal memulai upload.';
+          let detail = __t('upload.jsFailStart');
           try {
             const data = await beginRes.json();
             detail = data.detail || detail;
@@ -282,12 +294,12 @@ function initUploadPage() {
               try { data = JSON.parse(xhr.responseText); } catch (e) {}
               resolve(data);
             } else {
-              let detail = 'Gagal mengunggah file.';
+              let detail = __t('upload.jsFailUpload');
               try { detail = JSON.parse(xhr.responseText).detail || detail; } catch (e) {}
               reject(new Error(detail));
             }
           };
-          xhr.onerror = () => reject(new Error('Koneksi bermasalah atau proses dihentikan.'));
+          xhr.onerror = () => reject(new Error(__t('upload.jsConn')));
           const fd = new FormData();
           fd.append('file', file);
           xhr.send(fd);
@@ -307,7 +319,7 @@ function initUploadPage() {
       .catch((err) => {
         btn.disabled = false;
         progressContainer.classList.add('d-none');
-        showAlert(errDiv, err.message || 'Gagal mengunggah file.', false);
+        showAlert(errDiv, err.message || __t('upload.jsFailUpload'), false);
       });
   }
 
@@ -331,7 +343,7 @@ function initUploadPage() {
   async function cancelJob(btn) {
     const jobId = btn.dataset.jobId; if (!jobId) return;
     if (!confirm(`Cancel job ${jobId}?`)) return;
-    btn.disabled = true; btn.textContent = 'Membatalkan...';
+    btn.disabled = true; btn.textContent = __t('upload.jsCancel');
     const res = await fetch(`/jobs/${jobId}/cancel`, { method: 'POST' });
     if (res.ok) {
       const row = btn.closest('tr'); if (!row) return;
@@ -340,15 +352,15 @@ function initUploadPage() {
       if (procBtn) { procBtn.disabled = false; procBtn.classList.remove('btn-outline-success'); procBtn.classList.add('btn-success'); procBtn.innerHTML = 'Proses'; delete procBtn.dataset.jobId; }
       const badge = row.querySelector('td:nth-child(3) .badge');
       if (badge) { badge.textContent = 'uploaded'; badge.classList.remove('bg-warning'); badge.classList.add('bg-secondary'); }
-    } else { alert('Gagal cancel job.'); btn.disabled = false; btn.textContent = 'Cancel'; }
+    } else { alert(__t('upload.jsCancelFail')); btn.disabled = false; btn.textContent = __t('upload.cancel'); }
   }
 
   async function processVideo(btn) {
     const videoId = btn.dataset.videoId;
     const row = document.getElementById(`video-row-${videoId}`);
     const badge = row?.querySelector('td:nth-child(3) .badge');
-    if (badge && badge.textContent.trim() === 'ready') { if (!confirm('Video sudah pernah diproses. Proses ulang?')) return; }
-    btn.disabled = true; const oldText = btn.textContent; btn.textContent = 'Memulai...';
+    if (badge && badge.textContent.trim() === 'ready') { if (!confirm(__t('upload.jsReProcess'))) return; }
+    btn.disabled = true; const oldText = btn.textContent; btn.textContent = __t('upload.jsStarting');
     const params = {
       language: document.getElementById('pl-language').value || null,
       category_id: document.getElementById('pl-category-id').value || null,
@@ -361,7 +373,7 @@ function initUploadPage() {
     try {
       const res = await fetch(`/upload/videos/${videoId}/process`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(params) });
       const data = await res.json();
-      if (!res.ok) { alert(data.detail||'Gagal memulai proses.'); btn.disabled=false; btn.textContent=oldText; return; }
+      if (!res.ok) { alert(data.detail||__t('upload.jsFailProcess')); btn.disabled=false; btn.textContent=oldText; return; }
       const jobId = data.job_id; setProcessing(btn, jobId);
       const done = await pollJob(jobId, (step, pct) => { btn.innerHTML=`<span class="spinner-border spinner-border-sm me-1"></span>Proses: ${step}${pct!=null?` (${pct}%)`:''}`;  btn.title=`Proses: ${step}`; });
       const rowEl = document.getElementById(`video-row-${videoId}`);
@@ -373,7 +385,7 @@ function initUploadPage() {
         cancelBtn?.remove(); btn.disabled=false; btn.classList.remove('btn-outline-success'); btn.classList.add('btn-success'); btn.textContent=oldText; delete btn.dataset.jobId;
         const b = rowEl?.querySelector('td:nth-child(3) .badge'); if(b){b.textContent='uploaded';b.classList.remove('bg-warning','bg-success');b.classList.add('bg-secondary');}
       } else { cancelBtn?.remove(); alert(`Proses gagal. ${done}`); btn.disabled=false; btn.classList.remove('btn-outline-success'); btn.classList.add('btn-success'); btn.textContent=oldText; }
-    } catch(e) { btn.disabled=false; btn.textContent=oldText; alert('Terjadi kesalahan sistem.'); }
+    } catch(e) { btn.disabled=false; btn.textContent=oldText; alert(__t('upload.jsSystemError')); }
   }
 
   async function pollJob(jobId, onStep) {
@@ -396,8 +408,8 @@ function initUploadPage() {
     if (res.ok) {
       document.getElementById(`video-row-${videoId}`)?.remove();
       const tbody = document.getElementById('videoTableBody');
-      if (tbody && !tbody.querySelector('tr')) tbody.innerHTML='<tr id="empty-row"><td colspan="6" class="text-center text-muted">Belum ada video.</td></tr>';
-    } else { const data=await res.json(); alert(data.detail||'Gagal menghapus.'); btn.disabled=false; btn.textContent='🗑 Delete All'; }
+      if (tbody && !tbody.querySelector('tr')) tbody.innerHTML='<tr id="empty-row"><td colspan="6" class="text-center text-muted">{{ t("upload.noVideo") }}</td></tr>';
+    } else { const data=await res.json(); alert(data.detail||__t('upload.jsFailDelete')); btn.disabled=false; btn.textContent='🗑 Delete All'; }
   }
 
   document.getElementById('downloadBtn')?.addEventListener('click', async () => {
@@ -405,12 +417,12 @@ function initUploadPage() {
     const errDiv=document.getElementById('downloadError'), succDiv=document.getElementById('downloadSuccess');
     const spinner=document.getElementById('downloadSpinner');
     errDiv.classList.add('d-none'); succDiv.classList.add('d-none');
-    const url=urlInput.value.trim(); if(!url){showAlert(errDiv,'URL tidak boleh kosong.',false);return;}
+    const url=urlInput.value.trim(); if(!url){showAlert(errDiv,__t('upload.jsUrlEmpty'),false);return;}
     btn.disabled=true; spinner.classList.remove('d-none');
     try {
       const res=await fetch('/upload/download',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url})});
       const data=await res.json();
-      if(!res.ok){btn.disabled=false;spinner.classList.add('d-none');showAlert(errDiv,data.detail||'Gagal memulai download.',false);return;}
+      if(!res.ok){btn.disabled=false;spinner.classList.add('d-none');showAlert(errDiv,data.detail||__t('upload.jsFailDownload'),false);return;}
       sessionStorage.setItem('activeDownloadId', data.download_id);
       await _runDownloadPolling(data.download_id);
     } catch(e){btn.disabled=false;spinner.classList.add('d-none');showAlert(errDiv,'Kesalahan sistem.',false);}
@@ -422,7 +434,7 @@ function initUploadPage() {
     const spinner = document.getElementById('downloadSpinner');
     const btn = document.getElementById('downloadBtn');
     if (spinner) spinner.classList.remove('d-none');
-    if (btn) { btn.disabled = true; btn.textContent = 'Mendownload...'; }
+    if (btn) { btn.disabled = true; btn.textContent = __t('upload.jsDownloading'); }
     _runDownloadPolling(savedDlId);
   }
 
@@ -458,7 +470,7 @@ function initUploadPage() {
     }
     btn.disabled=false; btn.textContent='Download & Import';
     spinner.classList.add('d-none');
-    showAlert(errDiv,'Timeout — cek tabel video, mungkin sudah selesai.',false);
+    showAlert(errDiv,__t('upload.jsTimeout'),false);
     sessionStorage.removeItem('activeDownloadId');
   }
 
@@ -475,33 +487,6 @@ function initUploadPage() {
       });
     }
   });
-}
-
-async function startYoutubeCookieLogin() {
-  const statusEl = document.getElementById('cookie-login-status');
-  statusEl.innerHTML = '<span class="text-muted">Membuka jendela browser — silakan login di sana...</span>';
-
-  const res = await fetch('/upload/youtube-cookie-login', { method: 'POST' });
-  const { session_id } = await res.json();
-  pollCookieLoginStatus(session_id, statusEl);
-}
-
-async function pollCookieLoginStatus(sessionId, statusEl) {
-  const res = await fetch(`/upload/youtube-cookie-login/${sessionId}/status`);
-  const data = await res.json();
-
-  if (data.status === 'success') {
-    statusEl.innerHTML = '<span class="text-success">✓ Login berhasil, cookies tersimpan. Download berikutnya otomatis pakai ini.</span>';
-    setTimeout(() => { statusEl.innerHTML = ''; }, 8000);
-    return;
-  }
-  if (data.status === 'error') {
-    statusEl.innerHTML = `<span class="text-danger">✗ Gagal: ${data.error || data.message || 'unknown'}</span>`;
-    setTimeout(() => { statusEl.innerHTML = ''; }, 15000);
-    return;
-  }
-  statusEl.innerHTML = `<span class="text-muted"><span class="spinner-border spinner-border-sm me-1"></span>${data.message || 'Menunggu Anda login di jendela browser...'}</span>`;
-  setTimeout(() => pollCookieLoginStatus(sessionId, statusEl), 2000);
 }
 
 // Jalankan saat load langsung (full page) DAN saat di-swap oleh htmx

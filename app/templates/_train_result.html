@@ -1,6 +1,6 @@
 <div class="alert alert-success small mb-0">
   Training selesai (Run #{{ run.id }}).<br>
-  <strong>Samples:</strong> {{ run.sample_count }}
-  &nbsp;<strong>Val MAE:</strong> {{ run.val_mae }}
-  &nbsp;<strong>Val R²:</strong> {{ run.val_r2 }}
+  <strong>{{ t("train.samples") }}:</strong> {{ run.sample_count }}
+  &nbsp;<strong>{{ t("train.valMAE") }}:</strong> {{ run.val_mae }}
+  &nbsp;<strong>{{ t("train.valR2") }}:</strong> {{ run.val_r2 }}
 </div>

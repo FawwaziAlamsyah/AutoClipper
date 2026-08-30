@@ -4,7 +4,8 @@ import logging
 
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse
-from fastapi.templating import Jinja2Templates
+from fastapi.templating import Jinja2Templates  # noqa: F401 (ke AppTemplates)
+from app.core.jinja import AppTemplates
 
 from app.core.config.settings import settings
 from app.core.di.dependencies import get_storage_service
@@ -14,7 +15,7 @@ from app.services.storage_service import StorageService
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/storage", tags=["storage"])
-templates = Jinja2Templates(directory="app/templates")
+templates = AppTemplates(directory="app/templates")
 
 
 @router.get("/dashboard", response_class=HTMLResponse)

@@ -9,8 +9,9 @@
   <script src="https://unpkg.com/htmx.org@2.0.4"
           integrity="sha384-HGfztofotfshcF7+8n44JQL2oJmowVChPTg48W4bwqsCPXTNsFVaHz3XKz7RnCn5"
           crossorigin="anonymous"></script>
+  <script id="i18n">window.I18N = {{ t_js | tojson }}; function __t(k) { return window.I18N[k] || k; }</script>
 </head>
-<body>
+<body data-bs-theme="{{ theme }}">
   <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
     <div class="container">
       <a class="navbar-brand"
@@ -27,37 +28,40 @@
             <a class="nav-link" href="/"
                hx-get="/"
                hx-target="#main-content"
-               hx-push-url="true">Dashboard</a>
+               hx-push-url="true">{{ t("nav.dashboard") }}</a>
           </li>
           <li class="nav-item">
             <a class="nav-link" href="/upload"
                hx-get="/upload"
                hx-target="#main-content"
-               hx-push-url="true">Upload</a>
+               hx-push-url="true">{{ t("nav.upload") }}</a>
           </li>
           <li class="nav-item">
             <a class="nav-link" href="/candidates"
                hx-get="/candidates"
                hx-target="#main-content"
-               hx-push-url="true">Candidates</a>
+               hx-push-url="true">{{ t("nav.candidates") }}</a>
           </li>
           <li class="nav-item">
             <a class="nav-link" href="/history"
                hx-get="/history"
                hx-target="#main-content"
-               hx-push-url="true">History</a>
+               hx-push-url="true">{{ t("nav.history") }}</a>
           </li>
           <li class="nav-item">
             <a class="nav-link" href="/training/dashboard"
                hx-get="/training/dashboard"
                hx-target="#main-content"
-               hx-push-url="true">Training</a>
+               hx-push-url="true">{{ t("nav.training") }}</a>
           </li>
           <li class="nav-item">
             <a class="nav-link" href="/storage/dashboard"
                hx-get="/storage/dashboard"
                hx-target="#main-content"
-               hx-push-url="true">Storage</a>
+               hx-push-url="true">{{ t("nav.storage") }}</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="/settings">{{ t("nav.settings") }}</a>
           </li>
         </ul>
       </div>
@@ -78,6 +82,16 @@
       {% endif %}
     {% endblock %}
   </div>
+
+  <footer class="bg-dark text-light py-3 mt-5">
+    <div class="container d-flex flex-wrap justify-content-between align-items-center small">
+      <span>© {{ app_name }}</span>
+      <span class="d-flex gap-3">
+        <a class="text-light" href="/privacy-policy">{{ t("nav.footerLegal") }}</a>
+        <a class="text-light" href="/terms-of-service">{{ t("nav.footerTerms") }}</a>
+      </span>
+    </div>
+  </footer>
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 </body>

@@ -2,7 +2,8 @@
 
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse
-from fastapi.templating import Jinja2Templates
+from fastapi.templating import Jinja2Templates  # noqa: F401 (ke AppTemplates)
+from app.core.jinja import AppTemplates
 
 from app.core.config.settings import settings
 from app.core.di.dependencies import get_job_service
@@ -10,7 +11,7 @@ from app.core.htmx import render
 from app.services.job_service import JobService
 
 router = APIRouter(prefix="/jobs", tags=["jobs"])
-templates = Jinja2Templates(directory="app/templates")
+templates = AppTemplates(directory="app/templates")
 
 
 @router.get("/active")

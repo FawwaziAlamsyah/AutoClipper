@@ -5,6 +5,6 @@
     <source src="/data/outputs/{{ preview_path }}?t={{ ts }}" type="video/mp4">
   </video>
   {% if clip.edited_file_path %}
-  <span class="badge bg-warning text-dark mt-2">Sudah diedit</span>
+  <span class="badge bg-warning text-dark mt-2">{{ t("widget.edited") }}</span>
   {% endif %}
 </div>

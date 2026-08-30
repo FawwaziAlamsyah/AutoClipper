@@ -1,7 +1,7 @@
 <div class="d-flex justify-content-between align-items-center mb-4">
   <div>
-    <h3 class="mb-1">Candidate Clips</h3>
-    <p class="text-muted mb-0">{{ summaries | length }} video dengan candidates. Klik untuk lihat detail.</p>
+    <h3 class="mb-1">{{ t("cand.title") }}</h3>
+    <p class="text-muted mb-0">{{ summaries | length }} video dengan candidates. {{ t("cand.click") }} untuk lihat detail.</p>
   </div>
 </div>
 
@@ -59,10 +59,10 @@
 
 {% else %}
 <div class="card shadow-sm p-5 text-center text-muted">
-  <p class="mb-1">Belum ada candidates.</p>
-  <p class="small">Klik <strong>Proses</strong> di halaman <a href="/upload"
+  <p class="mb-1">{{ t("cand.empty") }}</p>
+  <p class="small">{{ t("cand.click") }} <strong>{{ t("cand.process") }}</strong> di halaman <a href="/upload"
      hx-get="/upload"
      hx-target="#main-content"
-     hx-push-url="true">Upload</a> untuk memulai.</p>
+     hx-push-url="true">{{ t("cand.upload") }}</a> untuk memulai.</p>
 </div>
 {% endif %}

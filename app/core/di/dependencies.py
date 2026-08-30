@@ -8,6 +8,7 @@ from fastapi import Depends
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
+from app.repositories.tiktok_account_repository import TikTokAccountRepository
 from app.services.candidate_service import CandidateService
 from app.services.category_service import CategoryService
 from app.services.clip_editor_service import ClipEditorService
@@ -20,6 +21,8 @@ from app.services.job_service import JobService
 from app.services.preview_service import PreviewService
 from app.services.process_service import ProcessService
 from app.services.subtitle_service import SubtitleService
+from app.services.tiktok_auth_service import TikTokAuthService
+from app.services.tiktok_upload_service import TikTokUploadService
 from app.services.transcript_service import TranscriptService
 from app.services.video_service import VideoService
 
@@ -104,3 +107,15 @@ def get_training_run_repo(db: Session = Depends(get_db)):
 def get_storage_service(db: Session = Depends(get_db)):
     from app.services.storage_service import StorageService
     return StorageService(db)
+
+
+def get_tiktok_auth_service(db: Session = Depends(get_db)) -> TikTokAuthService:
+    return TikTokAuthService(db)
+
+
+def get_tiktok_account_repo(db: Session = Depends(get_db)) -> TikTokAccountRepository:
+    return TikTokAccountRepository(db)
+
+
+def get_tiktok_upload_service(db: Session = Depends(get_db)) -> TikTokUploadService:
+    return TikTokUploadService(db)

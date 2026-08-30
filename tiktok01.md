@@ -20,10 +20,10 @@ cryptography>=42.0
 Di `app/core/config/settings.py`:
 
 ```python
-TIKTOK_CLIENT_KEY: str = ""
-TIKTOK_CLIENT_SECRET: str = ""
+TIKTOK_CLIENT_KEY: str = "sbawzgdj8957m738la"
+TIKTOK_CLIENT_SECRET: str = "R8S9dcJQYc3y13J3n70XJlxEM5JtCqux"
 TIKTOK_REDIRECT_URI: str = "http://localhost:8000/tiktok/oauth/callback"
-TIKTOK_TOKEN_ENCRYPTION_KEY: str = ""  # generate sekali, simpan di .env (lihat instruksi di bawah)
+TIKTOK_TOKEN_ENCRYPTION_KEY: str = "JwqzbfGQp6WmyFKEtKsOs6MSGfSohIyJq17XjgMIM48="  # generate sekali, simpan di .env (lihat instruksi di bawah)
 ```
 
 Tambahkan ke `.env.example`:

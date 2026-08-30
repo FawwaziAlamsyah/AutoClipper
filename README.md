@@ -30,7 +30,7 @@ Tool lokal berbasis AI untuk otomatis mengekstrak klip viral dari video panjang 
 | Audio/Video | FFmpeg, ffprobe, OpenCV, MediaPipe, librosa |
 | Speech-to-Text | Faster-Whisper |
 | AI | OpenAI-compatible LLM API (default gpt-4o-mini) |
-| Download | yt-dlp + curl_cffi + yt-dlp-ejs + Playwright (cookie auto-capture) |
+| Download | yt-dlp + curl_cffi + yt-dlp-ejs |
 | Frontend | Bootstrap 5, vanilla JS |
 | Testing | pytest |
 
@@ -60,9 +60,6 @@ python -m venv .venv
 
 # 3. Install dependencies
 pip install -r requirements.txt
-
-# 3b. Install browser Chromium untuk login YouTube otomatis (WAJIB, sekali saja)
-playwright install chromium
 
 # 4. Copy .env & isi
 cp .env.example .env
@@ -104,19 +101,14 @@ Buka browser: **http://127.0.0.1:8000**
 
 ## Download dari URL (YouTube & anti-bot)
 
-YouTube sering memblokir dengan error `Sign in to confirm you're not a bot`. Project menangani ini berlapis:
+YouTube sering memblokir dengan error `Sign in to confirm you're not a bot`. Project menangani ini dengan strategi client berlapis:
 
-1. **Login YouTube sekali klik** (rekomendasi) — di halaman Upload, klik tombol **🔑 Login YouTube (Sekali Saja)**. Jendela Chromium muncul, login manual di sana. Cookies otomatis tersimpan ke `data/cookies.txt`. Tidak perlu export ekstensi.
-2. **`COOKIES_FILE`** (alternatif manual) — export cookies login dari browser:
-   - Install ekstensi **"Get cookies.txt LOCALLY"** di Chrome
-   - Buka `youtube.com`, login, klik ekstensi → **Export** → simpan sebagai `data/cookies.txt`
-   - Set `COOKIES_FILE=data/cookies.txt` di `.env`
-   - **Penting:** cookies harus dari sesi LOGIN (bukan guest — cek `SID` value tidak berawal `g.a000BAnon`)
-3. **Fallback tanpa cookies** — kalau `COOKIES_FILE` kosong/tidak ada, app coba client android lalu web.
-4. **Node.js** — wajib terpasang; tanpanya format video disembunyikan (error `n challenge solving failed`).
-5. **Playwright Chromium** — wajib untuk tombol login YouTube. Setelah `pip install -r requirements.txt`, jalankan sekali: `playwright install chromium`. Kalau langkah ini kelewat, tombol login akan error saat pertama dipakai.
+1. **Client kualitas baik dulu** — app coba `tv`, `tv_simply`, `ios`, lalu `web` (format wajib minimal 720p, cap 1080p).
+2. **Fallback android** — kalau semua client di atas gagal, app coba client `android` (paling reliable lolos bot-check, tapi resolusi bisa di bawah 720p).
+3. **Node.js** — wajib terpasang; tanpanya format video disembunyikan (error `n challenge solving failed`).
+4. **Cookies manual (opsional)** — yt-dlp bisa membaca cookies login dari browser terpasang secara otomatis (fitur bawaan yt-dlp), atau dari file export manual, bila dibutuhkan untuk video yang butuh login.
 
-`data/cookies.txt` dan `data/models/` sudah di-`.gitignore` — tidak akan ter-push.
+`data/models/` sudah di-`.gitignore` — tidak akan ter-push.
 
 ## Cara Menggunakan
 
@@ -177,7 +169,6 @@ ai-auto-clipper/
 │   ├── outputs/             # final clips + subtitle
 │   ├── cache/               # audio hasil extract
 │   ├── models/              # CV .tflite (auto-download, git-ignored) + category_{id}/ model per kategori
-│   ├── cookies.txt          # cookies YouTube (git-ignored)
 │   └── ...
 ├── logs/                    # error.log saja (progress di terminal via log.debug)
 ├── tests/                   # pytest (55 test)
@@ -219,7 +210,6 @@ Tambah analyzer baru **tanpa mengubah pipeline**:
 | WHISPER_DEVICE | auto | auto/cuda/cpu |
 | FFMPEG_PATH | ffmpeg | Path FFmpeg binary |
 | FFPROBE_PATH | ffprobe | Path ffprobe binary |
-| COOKIES_FILE | data/cookies.txt | Cookies YouTube (kosong = cookiesfrombrowser) |
 | MAX_UPLOAD_SIZE_MB | 2048 | Max upload size |
 | LOG_LEVEL | INFO | Level log |
 | USE_TRAINED_SCORE_MODEL | true | Pakai model terlatih per kategori; false = paksa weighted-sum |
@@ -237,10 +227,7 @@ Semua test mock dependency berat (whisper, mediapipe, cv2) — tidak perlu GPU/F
 ## Troubleshooting
 
 **`Sign in to confirm you're not a bot` (YouTube)**
-- Cookies tidak valid/guest. Re-export cookies saat login (cek `SID` tidak berawal `BAnon`), atau coba browser lain.
-
-**`Could not copy Chrome cookie database`**
-- Browser target sedang berjalan (DB terkunci). Tutup browser sepenuhnya, atau pakai browser lain.
+- App otomatis coba client `tv`/`tv_simply`/`ios`/`web` dulu (720p+), lalu fallback `android` kalau semua gagal. Coba download ulang.
 
 **`n challenge solving failed: Some formats may be missing`**
 - Node.js tidak terdeteksi. Pastikan `node --version` jalan; project force `js_runtimes: {"node": {}}`.
