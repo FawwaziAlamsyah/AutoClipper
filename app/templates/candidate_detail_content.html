@@ -368,7 +368,7 @@ async function publishToTikTok(clipId) {
   const statusEl = document.getElementById('tiktok-publish-status');
   if (!btn || !statusEl) return;
   btn.disabled = true;
-  statusEl.innerHTML = '<span class="text-muted">Memulai upload...</span>';
+  statusEl.innerHTML = renderTikTokBar('uploading', 5);
 
   const res = await fetch(`/tiktok/publish/${clipId}`, { method: 'POST' });
   if (!res.ok) {
@@ -381,22 +381,33 @@ async function publishToTikTok(clipId) {
   pollTikTokStatus(local_id, btn, statusEl);
 }
 
+function renderTikTokBar(status, progress) {
+  const pct = Math.max(0, Math.min(100, progress || 0));
+  const barClass = (status === 'error' || status === 'timeout') ? 'bg-danger'
+    : (status === 'complete') ? 'bg-success' : 'bg-primary';
+  const label = (status === 'uploading') ? 'Mengunggah ke TikTok...'
+    : (status === 'processing') ? 'TikTok sedang memproses...'
+    : (status === 'complete') ? 'Selesai' : `Status: ${status}`;
+  return `<div class="progress" style="height:20px;">
+      <div class="progress-bar ${barClass} progress-bar-striped progress-bar-animated" style="width:${pct}%;">${pct}%</div>
+    </div>
+    <small class="text-muted">${label}</small>`;
+}
+
 async function pollTikTokStatus(localId, btn, statusEl) {
   const res = await fetch(`/tiktok/publish/${localId}/status`);
   const data = await res.json();
 
-  if (data.status === 'complete') {
-    statusEl.innerHTML = '<span class="text-success">✓ Berhasil! Cek app TikTok Anda (draft/private), tap Post kalau sudah oke.</span>';
-    btn.disabled = false;
-    return;
-  }
-  if (data.status === 'error' || data.status === 'timeout') {
-    statusEl.innerHTML = `<span class="text-danger">Gagal: ${data.error || 'timeout, cek manual di TikTok Studio'}</span>`;
+  if (data.status === 'complete' || data.status === 'error' || data.status === 'timeout') {
+    statusEl.innerHTML = (data.status === 'complete')
+      ? renderTikTokBar('complete', 100)
+      : renderTikTokBar('error', data.status === 'timeout' ? 100 : (data.progress || 0))
+        + `<div class="text-danger mt-1">Gagal: ${data.error || 'timeout, cek manual di TikTok Studio'}</div>`;
     btn.disabled = false;
     return;
   }
 
-  statusEl.innerHTML = `<span class="text-muted">Status: ${data.status}...</span>`;
+  statusEl.innerHTML = renderTikTokBar(data.status, data.progress || 0);
   setTimeout(() => pollTikTokStatus(localId, btn, statusEl), 2000);
 }
 

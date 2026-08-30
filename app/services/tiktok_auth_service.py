@@ -25,11 +25,12 @@ logger = logging.getLogger(__name__)
 AUTHORIZE_URL = "https://www.tiktok.com/v2/auth/authorize/"
 TOKEN_URL = "https://open.tiktokapis.com/v2/oauth/token/"
 
-# Scope video.publish = Direct Post (upload + publish ke profil user).
-# Dipakai Content Posting API (init + upload + status fetch). Mode draft/private
-# dicapai lewat `privacy_level: SELF_ONLY` di payload init (bukan lewat scope).
-# video.upload (Upload API) TIDAK cukup untuk endpoint publish Direct Post.
-SCOPES = "video.publish"
+# Scope video.upload = upload ke inbox/draft user (endpoint
+# /post/publish/inbox/video/init/). Video jadi draft private di inbox user,
+# mereka selesaikan post manual dari app TikTok (mode unaudited, sesuai
+# tiktokSetup.md poin 5). video.publish (Direct Post) butuh audit app —
+# jangan dipakai sampai lolos review.
+SCOPES = "video.upload"
 
 # CSRF + PKCE protection — state → code_verifier disimpan in-memory, cukup
 # untuk app single-user lokal (bukan multi-tenant).
