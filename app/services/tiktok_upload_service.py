@@ -1,4 +1,5 @@
-"""Upload clip ke TikTok lewat Content Posting API (mode draft/SELF_ONLY)."""
+"""Upload clip ke TikTok lewat Content Posting API — mode Inbox/Draft
+(video.upload scope), user selesaikan post manual dari app TikTok."""
 
 import logging
 import threading
@@ -15,7 +16,7 @@ from app.services.tiktok_auth_service import TikTokAuthService
 
 logger = logging.getLogger(__name__)
 
-INIT_URL = "https://open.tiktokapis.com/v2/post/publish/video/init/"
+INIT_URL = "https://open.tiktokapis.com/v2/post/publish/inbox/video/init/"
 STATUS_URL = "https://open.tiktokapis.com/v2/post/publish/status/fetch/"
 
 # Progress publish aktif — in-memory (app lokal single-user), pola sama
@@ -43,15 +44,10 @@ class TikTokUploadService:
         video_size = video_path.stat().st_size
 
         # --- Langkah 1: Init ---
+        # Endpoint inbox/draft: body HANYA source_info, TIDAK ada post_info
+        # (endpoint ini tak menerima field itu). Video otomatis jadi draft
+        # private di inbox user sampai mereka post manual dari app TikTok.
         init_payload = {
-            "post_info": {
-                # SELF_ONLY hardcode — mode unaudited TikTok WAJIB private,
-                # jangan diubah ke PUBLIC_TO_EVERYONE sebelum app lolos audit.
-                "privacy_level": "SELF_ONLY",
-                "disable_duet": False,
-                "disable_comment": False,
-                "disable_stitch": False,
-            },
             "source_info": {
                 "source": "FILE_UPLOAD",
                 "video_size": video_size,
@@ -137,7 +133,7 @@ class TikTokUploadService:
         ada, supaya UI bisa langsung kasih feedback "sedang upload...".
         """
         local_id = f"tt_{uuid.uuid4().hex[:8]}"
-        _TIKTOK_PUBLISHES[local_id] = {"status": "uploading", "tiktok_publish_id": None, "error": None}
+        _TIKTOK_PUBLISHES[local_id] = {"status": "uploading", "tiktok_publish_id": None, "error": None, "progress": 15}
 
         def _run() -> None:
             from app.db.session import SessionLocal
@@ -147,13 +143,20 @@ class TikTokUploadService:
                 tiktok_publish_id = service.init_and_upload(clip_id)
                 _TIKTOK_PUBLISHES[local_id]["tiktok_publish_id"] = tiktok_publish_id
                 _TIKTOK_PUBLISHES[local_id]["status"] = "processing"
+                _TIKTOK_PUBLISHES[local_id]["progress"] = 90
 
-                # Poll sampai selesai (maks ~60 detik — video pendek biasanya cepat).
-                for _ in range(30):
+                # Poll sampai selesai (maks ~4 menit — video >50MB butuh waktu
+                # lebih dari 60 detik; status "SEND_TO_USER_INBOX" baru muncul
+                # setelah TikTok selesai transkode).
+                # Sasaran sukses flow inbox: status "SEND_TO_USER_INBOX" (video
+                # sudah masuk ke inbox user). "PUBLISH_COMPLETE" itu untuk flow
+                # Direct Post, bukan inbox.
+                for _ in range(120):
                     time.sleep(2)
                     result = service.check_status(tiktok_publish_id)
-                    if result["status"] == "PUBLISH_COMPLETE":
+                    if result["status"] in ("PUBLISH_COMPLETE", "SEND_TO_USER_INBOX"):
                         _TIKTOK_PUBLISHES[local_id]["status"] = "complete"
+                        _TIKTOK_PUBLISHES[local_id]["progress"] = 100
                         return
                     if result["status"] == "FAILED":
                         _TIKTOK_PUBLISHES[local_id]["status"] = "error"
