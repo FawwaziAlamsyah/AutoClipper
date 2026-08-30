@@ -5,7 +5,6 @@ TikTok WAJIB PKCE (RFC 7636): authorize URL harus bawa `code_challenge`
 exchange harus bawa `code_verifier` yang sama. (Error "Code verifier or
 code challenge is invalid" muncul pas kedua-duanya tidak cocok/salah.)"""
 
-import base64
 import hashlib
 import logging
 import secrets
@@ -26,12 +25,11 @@ logger = logging.getLogger(__name__)
 AUTHORIZE_URL = "https://www.tiktok.com/v2/auth/authorize/"
 TOKEN_URL = "https://open.tiktokapis.com/v2/oauth/token/"
 
-# Scope video.upload = "share sebagai draft" — post masuk akun TikTok user
-# sebagai draft, lalu user tap post manual. Ini scope yang TIDAK butuh
-# audit/review app (mode unaudited, sesuai tiktokSetup.md poin 5).
-# video.publish (direct post) ditolak sandbox app di authorize dengan
-# error "scope" — jangan dipakai sampai app lolos review.
-SCOPES = "video.upload"
+# Scope video.publish = Direct Post (upload + publish ke profil user).
+# Dipakai Content Posting API (init + upload + status fetch). Mode draft/private
+# dicapai lewat `privacy_level: SELF_ONLY` di payload init (bukan lewat scope).
+# video.upload (Upload API) TIDAK cukup untuk endpoint publish Direct Post.
+SCOPES = "video.publish"
 
 # CSRF + PKCE protection — state → code_verifier disimpan in-memory, cukup
 # untuk app single-user lokal (bukan multi-tenant).
@@ -39,9 +37,15 @@ _pending_states: dict[str, str] = {}
 
 
 def _b64_s256_unpadded(verifier: str) -> str:
-    """PKCE S256 code_challenge, base64url TANPA padding (RFC 7636 wajib)."""
-    digest = hashlib.sha256(verifier.encode("ascii")).digest()
-    return base64.urlsafe_b64encode(digest).decode("ascii").rstrip("=")
+    """PKCE code_challenge buat TikTok.
+
+    PENTING: TikTok TIDAK ikut RFC 7636 standar (base64url) di sini — untuk
+    redirect_uri localhost/127.0.0.1 ("Desktop" platform type di TikTok),
+    dokumentasi resmi mereka wajib HEX encoding dari SHA256 digest, bukan
+    base64url. Ref: https://developers.tiktok.com/docs/en/login-kit-desktop
+    ("You must use hex encoding of SHA256 to generate the code challenge").
+    """
+    return hashlib.sha256(verifier.encode("ascii")).hexdigest()
 
 
 class TikTokAuthService:
@@ -55,8 +59,9 @@ class TikTokAuthService:
         # PKCE wajib di TikTok (terbukti: authorize TANPA code_challenge ditolak
         # dengan error "code_challenge"), method HANYA literal "S256" uppercase
         # (PLAIN/lowercase ditolak dengan error "code_challenge_method").
-        # code_challenge = S256 verifier, base64url TANPA padding (RFC 7636).
-        # Verifier alphanumeric 64 char.
+        # Untuk platform type "Desktop" (redirect localhost), code_challenge =
+        # HEX encoding dari SHA256 verifier — TIDAK pakai RFC 7636 base64url
+        # (lihat _b64_s256_unpadded). Verifier alphanumeric 64 char.
         _alnum = string.ascii_letters + string.digits
         code_verifier = "".join(secrets.choice(_alnum) for _ in range(64))
         _pending_states[state] = code_verifier
@@ -106,9 +111,9 @@ class TikTokAuthService:
 
         data = response.json()
         if "error" in data and data.get("error"):
+            # Debug: log seluruh body error biar bisa lihat code/log_id TikTok
             logger.error("TikTok token error FULL body: %s", response.text)
-            logger.error("CALLBACK verifier=%s challenge=%s", code_verifier, _b64_s256_unpadded(code_verifier))
-            raise ValidationException(f"TikTok OAuth error: {response.text}")
+            raise ValidationException(f"TikTok OAuth error: {data.get('error_description', data['error'])}")
 
         account = TikTokAccountModel(
             open_id=data["open_id"],
@@ -119,51 +124,6 @@ class TikTokAuthService:
         saved = self.repo.upsert(account)
         logger.info("Akun TikTok (open_id=%s) berhasil di-connect", saved.open_id)
         return saved
-
-    def import_token(
-        self,
-        access_token: str,
-        open_id: str | None = None,
-        refresh_token: str = "",
-        expires_in: int | None = None,
-    ) -> TikTokAccountModel:
-        """Import token manual langsung ke DB, skip OAuth (jalan sandbox yang tidak dipakai).
-
-        Sandbox TikTok menolak PKCE exchange (lihat tiktok02.md) dan dashboard
-        tidak punya token generator — jadi satu-satunya cara masuk token di mode
-        belum-audit adalah paste manual lewat `POST /tiktok/admin/import`.
-        """
-        if not access_token:
-            raise ValidationException("access_token wajib diisi.")
-
-        if open_id is None:
-            open_id = self._resolve_open_id(access_token)
-
-        account = TikTokAccountModel(
-            open_id=open_id,
-            access_token_encrypted=encrypt_token(access_token),
-            refresh_token_encrypted=encrypt_token(refresh_token),
-            expires_at=datetime.now(UTC) + timedelta(seconds=expires_in or 86400),
-        )
-        saved = self.repo.upsert(account)
-        logger.info("TikTok token di-import manual (open_id=%s)", saved.open_id)
-        return saved
-
-    def _resolve_open_id(self, access_token: str) -> str:
-        """Ambil open_id lewat user info — cuma jalan kalau token punya scope user.info.basic."""
-        response = httpx.get(
-            "https://open.tiktokapis.com/v2/user/info/?fields=open_id",
-            headers={"Authorization": f"Bearer {access_token}"},
-            timeout=15,
-        )
-        if response.status_code == 200:
-            open_id = response.json().get("data", {}).get("open_id")
-            if open_id:
-                return open_id
-        raise ValidationException(
-            "open_id tidak bisa diambil otomatis (token tanpa scope user.info.basic) "
-            "-- kirim open_id manual."
-        )
 
     def get_valid_access_token(self) -> str:
         """Ambil access_token yang valid — refresh otomatis kalau sudah/hampir kadaluwarsa."""
