@@ -41,10 +41,11 @@ class SubtitleService:
         format: str = "srt",
         language: str = "id",
         style: str = "minimal",
+        burn: bool = True,
     ) -> dict:
-        """Generate SRT or VTT subtitle for a clip.
+        """Generate SRT/VTT subtitle + (default) burn ke video clip.
 
-        Returns: {format, language, style, content, file_path, lines}
+        Returns: {format, language, style, content, file_path, lines, burned}
         """
         clip = self.clip_repo.get(clip_id)
         if clip is None:
@@ -78,6 +79,12 @@ class SubtitleService:
         for cue in cues:
             cue["text"] = formatter(cue["text"])
 
+        # Burn subtitle langsung ke video clip (hardcode) — kalau user mau.
+        # Hasil ikut edit chain (edited_file_path); reset akan membuangnya.
+        if burn and cues:
+            from app.services.clip_editor_service import ClipEditorService
+            ClipEditorService(self.db).burn_subtitle(clip_id, cues)
+
         content = self._render(cues, format, language)
         lines = len(cues)
 
@@ -103,6 +110,7 @@ class SubtitleService:
             "content": content,
             "file_path": output_path,
             "lines": lines,
+            "burned": bool(burn and cues),
         }
 
     def _build_word_cues(self, segments: list) -> list[dict]:

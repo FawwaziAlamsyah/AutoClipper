@@ -143,8 +143,13 @@ class ClipEditorService:
         temp_path.rename(output_path)
 
         clip.edited_file_path = str(output_path)
+        # Track posisi trim di video ASLI (kumulatif) supaya subtitle & content
+        # filter timing ikut sinkron dengan video yang sudah di-potong.
+        new_start = clip.start_time + start_time
+        clip.start_time = new_start
+        clip.end_time = new_start + duration
         self.db.commit()
-        logger.info("Clip %d di-trim: %.2fs – %.2fs", clip_id, start_time, end_time)
+        logger.info("Clip %d di-trim: mulai=%s (offset asli %s)", clip_id, clip.start_time, clip.end_time)
         return clip
 
     def mix_sound(
@@ -289,4 +294,156 @@ class ClipEditorService:
             clip.edited_file_path = None
             self.db.commit()
             logger.info("Clip %d direset ke file asli", clip_id)
+        return clip
+
+    def add_watermark(
+        self,
+        clip_id: int,
+        position: str = "bottom",  # "top" | "bottom" | "center" (atas/bawah tengah)
+        scale: float = 0.30,   # lebar watermark relatif ke lebar video (0.05–0.5)
+        opacity: float = 0.8,  # 0.0–1.0
+        margin_px: int = 24,
+    ):
+        """Tempel watermark PNG (transparan) ke clip pakai FFmpeg overlay filter."""
+        clip = self.clip_repo.get(clip_id)
+        if clip is None:
+            raise NotFoundException(f"Clip {clip_id} tidak ditemukan")
+
+        watermark_path = settings.WATERMARK_PATH
+        if not watermark_path.exists():
+            raise ValidationException(
+                f"File watermark tidak ditemukan di {watermark_path}. "
+                "Download watermark resmi dan taruh di path tsb dulu."
+            )
+        if not (0.05 <= scale <= 0.5):
+            raise ValidationException("scale harus antara 0.05–0.5")
+        if not (0.0 <= opacity <= 1.0):
+            raise ValidationException("opacity harus antara 0.0–1.0")
+
+        source = self._current_source(clip)
+        output_path = self._edited_output_path(clip_id)
+        temp_path = output_path.with_suffix(".tmp.mp4")
+
+        # Cari lebar video buat hitung ukuran watermark relatif (pakai method
+        # extract_metadata yang sudah ada di FFmpegService, tidak perlu ffprobe manual lagi).
+        meta = self.ffmpeg.extract_metadata(str(source))
+        video_width = meta.get("width") or 1080
+        wm_width = max(int(video_width * scale), 10)
+
+        position_map = {
+            "top-left": (f"{margin_px}", f"{margin_px}"),
+            "top-right": (f"main_w-overlay_w-{margin_px}", f"{margin_px}"),
+            "bottom-left": (f"{margin_px}", f"main_h-overlay_h-{margin_px}"),
+            "bottom-right": (f"main_w-overlay_w-{margin_px}", f"main_h-overlay_h-{margin_px}"),
+            "center": ("(main_w-overlay_w)/2", "(main_h-overlay_h)/2"),
+            # Posisi tengah atas/bawah (horizontal center).
+            "top": (f"(main_w-overlay_w)/2", f"{margin_px}"),
+            "bottom": (f"(main_w-overlay_w)/2", f"main_h-overlay_h-{margin_px}"),
+        }
+        x_expr, y_expr = position_map.get(position, position_map["bottom-right"])
+
+        filter_complex = (
+            f"[1:v]scale={wm_width}:-1,format=rgba,colorchannelmixer=aa={opacity}[wm];"
+            f"[0:v][wm]overlay=x={x_expr}:y={y_expr}:format=auto[vout]"
+        )
+
+        cmd = [
+            self.ffmpeg.ffmpeg_path, "-y",
+            "-i", str(source),
+            "-i", str(watermark_path),
+            "-filter_complex", filter_complex,
+            "-map", "[vout]",
+            "-map", "0:a?",  # "?" = optional, tidak error kalau video tanpa audio
+            "-c:v", "libx264", "-crf", "18", "-preset", "fast",
+            "-g", "60", "-keyint_min", "60", "-sc_threshold", "0",
+            "-c:a", "copy",
+            "-movflags", "+faststart",
+            str(temp_path),
+        ]
+
+        try:
+            subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace", check=True)
+        except subprocess.SubprocessError as e:
+            temp_path.unlink(missing_ok=True)
+            logger.error("Gagal tambah watermark clip %d", clip_id, exc_info=e)
+            raise ValidationException(f"Gagal tambah watermark: {str(e)}")
+
+        if output_path.exists():
+            output_path.unlink()
+        temp_path.rename(output_path)
+
+        clip.edited_file_path = str(output_path)
+        clip.has_watermark = True
+        self.db.commit()
+        logger.info("Watermark ditambahkan ke clip %d (pos=%s, scale=%.2f, opacity=%.2f)", clip_id, position, scale, opacity)
+        return clip
+
+    def burn_subtitle(self, clip_id: int, cues: list[dict]):
+        """Burn (hardcode) subtitle ke video clip.
+
+        Satu drawtext per cue, timing RELATIF ke clip (dikurangi clip.start_time)
+        supaya sinkron dengan video yang sudah di-trim. Ikut pola edit lain:
+        tulis temp → atomic rename → update edited_file_path → commit. Reset()
+        otomatis buang subtitle (edited_file_path = None).
+        """
+        clip = self.clip_repo.get(clip_id)
+        if clip is None:
+            raise NotFoundException(f"Clip {clip_id} tidak ditemukan")
+
+        source = self._current_source(clip)
+        output_path = self._edited_output_path(clip_id)
+        temp_path = output_path.with_suffix(".tmp.mp4")
+
+        # Kelompokkan drawtext per cue pakai filter enable between(t,start,end).
+        # Timing relatif ke clip (cue timestamps berdasar video asli).
+        fontfile = "C\\:/Windows/Fonts/arial.ttf"
+        vf_parts: list[str] = []
+        for cue in cues:
+            text = cue["text"].strip()
+            if not text:
+                continue
+            start = max(cue["start"] - clip.start_time, 0.0)
+            end = max(cue["end"] - clip.start_time, start + 0.1)
+            # FFmpeg drawtext: apostrophe ' di text MENUTUP quote pembungkus text='...'
+            # dan pecahkan parsing multi-filter chain. Ganti ke RIGHT SINGLE QUOTE (U+2019)
+            # — visual sama, tak tabrakan dgn option quote. Colon di-escape (\:), koma
+            # aman polos di dalam '...'. Urut: backslash dulu biar tak double-escape.
+            safe_text = (
+                text.replace("\\", "\\\\")
+                .replace(":", "\\:")
+                .replace("'", "’")
+            )
+            # enable pakai gte/lte (bukan between) — setara a<=t<=b, hungry of commas.
+            vf_parts.append(
+                f"drawtext=fontfile='{fontfile}':text='{safe_text}':fontcolor=white:fontsize=48:"
+                f"x=(w-text_w)/2:y=h*0.85:enable='(gte(t,{start:.3f}))*(lte(t,{end:.3f}))'"
+            )
+        vf = ",".join(vf_parts)
+
+        cmd = [
+            self.ffmpeg.ffmpeg_path, "-y",
+            "-i", str(source),
+            "-vf", vf,
+            "-c:v", "libx264", "-crf", "18", "-preset", "fast",
+            "-g", "60", "-keyint_min", "60", "-sc_threshold", "0",
+            "-c:a", "copy",
+            "-movflags", "+faststart",
+            str(temp_path),
+        ]
+
+        try:
+            subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace", check=True)
+        except subprocess.SubprocessError as e:
+            temp_path.unlink(missing_ok=True)
+            logger.error("Gagal burn subtitle clip %d", clip_id, exc_info=e)
+            raise ValidationException(f"Gagal burn subtitle: {str(e)}")
+
+        if output_path.exists():
+            output_path.unlink()
+        temp_path.rename(output_path)
+
+        clip.edited_file_path = str(output_path)
+        clip.has_subtitle = True
+        self.db.commit()
+        logger.info("Subtitle di-burn ke clip %d (%d cues)", clip_id, len(vf_parts))
         return clip

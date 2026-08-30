@@ -157,6 +157,15 @@ class TikTokUploadService:
                     if result["status"] in ("PUBLISH_COMPLETE", "SEND_TO_USER_INBOX"):
                         _TIKTOK_PUBLISHES[local_id]["status"] = "complete"
                         _TIKTOK_PUBLISHES[local_id]["progress"] = 100
+                        # Tandai clip sudah berhasil terkirim ke inbox TikTok (persist
+                        # di DB biar keliatan di UI candidate/detail walau app restart).
+                        try:
+                            clip = service.clip_repo.get(clip_id)
+                            if clip:
+                                clip.tiktok_uploaded = True
+                                db.commit()
+                        except Exception:
+                            logger.exception("Gagal tandai tiktok_uploaded clip %d", clip_id)
                         return
                     if result["status"] == "FAILED":
                         _TIKTOK_PUBLISHES[local_id]["status"] = "error"

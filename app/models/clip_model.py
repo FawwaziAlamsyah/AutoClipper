@@ -21,6 +21,8 @@ class ClipModel(Base, TimestampMixin):
     end_time: Mapped[float] = mapped_column(Float, nullable=False)
     aspect_ratio: Mapped[str] = mapped_column(Text, nullable=False, default="16:9")
     has_subtitle: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    has_watermark: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    tiktok_uploaded: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     status: Mapped[str] = mapped_column(Text, nullable=False, default="rendering")
     exported_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     edited_file_path: Mapped[str | None] = mapped_column(String(1024))

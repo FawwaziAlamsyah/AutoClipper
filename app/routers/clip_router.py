@@ -1,11 +1,19 @@
 """Generate final clip endpoints."""
 
+import logging
 import re
 import threading
 import time
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, Form, Query, Request, UploadFile
+from fastapi.responses import JSONResponse
+
+from app.core.config.settings import settings
+from app.core.exceptions.base import ValidationException
+
+logger = logging.getLogger(__name__)
+
 from fastapi.responses import HTMLResponse, StreamingResponse
 from fastapi.templating import Jinja2Templates  # noqa: F401 (ke AppTemplates)
 from app.core.jinja import AppTemplates
@@ -76,9 +84,11 @@ def generate_clip_htmx(
     # Build dict untuk template (sama seperti di candidates_by_video)
     import os
     clip_filename = None
+    tiktok_uploaded = False
     if candidate_clip and candidate_clip.file_path:
         clip_filename = os.path.basename(candidate_clip.file_path)
-    
+        tiktok_uploaded = bool(candidate_clip.tiktok_uploaded)
+
     candidate_dict = {
         "id": candidate_obj.id,
         "start_time": int(candidate_obj.start_time),
@@ -89,6 +99,7 @@ def generate_clip_htmx(
         "actual_score": candidate_obj.actual_score,
         "job_id": candidate_obj.job_id,
         "clip_filename": clip_filename,
+        "tiktok_uploaded": tiktok_uploaded,
     }
     
     return templates.TemplateResponse(
@@ -194,6 +205,40 @@ def edit_adjust_volume(
     return templates.TemplateResponse(
         request=request, name="_clip_edit_preview.html", context={"request": request, "clip": clip, "ts": int(time.time())},
     )
+
+
+@router.post("/{clip_id}/edit/watermark", response_class=HTMLResponse)
+def edit_add_watermark(
+    request: Request,
+    clip_id: int,
+    position: str = Form("bottom"),
+    scale: float = Form(0.40),
+    opacity: float = Form(0.8),
+    service: ClipEditorService = Depends(get_clip_editor_service),
+):
+    clip = service.add_watermark(clip_id, position, scale, opacity)
+    return templates.TemplateResponse(
+        request=request, name="_clip_edit_preview.html", context={"request": request, "clip": clip, "ts": int(time.time())},
+    )
+
+
+@router.post("/watermark/upload", response_class=JSONResponse)
+async def upload_watermark(watermark: UploadFile = File(...)) -> dict:
+    """Upload/replace asset watermark global (PNG) — dipakai semua clip.
+
+    Simpan ke settings.WATERMARK_PATH (data/assets/watermark.png). add_watermark()
+    sudah baca path itu, jadi file baru otomatis dipakai render clip berikutnya.
+    """
+    filename = watermark.filename or ""
+    if not filename.lower().endswith(".png"):
+        raise ValidationException("Watermark harus file PNG.")
+    data = await watermark.read()
+    if not data:
+        raise ValidationException("File kosong.")
+    settings.WATERMARK_PATH.parent.mkdir(parents=True, exist_ok=True)
+    settings.WATERMARK_PATH.write_bytes(data)
+    logger.info("Watermark global di-update (%d bytes)", len(data))
+    return {"success": True, "filename": settings.WATERMARK_PATH.name}
 
 
 # In-memory progress store: {clip_id: {"pct": 0-100, "done": bool, "error": str|None}}

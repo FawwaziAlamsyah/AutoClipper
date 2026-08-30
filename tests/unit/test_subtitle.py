@@ -35,7 +35,7 @@ def _make_service(segments_texts: list[tuple[float, float, str]]) -> SubtitleSer
 def test_generate_srt_word_level() -> None:
     """Subtitle should split segments into word-level cues."""
     service = _make_service([(0.0, 6.0, "Halo dunia ini contoh")])
-    result = service.generate_subtitle(1, "srt", "id")
+    result = service.generate_subtitle(1, "srt", "id", burn=False)
 
     assert result["format"] == "srt"
     assert result["lines"] == 1
@@ -46,7 +46,7 @@ def test_generate_srt_word_level() -> None:
 def test_generate_vtt_tiktok_style() -> None:
     """TikTok style should uppercase text."""
     service = _make_service([(0.0, 2.0, "wow amazing")])
-    result = service.generate_subtitle(1, "vtt", "id", style="tiktok")
+    result = service.generate_subtitle(1, "vtt", "id", style="tiktok", burn=False)
 
     assert result["style"] == "tiktok"
     assert result["content"].startswith("WEBVTT")
@@ -56,5 +56,5 @@ def test_generate_vtt_tiktok_style() -> None:
 def test_style_fallback_to_minimal() -> None:
     """Unknown style should fall back to minimal."""
     service = _make_service([(0.0, 2.0, "hello world")])
-    result = service.generate_subtitle(1, "srt", "id", style="nope")
+    result = service.generate_subtitle(1, "srt", "id", style="nope", burn=False)
     assert result["style"] == "minimal"
