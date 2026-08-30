@@ -100,6 +100,7 @@
     <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tab-text">{{ t("candDetail.text") }}</button></li>
     <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-crop">{{ t("candDetail.crop") }}</button></li>
     <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-sound">{{ t("candDetail.sound") }}</button></li>
+    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-watermark">{{ t("candDetail.watermark") }}</button></li>
   </ul>
 
   <div class="tab-content border border-top-0 p-3">
@@ -197,6 +198,47 @@
           </div>
         </div>
         <button type="submit" class="btn btn-sm btn-primary">{{ t("candDetail.addAudio") }}</button>
+      </form>
+    </div>
+
+    <!-- Tab Watermark -->
+    <div class="tab-pane fade" id="tab-watermark">
+      <div class="mb-3 pb-3 border-bottom">
+        <p class="small fw-semibold mb-1">{{ t("candDetail.uploadWatermark") }}</p>
+        <p class="text-muted small">{{ t("candDetail.uploadWatermarkDesc") }}</p>
+        <div class="d-flex gap-2 align-items-center">
+          <input type="file" id="wm-file" accept=".png,image/png" class="form-control form-control-sm w-auto">
+          <button type="button" class="btn btn-sm btn-outline-dark" onclick="uploadWatermark(this)">Upload</button>
+        </div>
+        <small id="wm-upload-status" class="text-muted"></small>
+      </div>
+      <p class="text-muted small">{{ t("candDetail.watermarkDesc") }}</p>
+      <form onsubmit="return submitEditForm(event, '/clips/{{ clip.id }}/edit/watermark')">
+        <div class="row g-2 mb-2">
+          <div class="col">
+            <label class="form-label small">{{ t("candDetail.watermarkPosition") }}</label>
+            <select name="position" class="form-select form-select-sm">
+              <option value="center">{{ t("candDetail.center") }}</option>
+              <option value="bottom" selected>{{ t("candDetail.watermarkBottom") }}</option>
+              <option value="top">{{ t("candDetail.watermarkTop") }}</option>
+            </select>
+          </div>
+        </div>
+        <div class="row g-2 mb-2">
+          <div class="col">
+            <label class="form-label small">{{ t("candDetail.watermarkSize") }}</label>
+            <input type="range" name="scale" class="form-range" min="0.05" max="0.5" step="0.01" value="0.3"
+              oninput="this.nextElementSibling.textContent = (parseFloat(this.value)*100).toFixed(0) + '%'">
+            <small class="text-muted">30%</small>
+          </div>
+          <div class="col">
+            <label class="form-label small">{{ t("candDetail.watermarkOpacity") }}</label>
+            <input type="range" name="opacity" class="form-range" min="0.1" max="1" step="0.05" value="0.8"
+              oninput="this.nextElementSibling.textContent = (parseFloat(this.value)*100).toFixed(0) + '%'">
+            <small class="text-muted">80%</small>
+          </div>
+        </div>
+        <button type="submit" class="btn btn-sm btn-primary">{{ t("candDetail.applyWatermark") }}</button>
       </form>
     </div>
   </div>
@@ -333,10 +375,12 @@ async function generateSubtitle(btn, clipId) {
   const style = document.getElementById('subStyle').value;
   const language = document.getElementById('subLanguage').value;
   const resultDiv = document.getElementById('subtitleResult');
+  const previewWrapper = document.getElementById('clip-edit-preview-wrapper');
 
+  // Progress bar — reuse helper edit lain (estimasi visual 0→90→100%), karena
+  // burn subtitle = re-encode video seperti edit lain.
   btn.disabled = true;
-  btn.textContent = 'Generating...';
-  resultDiv.innerHTML = '<p class="text-muted small">{{ t("candDetail.processingSub") }}</p>';
+  _startEditProgress(btn);
 
   try {
     const formData = new FormData();
@@ -350,7 +394,9 @@ async function generateSubtitle(btn, clipId) {
     });
 
     if (res.ok) {
-      resultDiv.innerHTML = await res.text();
+      // Subtitle di-burn ke klip → refresh video preview biar keliatan nempel.
+      if (previewWrapper) previewWrapper.innerHTML = await res.text();
+      resultDiv.innerHTML = '<p class="text-success small">✓ Subtitle tertempel ke klip.</p>';
     } else {
       const data = await res.json().catch(() => ({}));
       resultDiv.innerHTML = `<div class="alert alert-danger small">${data.detail || 'Gagal generate subtitle.'}</div>`;
@@ -358,8 +404,34 @@ async function generateSubtitle(btn, clipId) {
   } catch (e) {
     resultDiv.innerHTML = `<div class="alert alert-danger small">{{ t("candDetail.error") }}</div>`;
   } finally {
+    _stopEditProgress(btn);
+  }
+}
+
+async function uploadWatermark(btn) {
+  const fileInput = document.getElementById('wm-file');
+  const statusEl = document.getElementById('wm-upload-status');
+  if (!fileInput || !statusEl) return;
+  const file = fileInput.files[0];
+  if (!file) { statusEl.textContent = 'Pilih file PNG dulu.'; return; }
+
+  const fd = new FormData();
+  fd.append('watermark', file);
+  btn.disabled = true;
+  statusEl.textContent = 'Uploading...';
+  try {
+    const res = await fetch('/clips/watermark/upload', { method: 'POST', body: fd });
+    if (res.ok) {
+      statusEl.innerHTML = '<span class="text-success">{{ t("candDetail.watermarkUploaded") }}</span>';
+      fileInput.value = '';
+    } else {
+      const err = await res.json().catch(() => ({}));
+      statusEl.innerHTML = `<span class="text-danger">{{ t("candDetail.watermarkUploadFail") }} ${err.detail || ''}</span>`;
+    }
+  } catch (e) {
+    statusEl.innerHTML = `<span class="text-danger">{{ t("candDetail.watermarkUploadFail") }}</span>`;
+  } finally {
     btn.disabled = false;
-    btn.textContent = '{{ t("candDetail.genSub") }}';
   }
 }
 

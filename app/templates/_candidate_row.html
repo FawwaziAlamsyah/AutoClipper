@@ -18,6 +18,9 @@
         <span class="badge bg-{{ 'success' if candidate.clip_filename else ('warning text-dark' if candidate.status == 'selected' else 'secondary') }}">
           {{ 'clip ready' if candidate.clip_filename else candidate.status }}
         </span>
+        {% if candidate.tiktok_uploaded %}
+        <span class="badge bg-info text-dark" title="Klip sudah dikirim ke inbox TikTok">TikTok ✓</span>
+        {% endif %}
       </p>
       <div class="d-flex flex-wrap gap-1 mb-2" id="like-status-{{ candidate.id }}">
         {% include "_rating_control.html" %}

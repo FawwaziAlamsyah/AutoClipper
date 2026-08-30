@@ -42,6 +42,7 @@ class Settings(BaseSettings):
     OUTPUT_DIR: Path = DATA_DIR / "outputs"
     CACHE_DIR: Path = DATA_DIR / "cache"
     TEMP_DIR: Path = DATA_DIR / "temp"
+    WATERMARK_PATH: Path = DATA_DIR / "assets" / "watermark.png"
 
     # Database (PostgreSQL)
     DATABASE_URL: str = "postgresql+psycopg://app:app@localhost:5432/ai_auto_clipper"
