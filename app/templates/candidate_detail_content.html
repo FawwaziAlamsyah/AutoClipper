@@ -13,6 +13,9 @@
     <span class="badge bg-secondary">Job {{ candidate.job_id }}</span>
     <span class="badge bg-{{ 'success' if candidate.status == 'selected' else ('danger' if candidate.status == 'rejected' else 'info') }}">{{ candidate.status }}</span>
     <span class="badge bg-dark">Final Score {{ candidate.final_score }}</span>
+    {% if clip and clip.tiktok_uploaded %}
+    <span class="badge bg-info text-dark" title="Klip sudah dikirim ke inbox TikTok">TikTok ✓</span>
+    {% endif %}
   </div>
   <p class="text-muted mb-0">Window: {{ candidate.start_time }}s – {{ candidate.end_time }}s</p>
   {% if candidate.hook_text %}
@@ -73,15 +76,19 @@
   {% else %}
   <div id="clip-action">
     <button class="btn btn-primary" id="generateClipBtn" onclick="doGenerateClip(this, {{ candidate.id }})">
-      Generate Clip (16:9 / 1080p)
+      Generate Clip
     </button>
   </div>
   {% endif %}
 
   {% if clip %}
   <div class="mt-3">
-    <button class="btn btn-dark" id="tiktokPublishBtn" onclick="publishToTikTok({{ clip.id }})">
-      📤 Upload ke TikTok (Draft/Private)
+    {% if clip.tiktok_uploaded %}
+    <span class="badge bg-info text-dark mb-2 d-inline-block" title="Klip sudah dikirim ke inbox TikTok">TikTok ✓ Sudah di-upload</span>
+    {% endif %}
+    <button class="btn btn-dark" id="tiktokPublishBtn" onclick="publishToTikTok({{ clip.id }})"
+      {% if clip.tiktok_uploaded %}disabled title="Sudah dikirim ke inbox TikTok"{% endif %}>
+      {% if clip.tiktok_uploaded %}Sudah di-upload ke TikTok{% else %}📤 Upload ke TikTok (Draft/Private){% endif %}
     </button>
     <div id="tiktok-publish-status" class="mt-2"></div>
   </div>
@@ -475,7 +482,13 @@ async function pollTikTokStatus(localId, btn, statusEl) {
       ? renderTikTokBar('complete', 100)
       : renderTikTokBar('error', data.status === 'timeout' ? 100 : (data.progress || 0))
         + `<div class="text-danger mt-1">Gagal: ${data.error || 'timeout, cek manual di TikTok Studio'}</div>`;
-    btn.disabled = false;
+    if (data.status === 'complete') {
+      btn.disabled = true;
+      btn.textContent = 'Sudah di-upload ke TikTok';
+      btn.title = 'Sudah dikirim ke inbox TikTok';
+    } else {
+      btn.disabled = false;
+    }
     return;
   }
 
@@ -483,26 +496,59 @@ async function pollTikTokStatus(localId, btn, statusEl) {
   setTimeout(() => pollTikTokStatus(localId, btn, statusEl), 2000);
 }
 
-async function doGenerateClip(btn, candidateId) {
+function _startGenerateProgress(btn) {
   btn.disabled = true;
-  btn.textContent = 'Generating...';
+  btn.dataset.origText = btn.textContent;
+  const action = document.getElementById('clip-action');
+  let bar = document.getElementById('generate-progress-bar');
+  if (!bar && action) {
+    const div = document.createElement('div');
+    div.id = 'generate-progress-bar';
+    div.className = 'mb-2';
+    div.innerHTML = '<div class="progress" style="height:6px"><div class="progress-bar progress-bar-striped progress-bar-animated bg-primary" id="generate-progress-inner" style="width:0%"></div></div><small class="text-muted" id="generate-progress-label">{{ t("candDetail.processing") }}</small>';
+    action.insertBefore(div, action.firstChild);
+    bar = div;
+  }
+  if (bar) bar.style.display = 'block';
+  let pct = 0;
+  const inner = document.getElementById('generate-progress-inner');
+  const label = document.getElementById('generate-progress-label');
+  _progressTimer = setInterval(() => {
+    const step = pct < 60 ? 3 : (pct < 85 ? 0.8 : 0.1);
+    pct = Math.min(pct + step, 90);
+    if (inner) inner.style.width = pct.toFixed(1) + '%';
+    if (label) label.textContent = `Memproses... ${Math.round(pct)}%`;
+  }, 300);
+}
+function _stopGenerateProgress(btn) {
+  clearInterval(_progressTimer);
+  const inner = document.getElementById('generate-progress-inner');
+  const label = document.getElementById('generate-progress-label');
+  const bar = document.getElementById('generate-progress-bar');
+  if (inner) { inner.style.width = '100%'; inner.classList.remove('progress-bar-animated'); }
+  if (label) label.textContent = 'Selesai 100%';
+  setTimeout(() => { if (bar) bar.style.display = 'none'; }, 800);
+  btn.disabled = false;
+  btn.textContent = btn.dataset.origText || 'Generate Clip';
+}
+
+async function doGenerateClip(btn, candidateId) {
+  _startGenerateProgress(btn);
   try {
     const res = await fetch(
       `/clips/generate-detail?candidate_id=${candidateId}&aspect_ratio=16:9&subtitle_enabled=false&subtitle_style=minimal`,
       { method: 'POST' }
     );
+    _stopGenerateProgress(btn);
     if (res.ok) {
       const html = await res.text();
       document.getElementById('clip-action').outerHTML = html;
     } else {
       alert('Gagal generate clip. Coba lagi.');
-      btn.disabled = false;
-      btn.textContent = 'Generate Clip (16:9 / 1080p)';
     }
   } catch (e) {
+    _stopGenerateProgress(btn);
     alert('{{ t("candDetail.error") }}');
-    btn.disabled = false;
-    btn.textContent = 'Generate Clip (16:9 / 1080p)';
   }
 }
 </script>

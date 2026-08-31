@@ -125,7 +125,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "candDetail.reason": "Alasan",
         "candDetail.noBreakdown": "Belum ada breakdown score.",
         "candDetail.previewJson": "Preview JSON",
-        "candDetail.renderClip": "Render Clip",
+        "candDetail.renderClip": "Edit Video",
         "candDetail.openClip": "Open Clip",
         "candDetail.editClip": "Edit Clip (Opsional, Sebelum Upload)",
         "candDetail.text": "Text",
