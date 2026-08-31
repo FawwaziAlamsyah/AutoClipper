@@ -30,8 +30,6 @@
       <div class="d-flex flex-wrap gap-1">
         {% if candidate.clip_filename %}
         <a class="btn btn-sm btn-success" target="_blank" href="/data/outputs/{{ candidate.clip_filename }}">{{ t("widget.open") }}</a>
-        {% elif not candidate.video_is_archived %}
-        <button class="btn btn-sm btn-primary" onclick="generateClipRow(this, {{ candidate.id }})">{{ t("widget.generate") }}</button>
         {% endif %}
         <a class="btn btn-sm btn-outline-info"
            href="/candidates/{{ candidate.id }}"

@@ -52,31 +52,6 @@ async function doRatingAction(candidateId, url, method) {
   }
 }
 
-async function generateClipRow(btn, candidateId) {
-  if (!confirm('Generate clip untuk candidate #' + candidateId + '?')) return;
-  btn.disabled = true;
-  btn.textContent = '...';
-  try {
-    const res = await fetch(
-      `/clips/generate-htmx?candidate_id=${candidateId}&aspect_ratio=16:9&subtitle_enabled=false&subtitle_style=minimal`,
-      { method: 'POST' }
-    );
-    if (res.ok) {
-      const html = await res.text();
-      const row = document.getElementById('row-' + candidateId);
-      if (row) row.outerHTML = html;
-    } else {
-      alert('Gagal generate clip.');
-      btn.disabled = false;
-      btn.textContent = 'Generate';
-    }
-  } catch (e) {
-    alert('Terjadi kesalahan.');
-    btn.disabled = false;
-    btn.textContent = 'Generate';
-  }
-}
-
 async function deleteCandidate(btn, candidateId) {
   if (!confirm('Yakin hapus candidate #' + candidateId + '?')) return;
   btn.disabled = true;
