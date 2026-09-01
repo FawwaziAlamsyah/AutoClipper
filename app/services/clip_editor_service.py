@@ -331,16 +331,28 @@ class ClipEditorService:
         wm_width = max(int(video_width * scale), 10)
 
         position_map = {
-            "top-left": (f"{margin_px}", f"{margin_px}"),
-            "top-right": (f"main_w-overlay_w-{margin_px}", f"{margin_px}"),
-            "bottom-left": (f"{margin_px}", f"main_h-overlay_h-{margin_px}"),
-            "bottom-right": (f"main_w-overlay_w-{margin_px}", f"main_h-overlay_h-{margin_px}"),
+            # Tengah
             "center": ("(main_w-overlay_w)/2", "(main_h-overlay_h)/2"),
-            # Posisi tengah atas/bawah (horizontal center).
-            "top": (f"(main_w-overlay_w)/2", f"{margin_px}"),
-            "bottom": (f"(main_w-overlay_w)/2", f"main_h-overlay_h-{margin_px}"),
+            # Atas/bawah tengah (horizontal center)
+            "top":    ("(main_w-overlay_w)/2", f"{margin_px}"),
+            "bottom": ("(main_w-overlay_w)/2", f"main_h-overlay_h-{margin_px}"),
+            # Kanan (vertikal center)
+            "right":  (f"main_w-overlay_w-{margin_px}", "(main_h-overlay_h)/2"),
+            # Kanan atas / kanan bawah
+            "top_right":    (f"main_w-overlay_w-{margin_px}", f"{margin_px}"),
+            "bottom_right": (f"main_w-overlay_w-{margin_px}", f"main_h-overlay_h-{margin_px}"),
+            # Kiri (vertikal center)
+            "left":   (f"{margin_px}", "(main_h-overlay_h)/2"),
+            # Kiri atas / kiri bawah
+            "top_left":    (f"{margin_px}", f"{margin_px}"),
+            "bottom_left": (f"{margin_px}", f"main_h-overlay_h-{margin_px}"),
+            # Alias format lama (hyphen) untuk kompatibilitas mundur
+            "top-left":    (f"{margin_px}", f"{margin_px}"),
+            "top-right":   (f"main_w-overlay_w-{margin_px}", f"{margin_px}"),
+            "bottom-left": (f"{margin_px}", f"main_h-overlay_h-{margin_px}"),
+            "bottom-right":(f"main_w-overlay_w-{margin_px}", f"main_h-overlay_h-{margin_px}"),
         }
-        x_expr, y_expr = position_map.get(position, position_map["bottom-right"])
+        x_expr, y_expr = position_map.get(position, position_map["bottom"])
 
         filter_complex = (
             f"[1:v]scale={wm_width}:-1,format=rgba,colorchannelmixer=aa={opacity}[wm];"

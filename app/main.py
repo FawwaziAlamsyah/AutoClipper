@@ -75,7 +75,6 @@ def index(
 ):
     """Render the dashboard."""
     stats = dashboard_service.get_stats()
-    recent_history = dashboard_service.get_recent_history()
 
     return render(
         request,
@@ -85,7 +84,6 @@ def index(
             "request": request,
             "app_name": settings.APP_NAME,
             "stats": stats,
-            "recent_history": recent_history,
         },
     )
 

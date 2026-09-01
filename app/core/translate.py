@@ -75,7 +75,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "upload.indonesia": "Indonesia",
         "upload.english": "English",
         "upload.clipStyle": "Clip Style (Kategori)",
-        "upload.default": "Default (belum pilih kategori)",
+        "upload.selectCategory": "— Pilih kategori —",
         "upload.numClips": "Jumlah Clip",
         "upload.cancel": "Cancel",
         "upload.jsNeedFile": "Pilih file video terlebih dahulu.",
@@ -88,6 +88,8 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "upload.jsStarting": "Memulai...",
         "upload.jsFailProcess": "Gagal memulai proses.",
         "upload.jsSystemError": "Terjadi kesalahan sistem.",
+        "upload.jsNeedCategory": "Pilih kategori dulu sebelum memproses video.",
+        "upload.jsNeedNumClips": "Isi jumlah clip (minimal 1) sebelum memproses video.",
         "upload.jsFailDelete": "Gagal menghapus.",
         "upload.jsUrlEmpty": "URL tidak boleh kosong.",
         "upload.jsFailDownload": "Gagal memulai download.",
@@ -107,6 +109,11 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "upload.duration": "Durasi",
         "upload.action": "Aksi",
         "upload.noVideo": "Belum ada video.",
+        "upload.noCategoryWarning": "Belum ada kategori yang dibuat.",
+        "upload.goToTraining": "Buat kategori di menu Training",
+        "upload.defaultScoringNote": "Proses tetap bisa berjalan menggunakan scoring default (weighted-sum).",
+        "upload.categoryNotTrained": "★ Kategori ini belum dilatih — akan pakai scoring default (weighted-sum).",
+        "upload.categoryTrained": "✓ Kategori ini sudah dilatih — akan pakai model terlatih.",
 
         # Candidates list
         "cand.title": "Candidate Clips",
@@ -114,6 +121,11 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "cand.click": "Klik",
         "cand.process": "Proses",
         "cand.upload": "Upload",
+        "cand.archived_title": "Candidate Video Terarsip",
+        "cand.archived_subtitle": "Master video sudah dihapus dari storage, tapi data candidate & training tetap tersimpan.",
+        "cand.view_archive": "Lihat Arsip",
+        "cand.back_to_active": "Kembali ke Candidate Aktif",
+        "cand.archived_empty": "Belum ada video yang diarsipkan.",
 
         # Candidate detail / edit
         "candDetail.scoreBreakdown": "Score Breakdown",
@@ -171,6 +183,12 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "candDetail.center": "Tengah",
         "candDetail.watermarkTop": "Atas (tengah)",
         "candDetail.watermarkBottom": "Bawah (tengah)",
+        "candDetail.watermarkRight": "Kanan",
+        "candDetail.watermarkTopRight": "Kanan (atas)",
+        "candDetail.watermarkBottomRight": "Kanan (bawah)",
+        "candDetail.watermarkLeft": "Kiri",
+        "candDetail.watermarkTopLeft": "Kiri (atas)",
+        "candDetail.watermarkBottomLeft": "Kiri (bawah)",
         "candDetail.watermarkSize": "Ukuran (% lebar video)",
         "candDetail.watermarkOpacity": "Opacity",
         "candDetail.applyWatermark": "Tempel Watermark",
@@ -288,6 +306,8 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         # Rating control
         "rating.cancel": "batalkan",
         "rating.tagCategory": "Tandai kategori...",
+        "rating.noCategoryHint": "Belum ada kategori. Buat dulu di menu Training.",
+        "rating.goToTraining": "Buka Training →",
 
         # Widgets
         "widget.viewDetails": "Lihat detail",

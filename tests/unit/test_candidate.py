@@ -69,16 +69,17 @@ def test_get_video_summaries_excludes_training_ingest() -> None:
     mock_db = MagicMock()
     service = CandidateService(mock_db)
 
-    # Dua video di DB
+    # Satu video aktif (is_archived=False) — satu-satunya yang dikembalikan filter
     video_normal = MagicMock()
     video_normal.id = 1
-    video_training = MagicMock()
-    video_training.id = 2
+    video_normal.is_archived = False
 
-    # Query VideoModel → kembalikan kedua video
+    # Setelah refactor, get_video_summaries() pakai .filter(is_archived==False)
+    # — mock chain langsung kembalikan [video_normal] (training video tidak masuk)
     video_chain = MagicMock()
+    video_chain.filter.return_value = video_chain
     video_chain.order_by.return_value = video_chain
-    video_chain.all.return_value = [video_normal, video_training]
+    video_chain.all.return_value = [video_normal]
 
     # Candidate query untuk video_normal → 1 candidate (job discovery)
     cand_normal = MagicMock()
@@ -87,7 +88,6 @@ def test_get_video_summaries_excludes_training_ingest() -> None:
     cand_normal.status = "candidate"
 
     chain_v1 = _make_chain([cand_normal])
-    chain_v2 = _make_chain([])  # training_ingest di-filter keluar → 0 hasil
 
     def _query_side(model):
         from app.models.candidate_model import CandidateModel as CM
@@ -95,11 +95,9 @@ def test_get_video_summaries_excludes_training_ingest() -> None:
         if model is VM:
             return video_chain
         if model is CM:
-            # Kembalikan chain berbeda per call (video_normal dulu, lalu video_training)
-            return next(candidate_chains)
+            return chain_v1
         raise ValueError(f"Unexpected model: {model}")
 
-    candidate_chains = iter([chain_v1, chain_v2])
     mock_db.query.side_effect = _query_side
 
     summaries = service.get_video_summaries()
@@ -139,3 +137,116 @@ def test_list_by_video_returns_discovery_candidates() -> None:
     assert len(result) == 1
     assert result[0].final_score == 7.5
 
+
+
+# ── Tests baru untuk fitur pemisahan archived ────────────────────────────────
+
+def test_get_video_summaries_excludes_archived() -> None:
+    """get_video_summaries() TIDAK boleh mengembalikan video dengan is_archived=True."""
+    mock_db = MagicMock()
+    service = CandidateService(mock_db)
+
+    # Dua video: satu aktif, satu archived
+    video_active = MagicMock()
+    video_active.id = 10
+    video_active.is_archived = False
+
+    video_archived = MagicMock()
+    video_archived.id = 11
+    video_archived.is_archived = True
+
+    # get_video_summaries() hanya query VideoModel dengan filter is_archived==False
+    # — mock filter chain hanya mengembalikan video_active
+    cand_active = MagicMock()
+    cand_active.final_score = 7.0
+    cand_active.label_source = None
+    cand_active.status = "candidate"
+
+    video_chain = MagicMock()
+    video_chain.filter.return_value = video_chain
+    video_chain.order_by.return_value = video_chain
+    video_chain.all.return_value = [video_active]  # is_archived==False tersaring
+
+    cand_chain = _make_chain([cand_active])
+
+    def _query_side(model):
+        from app.models.candidate_model import CandidateModel as CM
+        from app.models.video_model import VideoModel as VM
+        if model is VM:
+            return video_chain
+        if model is CM:
+            return cand_chain
+        raise ValueError(f"Unexpected: {model}")
+
+    mock_db.query.side_effect = _query_side
+
+    summaries = service.get_video_summaries()
+
+    assert len(summaries) == 1
+    assert summaries[0]["video"] is video_active
+    # Pastikan filter dipanggil (artinya is_archived==False diterapkan)
+    video_chain.filter.assert_called()
+
+
+def test_get_archived_video_summaries_only_archived() -> None:
+    """get_archived_video_summaries() HANYA mengembalikan video dengan is_archived=True."""
+    mock_db = MagicMock()
+    service = CandidateService(mock_db)
+
+    video_archived = MagicMock()
+    video_archived.id = 20
+    video_archived.is_archived = True
+
+    # Mock video_repo.list_archived() agar kembalikan hanya video_archived
+    mock_video_repo = MagicMock()
+    mock_video_repo.list_archived.return_value = [video_archived]
+    service.video_repo = mock_video_repo
+
+    cand = MagicMock()
+    cand.final_score = 5.5
+    cand.label_source = "user_liked"
+    cand.status = "selected"
+
+    cand_chain = _make_chain([cand])
+    mock_db.query.return_value = cand_chain
+
+    summaries = service.get_archived_video_summaries()
+
+    mock_video_repo.list_archived.assert_called_once()
+    assert len(summaries) == 1
+    assert summaries[0]["video"] is video_archived
+    assert summaries[0]["liked"] == 1
+
+
+def test_archived_candidates_route_returns_200(monkeypatch) -> None:
+    """GET /candidates/archived harus 200 dan render candidates_archived_content.html."""
+    from fastapi.testclient import TestClient
+    from app.main import app
+
+    mock_summaries = [
+        {
+            "video": MagicMock(
+                id=30,
+                original_filename="test.mp4",
+                is_archived=True,
+                archived_at=None,
+                duration_seconds=120.0,
+                source_type="upload",
+            ),
+            "candidate_count": 3,
+            "top_score": 8.1,
+            "liked": 1,
+            "disliked": 0,
+            "clips_done": 1,
+        }
+    ]
+
+    with patch(
+        "app.routers.candidate_router.CandidateService.get_archived_video_summaries",
+        return_value=mock_summaries,
+    ):
+        client = TestClient(app)
+        response = client.get("/candidates/archived")
+
+    assert response.status_code == 200
+    assert "candidates_archived_content" in response.text or "Diarsipkan" in response.text or "Candidate" in response.text

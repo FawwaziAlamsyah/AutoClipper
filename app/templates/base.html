@@ -11,7 +11,7 @@
           crossorigin="anonymous"></script>
   <script id="i18n">window.I18N = {{ t_js | tojson }}; function __t(k) { return window.I18N[k] || k; }</script>
 </head>
-<body data-bs-theme="{{ theme }}">
+<body data-bs-theme="{{ theme }}" class="d-flex flex-column min-vh-100">
   <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
     <div class="container">
       <a class="navbar-brand"
@@ -43,12 +43,6 @@
                hx-push-url="true">{{ t("nav.candidates") }}</a>
           </li>
           <li class="nav-item">
-            <a class="nav-link" href="/history"
-               hx-get="/history"
-               hx-target="#main-content"
-               hx-push-url="true">{{ t("nav.history") }}</a>
-          </li>
-          <li class="nav-item">
             <a class="nav-link" href="/training/dashboard"
                hx-get="/training/dashboard"
                hx-target="#main-content"
@@ -59,9 +53,6 @@
                hx-get="/storage/dashboard"
                hx-target="#main-content"
                hx-push-url="true">{{ t("nav.storage") }}</a>
-          </li>
-          <li class="nav-item">
-            <a class="nav-link" href="/settings">{{ t("nav.settings") }}</a>
           </li>
         </ul>
       </div>
@@ -75,7 +66,7 @@
        hx-trigger="load, every 3s"
        hx-swap="outerHTML"></div>
 
-  <div id="main-content" class="container py-4">
+  <div id="main-content" class="container py-4 flex-grow-1">
     {% block content %}
       {% if _content_partial is defined %}
         {% include _content_partial %}
@@ -83,7 +74,7 @@
     {% endblock %}
   </div>
 
-  <footer class="bg-dark text-light py-3 mt-5">
+  <footer class="bg-dark text-light py-3">
     <div class="container d-flex flex-wrap justify-content-between align-items-center small">
       <span>© {{ app_name }}</span>
       <span class="d-flex gap-3">

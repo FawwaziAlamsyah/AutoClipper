@@ -8,6 +8,12 @@
 <button class="btn btn-sm btn-link p-0 text-muted"
         onclick="doRatingAction({{ candidate.id }}, '/candidates/{{ candidate.id }}/undislike', 'POST')">{{ t("rating.cancel") }}</button>
 {% else %}
+{% if not categories %}
+<div class="d-flex align-items-center gap-2">
+  <span class="text-muted small">{{ t("rating.noCategoryHint") }}</span>
+  <a href="/?page=training" class="btn btn-sm btn-outline-primary" hx-get="/training" hx-target="#content-area" hx-push-url="/?page=training">{{ t("rating.goToTraining") }}</a>
+</div>
+{% else %}
 <div class="d-flex gap-1 align-items-center flex-wrap">
   <select class="form-select form-select-sm" style="width:auto;" id="category-select-{{ candidate.id }}">
     <option value="">{{ t("rating.tagCategory") }}</option>
@@ -20,4 +26,5 @@
   <button type="button" class="btn btn-sm btn-outline-danger"
           onclick="doRatingAction({{ candidate.id }}, '/candidates/{{ candidate.id }}/dislike', 'POST')">👎</button>
 </div>
+{% endif %}
 {% endif %}

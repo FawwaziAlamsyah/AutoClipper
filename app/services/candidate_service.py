@@ -88,11 +88,26 @@ class CandidateService:
         return candidates
 
     def get_video_summaries(self) -> list[dict]:
-        """Return per-video summary: video info + candidate counts + top score."""
-        from app.models.job_model import JobModel
+        """Return per-video summary untuk video yang BELUM diarsipkan (is_archived=False)."""
         from app.models.video_model import VideoModel
 
-        videos = self.db.query(VideoModel).order_by(VideoModel.id.desc()).all()
+        videos = (
+            self.db.query(VideoModel)
+            .filter(VideoModel.is_archived == False)  # noqa: E712
+            .order_by(VideoModel.id.desc())
+            .all()
+        )
+        return self._build_summaries(videos)
+
+    def get_archived_video_summaries(self) -> list[dict]:
+        """Summary candidate untuk video yang SUDAH diarsipkan saja."""
+        videos = self.video_repo.list_archived()
+        return self._build_summaries(videos)
+
+    def _build_summaries(self, videos: list) -> list[dict]:
+        """Helper: bangun list summary dari daftar VideoModel yang diberikan."""
+        from app.models.job_model import JobModel
+
         result = []
         for video in videos:
             candidates = (
@@ -149,6 +164,13 @@ class CandidateService:
         candidate = self.candidate_repo.get(candidate_id)
         if candidate is None:
             raise ValueError(f"Candidate {candidate_id} not found")
+
+        # Validasi: category_id harus ada di tabel categories
+        from app.models.category_model import CategoryModel
+        category = self.db.query(CategoryModel).filter(CategoryModel.id == category_id).first()
+        if category is None:
+            raise ValueError(f"Kategori {category_id} tidak ditemukan. Buat kategori dulu di menu Training.")
+
         candidate.actual_score = settings.LIKED_CLIP_DEFAULT_SCORE
         candidate.is_training_example = True
         candidate.label_source = "user_liked"
