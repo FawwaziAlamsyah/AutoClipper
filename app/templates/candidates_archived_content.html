@@ -1,0 +1,77 @@
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <div>
+    <h3 class="mb-1">{{ t("cand.archived_title") }}</h3>
+    <p class="text-muted mb-0">{{ t("cand.archived_subtitle") }}</p>
+  </div>
+  <div>
+    <a class="btn btn-outline-primary btn-sm"
+       href="/candidates"
+       hx-get="/candidates"
+       hx-target="#main-content"
+       hx-push-url="true">
+      ← {{ t("cand.back_to_active") }}
+    </a>
+  </div>
+</div>
+
+{% if summaries %}
+<div class="row g-3">
+  {% for s in summaries %}
+  <div class="col-md-6 col-lg-4">
+    <div class="card shadow-sm h-100 border-warning">
+      <div class="card-body">
+        <div class="d-flex justify-content-between align-items-start mb-2">
+          <h6 class="card-title mb-0 text-truncate me-2" title="{{ s.video.original_filename }}">
+            {{ s.video.original_filename }}
+          </h6>
+          <span class="badge bg-secondary flex-shrink-0">ID {{ s.video.id }}</span>
+        </div>
+
+        <div class="d-flex flex-wrap gap-2 mb-3">
+          <span class="badge bg-warning text-dark">📦 Diarsipkan</span>
+          {% if s.video.archived_at %}
+          <span class="badge bg-light text-dark border">{{ s.video.archived_at.strftime('%d %b %Y') }}</span>
+          {% endif %}
+          <span class="badge bg-info text-dark">{{ s.candidate_count }} candidates</span>
+          <span class="badge bg-dark">Top {{ s.top_score }}</span>
+          {% if s.clips_done > 0 %}
+          <span class="badge bg-success">{{ s.clips_done }} clip dibuat</span>
+          {% endif %}
+          {% if s.liked > 0 %}
+          <span class="badge bg-success bg-opacity-75">👍 {{ s.liked }}</span>
+          {% endif %}
+          {% if s.disliked > 0 %}
+          <span class="badge bg-danger bg-opacity-75">👎 {{ s.disliked }}</span>
+          {% endif %}
+        </div>
+
+        <div class="text-muted small mb-3">
+          {% if s.video.duration_seconds %}
+          ⏱ {{ '%d:%02d'|format((s.video.duration_seconds // 60)|int, (s.video.duration_seconds % 60)|int) }}
+          {% endif %}
+          {% if s.video.source_type == 'download' %}
+          <span class="ms-2">🌐 Download</span>
+          {% else %}
+          <span class="ms-2">📁 Upload</span>
+          {% endif %}
+        </div>
+      </div>
+      <div class="card-footer bg-transparent border-top-0 pt-0 pb-3 px-3">
+        <a class="btn btn-outline-secondary btn-sm w-100"
+           href="/candidates/video/{{ s.video.id }}"
+           hx-get="/candidates/video/{{ s.video.id }}"
+           hx-target="#main-content"
+           hx-push-url="true">
+          Lihat {{ s.candidate_count }} Candidates →
+        </a>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+{% else %}
+<div class="card shadow-sm p-5 text-center text-muted">
+  <p class="mb-0">{{ t("cand.archived_empty") }}</p>
+</div>
+{% endif %}

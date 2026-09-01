@@ -228,6 +228,12 @@
               <option value="center">{{ t("candDetail.center") }}</option>
               <option value="bottom" selected>{{ t("candDetail.watermarkBottom") }}</option>
               <option value="top">{{ t("candDetail.watermarkTop") }}</option>
+              <option value="right">{{ t("candDetail.watermarkRight") }}</option>
+              <option value="top_right">{{ t("candDetail.watermarkTopRight") }}</option>
+              <option value="bottom_right">{{ t("candDetail.watermarkBottomRight") }}</option>
+              <option value="left">{{ t("candDetail.watermarkLeft") }}</option>
+              <option value="top_left">{{ t("candDetail.watermarkTopLeft") }}</option>
+              <option value="bottom_left">{{ t("candDetail.watermarkBottomLeft") }}</option>
             </select>
           </div>
         </div>
@@ -539,11 +545,16 @@ async function doGenerateClip(btn, candidateId) {
       `/clips/generate-detail?candidate_id=${candidateId}&aspect_ratio=16:9&subtitle_enabled=false&subtitle_style=minimal`,
       { method: 'POST' }
     );
-    _stopGenerateProgress(btn);
     if (res.ok) {
       const html = await res.text();
+      // Stop animasi dulu (clearInterval), langsung set 100% tanpa timeout,
+      // lalu replace outerHTML segera agar hasil muncul tanpa delay.
+      clearInterval(_progressTimer);
+      const inner = document.getElementById('generate-progress-inner');
+      if (inner) { inner.style.width = '100%'; inner.classList.remove('progress-bar-animated'); }
       document.getElementById('clip-action').outerHTML = html;
     } else {
+      _stopGenerateProgress(btn);
       alert('Gagal generate clip. Coba lagi.');
     }
   } catch (e) {

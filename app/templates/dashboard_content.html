@@ -30,7 +30,7 @@
     <div class="card p-4 shadow-sm">
       <h3>{{ t("dash.quickActions") }}</h3>
       <div class="row g-3 mt-3">
-        <div class="col-md-4">
+        <div class="col-md-6">
           <a href="/upload"
              hx-get="/upload"
              hx-target="#main-content"
@@ -40,48 +40,13 @@
             <span>{{ t("dash.uploadDownload") }}</span>
           </a>
         </div>
-        <div class="col-md-4">
-          <button class="btn btn-outline-secondary w-100 h-100 d-flex align-items-center justify-content-center flex-column" disabled>
-            <i class="bi bi-play-circle me-2 fs-4"></i>
-            <span>{{ t("dash.jobHistory") }}</span>
-          </button>
-        </div>
-        <div class="col-md-4">
-          <button class="btn btn-outline-secondary w-100 h-100 d-flex align-items-center justify-content-center flex-column" disabled>
+        <div class="col-md-6">
+          <a href="/settings"
+             class="btn btn-outline-secondary w-100 h-100 d-flex align-items-center justify-content-center flex-column">
             <i class="bi bi-gear me-2 fs-4"></i>
             <span>{{ t("dash.settings") }}</span>
-          </button>
+          </a>
         </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Recent Activity -->
-  <div class="col-12">
-    <div class="card p-4 shadow-sm">
-      <h3>{{ t("dash.recentActivity") }}</h3>
-      <div class="table-responsive mt-3">
-        <table class="table table-striped">
-          <thead>
-            <tr>
-              <th>{{ t("dash.time") }}</th>
-              <th>{{ t("dash.action") }}</th>
-              <th>{{ t("dash.details") }}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for entry in recent_history[:5] %}
-            <tr>
-              <td>{{ entry.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
-              <td><span class="badge bg-secondary">{{ entry.action }}</span></td>
-              <td>{{ entry.description or '-' }}</td>
-            </tr>
-            {% endfor %}
-            {% if not recent_history %}
-            <tr><td colspan="3" class="text-center text-muted">{{ t("dash.noRecent") }}</td></tr>
-            {% endif %}
-          </tbody>
-        </table>
       </div>
     </div>
   </div>

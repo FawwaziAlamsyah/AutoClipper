@@ -29,10 +29,31 @@ def candidates_page(
 ) -> HTMLResponse:
     """Render candidates grouped by video — tiap video satu card ringkasan."""
     summaries = service.get_video_summaries()
+    archived_count = len(service.video_repo.list_archived())
     return render(
         request,
         templates,
         partial_name="candidates_content.html",
+        context={
+            "request": request,
+            "app_name": settings.APP_NAME,
+            "summaries": summaries,
+            "archived_count": archived_count,
+        },
+    )
+
+
+@router.get("/archived", response_class=HTMLResponse)
+def archived_candidates_page(
+    request: Request,
+    service: CandidateService = Depends(get_candidate_service),
+) -> HTMLResponse:
+    """Grid candidate khusus video yang sudah diarsipkan."""
+    summaries = service.get_archived_video_summaries()
+    return render(
+        request,
+        templates,
+        partial_name="candidates_archived_content.html",
         context={
             "request": request,
             "app_name": settings.APP_NAME,

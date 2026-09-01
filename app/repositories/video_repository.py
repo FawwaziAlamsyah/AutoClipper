@@ -49,3 +49,12 @@ class VideoRepository(PostgresRepository[VideoModel]):
             )
             .all()
         )
+
+    def list_archived(self) -> list[VideoModel]:
+        """Video yang sudah diarsipkan, terbaru dulu."""
+        return list(
+            self.db.query(VideoModel)
+            .filter(VideoModel.is_archived == True)  # noqa: E712
+            .order_by(VideoModel.archived_at.desc())
+            .all()
+        )

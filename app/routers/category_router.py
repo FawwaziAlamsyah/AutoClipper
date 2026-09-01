@@ -8,6 +8,20 @@ from app.services.category_service import CategoryService
 router = APIRouter(prefix="/categories", tags=["categories"])
 
 
+@router.get("/trained-ids")
+def list_trained_category_ids(service: CategoryService = Depends(get_category_service)) -> list[int]:
+    """Return list category_id yang sudah punya model terlatih (score_model.pkl).
+
+    Dipakai frontend untuk memberi tanda visual mana kategori sudah dilatih vs belum.
+    """
+    from pathlib import Path
+    categories = service.list_categories()
+    return [
+        c.id for c in categories
+        if Path(f"data/models/category_{c.id}/score_model.pkl").exists()
+    ]
+
+
 @router.get("")
 def list_categories(service: CategoryService = Depends(get_category_service)) -> list[dict]:
     """List semua kategori — dipakai buat isi dropdown di Upload & Training."""

@@ -63,6 +63,10 @@
 <div class="card shadow-sm p-4 mt-4">
   <h3>{{ t("upload.pipeline") }}</h3>
   <p class="text-muted">{{ t("upload.pipelineDesc") }}</p>
+  <div id="no-category-alert" class="alert alert-warning d-none" role="alert">
+    ⚠️ {{ t("upload.noCategoryWarning") }}
+    <a href="/?page=training" class="alert-link ms-1" hx-get="/training" hx-target="#content-area" hx-push-url="/?page=training">{{ t("upload.goToTraining") }}</a>.
+  </div>
   <div class="row g-3">
     <div class="col-md-3">
       <label class="form-label">{{ t("upload.langLabel") }}</label>
@@ -75,17 +79,15 @@
     <div class="col-md-3">
       <label class="form-label">{{ t("upload.clipStyle") }}</label>
       <select class="form-select" id="pl-category-id">
-        <option value="">{{ t("upload.default") }}</option>
+        <option value="">{{ t("upload.selectCategory") }}</option>
         <!-- diisi JS -->
       </select>
+      <div id="category-status-msg" class="form-text d-none"></div>
     </div>
     <div class="col-md-3">
       <label class="form-label">{{ t("upload.numClips") }}</label>
-      <input class="form-control" type="number" id="pl-num-clips" value="20" min="1" max="20">
-    </div>
-    <div class="col-md-3">
-      <label class="form-label">{{ t("upload.minDuration") }}</label>
-      <input class="form-control" type="number" id="pl-min-duration" value="30" min="5">
+      <input class="form-control" id="pl-num-clips" type="number" value="0" min="0" max="100">
+      <div id="num-clips-msg" class="form-text d-none"></div>
     </div>
     <div class="col-md-3">
       <label class="form-label">{{ t("upload.maxDuration") }}</label>
@@ -156,7 +158,7 @@
 // Re-attach all JS on htmx partial load (htmx:afterSwap fires after content swap)
 function initUploadPage() {
   const PL_IDS = ['pl-language', 'pl-category-id', 'pl-num-clips',
-                  'pl-min-duration', 'pl-max-duration', 'pl-keywords', 'pl-skip-keywords'];
+                  'pl-max-duration', 'pl-keywords', 'pl-skip-keywords'];
   const PL_KEY = 'pipelineSettings';
 
   function savePipelineSettings() {
@@ -177,11 +179,45 @@ function initUploadPage() {
     const res = await fetch('/categories');
     const categories = await res.json();
     const select = document.getElementById('pl-category-id');
-    categories.forEach(c => {
-      const opt = document.createElement('option');
-      opt.value = c.id;
-      opt.textContent = c.name;
-      select.appendChild(opt);
+    const noCatAlert = document.getElementById('no-category-alert');
+    const statusMsg = document.getElementById('category-status-msg');
+
+    if (categories.length === 0) {
+      // Tidak ada kategori sama sekali — tampilkan banner peringatan
+      if (noCatAlert) noCatAlert.classList.remove('d-none');
+    } else {
+      if (noCatAlert) noCatAlert.classList.add('d-none');
+      // Ambil info training status per kategori (cek model file via endpoint)
+      let trainedIds = new Set();
+      try {
+        const trRes = await fetch('/categories/trained-ids');
+        if (trRes.ok) trainedIds = new Set(await trRes.json());
+      } catch (e) { /* jika endpoint belum ada, abaikan */ }
+
+      categories.forEach(c => {
+        const opt = document.createElement('option');
+        opt.value = c.id;
+        const isTrained = trainedIds.has(c.id);
+        opt.textContent = isTrained ? c.name : `${c.name} ★`;
+        opt.dataset.trained = isTrained ? '1' : '0';
+        select.appendChild(opt);
+      });
+    }
+
+    // Tampilkan hint di bawah select saat pilihan berubah
+    select.addEventListener('change', function() {
+      if (!statusMsg) return;
+      const selected = this.options[this.selectedIndex];
+      if (!selected || !selected.value) {
+        statusMsg.className = 'form-text text-muted d-none';
+        statusMsg.textContent = '';
+      } else if (selected.dataset.trained === '0') {
+        statusMsg.className = 'form-text text-warning';
+        statusMsg.textContent = __t('upload.categoryNotTrained');
+      } else {
+        statusMsg.className = 'form-text text-success';
+        statusMsg.textContent = __t('upload.categoryTrained');
+      }
     });
   }
   loadCategoryOptions();
@@ -347,11 +383,28 @@ function initUploadPage() {
     const res = await fetch(`/jobs/${jobId}/cancel`, { method: 'POST' });
     if (res.ok) {
       const row = btn.closest('tr'); if (!row) return;
-      btn.outerHTML = '';
+      // Ambil video_id dari tombol proses di baris yang sama
       const procBtn = row.querySelector('.process-btn');
+      const videoId = procBtn?.dataset.videoId;
+      btn.outerHTML = '';
       if (procBtn) { procBtn.disabled = false; procBtn.classList.remove('btn-outline-success'); procBtn.classList.add('btn-success'); procBtn.innerHTML = 'Proses'; delete procBtn.dataset.jobId; }
+      // Fetch status video aktual dari server — jangan hardcode 'uploaded'
       const badge = row.querySelector('td:nth-child(3) .badge');
-      if (badge) { badge.textContent = 'uploaded'; badge.classList.remove('bg-warning'); badge.classList.add('bg-secondary'); }
+      if (badge && videoId) {
+        try {
+          const vRes = await fetch(`/upload/videos/${videoId}`);
+          if (vRes.ok) {
+            const vData = await vRes.json();
+            const s = vData.status || 'ready';
+            badge.textContent = s;
+            badge.className = `badge bg-${s === 'ready' ? 'success' : s === 'uploading' ? 'warning' : 'secondary'}`;
+          }
+        } catch (e) {
+          // fallback: tampilkan 'ready' karena video sudah pernah diproses sebelumnya
+          badge.textContent = 'ready';
+          badge.className = 'badge bg-success';
+        }
+      }
     } else { alert(__t('upload.jsCancelFail')); btn.disabled = false; btn.textContent = __t('upload.cancel'); }
   }
 
@@ -360,12 +413,42 @@ function initUploadPage() {
     const row = document.getElementById(`video-row-${videoId}`);
     const badge = row?.querySelector('td:nth-child(3) .badge');
     if (badge && badge.textContent.trim() === 'ready') { if (!confirm(__t('upload.jsReProcess'))) return; }
+
+    // Validasi: kategori wajib dipilih
+    const categoryEl = document.getElementById('pl-category-id');
+    if (!categoryEl || !categoryEl.value) {
+      categoryEl?.classList.add('is-invalid');
+      const statusMsg = document.getElementById('category-status-msg');
+      if (statusMsg) {
+        statusMsg.className = 'form-text text-danger';
+        statusMsg.textContent = __t('upload.jsNeedCategory');
+      }
+      categoryEl?.focus();
+      return;
+    }
+    categoryEl?.classList.remove('is-invalid');
+
+    // Validasi: jumlah clip wajib diisi (> 0)
+    const numClipsEl = document.getElementById('pl-num-clips');
+    const numClipsMsg = document.getElementById('num-clips-msg');
+    const numClipsVal = parseInt(numClipsEl?.value) || 0;
+    if (numClipsVal <= 0) {
+      numClipsEl?.classList.add('is-invalid');
+      if (numClipsMsg) {
+        numClipsMsg.className = 'form-text text-danger';
+        numClipsMsg.textContent = __t('upload.jsNeedNumClips');
+      }
+      numClipsEl?.focus();
+      return;
+    }
+    numClipsEl?.classList.remove('is-invalid');
+    if (numClipsMsg) numClipsMsg.className = 'form-text d-none';
+
     btn.disabled = true; const oldText = btn.textContent; btn.textContent = __t('upload.jsStarting');
     const params = {
       language: document.getElementById('pl-language').value || null,
-      category_id: document.getElementById('pl-category-id').value || null,
-      num_clips: parseInt(document.getElementById('pl-num-clips').value) || 20,
-      min_clip_duration: parseInt(document.getElementById('pl-min-duration').value) || 30,
+      category_id: parseInt(document.getElementById('pl-category-id').value) || null,
+      num_clips: numClipsVal,
       max_clip_duration: parseInt(document.getElementById('pl-max-duration').value) || 60,
       keyword_boost: document.getElementById('pl-keywords').value.split(',').map(s=>s.trim()).filter(Boolean),
       skip_keywords: document.getElementById('pl-skip-keywords').value.split(',').map(s=>s.trim()).filter(Boolean),
@@ -373,7 +456,16 @@ function initUploadPage() {
     try {
       const res = await fetch(`/upload/videos/${videoId}/process`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(params) });
       const data = await res.json();
-      if (!res.ok) { alert(data.detail||__t('upload.jsFailProcess')); btn.disabled=false; btn.textContent=oldText; return; }
+      if (!res.ok) {
+        // detail bisa string atau array (FastAPI 422 validation error)
+        let errMsg = __t('upload.jsFailProcess');
+        if (data.detail) {
+          errMsg = Array.isArray(data.detail)
+            ? data.detail.map(e => `${e.loc?.slice(-1)[0] || ''}: ${e.msg}`).join('\n')
+            : String(data.detail);
+        }
+        alert(errMsg); btn.disabled=false; btn.textContent=oldText; return;
+      }
       const jobId = data.job_id; setProcessing(btn, jobId);
       const done = await pollJob(jobId, (step, pct) => { btn.innerHTML=`<span class="spinner-border spinner-border-sm me-1"></span>Proses: ${step}${pct!=null?` (${pct}%)`:''}`;  btn.title=`Proses: ${step}`; });
       const rowEl = document.getElementById(`video-row-${videoId}`);
