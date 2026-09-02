@@ -314,8 +314,23 @@ class AnalysisService:
         # Satu instance VideoVisionPass per job — model MediaPipe di-build sekali
         vvp = VideoVisionPass()
         counts: dict[str, int] = {atype: 0 for atype in _VISUAL_ANALYZER_TYPES}
+        total_windows = len(windows)
 
         for i, window in enumerate(windows):
+            # Progress granular per window: 4 analyzer visual di-credit progresif
+            # sebagai (i+1)/total windows, di atas base step yang sudah sukses.
+            # Ini bikin progress naik gradual selama fase VVP (bukan stuck lalu
+            # lompat), karena finish_step 4 visual baru datang setelah seluruh
+            # decode selesai. update_progress monotonic: tak pernah turun.
+            steps = self.job_service.step_repo.get_by_job(job_id)
+            done_base = sum(1 for s in steps if s.status == "success")
+            total_steps = len(steps) or 1
+            visual_partial = (len(_VISUAL_ANALYZER_TYPES) * (i + 1)) / total_windows if total_windows else 0
+            self.job_service.update_progress(
+                job_id,
+                round((done_base + visual_partial) / total_steps * 100),
+            )
+
             try:
                 results = vvp.analyze_window(
                     decode_path,
