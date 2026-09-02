@@ -65,20 +65,59 @@ class WhisperAnalyzer(AnalyzerInterface):
         self.model = None
 
     def _load_model(self) -> WhisperModel:
-        """Lazy load whisper model untuk hemat memori."""
+        """Lazy load whisper model untuk hemat memori.
+
+        Strategi offline: kalau model sudah ada di local cache (download_root),
+        set local_files_only=True agar tidak ada round-trip ke huggingface.co.
+        Kalau belum ada, biarkan online (unduh sekali), lalu session berikutnya
+        sudah offline otomatis.
+        """
         if self.model is None:
             _add_nvidia_dll_dirs()
-            # Disable MediaPipe telemetry — clearcut uploader retry loop
-            # bikin transcription lambat di Windows.
+            # env vars ini sudah di-set di main.py sebelum import apapun,
+            # baris berikut adalah fallback untuk kasus unit test / run langsung.
             os.environ.setdefault("MEDIAPIPE_DISABLE_TELEMETRY", "1")
             os.environ.setdefault("TF_CPP_MIN_LOG_LEVEL", "3")
             os.environ.setdefault("GLOG_minloglevel", "3")
+
+            # Tentukan direktori cache model Whisper
+            download_root = str(settings.DATA_DIR / "models" / "whisper")
+
+            # Cek apakah model sudah ada di cache lokal
+            local_files_only = self._model_cached(download_root)
+            if local_files_only:
+                logger.debug("Whisper model ditemukan di cache lokal, mode offline.")
+            else:
+                logger.info("Whisper model belum ada di cache, download dari huggingface.co.")
+
             self.model = WhisperModel(
                 self.model_size,
                 device=self.device,
                 compute_type=self.compute_type,
+                download_root=download_root,
+                local_files_only=local_files_only,
             )
         return self.model
+
+    def _model_cached(self, download_root: str) -> bool:
+        """Cek apakah model Whisper sudah ada di direktori cache lokal.
+
+        faster-whisper menyimpan model di:
+          <download_root>/models--Systran--faster-whisper-<size>/snapshots/...
+        atau kalau model_size adalah path langsung, cukup cek path itu ada.
+        """
+        root = Path(download_root)
+        if not root.exists():
+            return False
+        # Cek pola direktori cache HuggingFace Hub
+        model_slug = self.model_size.replace("/", "--")
+        hf_cache_dir = root / f"models--Systran--faster-whisper-{model_slug}"
+        if hf_cache_dir.exists():
+            return True
+        # Fallback: model_size bisa berupa path lokal langsung
+        if Path(self.model_size).exists():
+            return True
+        return False
 
     def analyze(self, input: dict) -> AnalysisResult:
         """Transcribe audio file.

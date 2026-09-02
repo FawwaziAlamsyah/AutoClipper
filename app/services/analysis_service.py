@@ -7,6 +7,7 @@ dipanggil lewat registry plugin — menambah analyzer baru berarti daftar di
 """
 
 import logging
+from pathlib import Path
 
 from sqlalchemy.orm import Session
 
@@ -14,6 +15,7 @@ from app.ai_modules.base.analyzer_interface import AnalyzerUnavailable
 from app.ai_modules.registry import get_analyzer
 from app.core.config.settings import settings
 from app.models.analysis_result_model import AnalysisResultModel
+from app.models.cache_entry_model import CacheEntryModel
 from app.models.candidate_model import CandidateModel
 from app.models.transcript_model import TranscriptModel
 from app.repositories.analysis_result_repository import AnalysisResultRepository
@@ -32,6 +34,9 @@ logger = logging.getLogger(__name__)
 # Cap jumlah window per job — sliding window video panjang bisa menghasilkan
 # ratusan window; downsampled merata agar tetap men-scan seluruh durasi.
 MAX_WINDOWS_PER_JOB = 150
+
+# Keempat analyzer visual yang digabung dalam single-pass VideoVisionPass
+_VISUAL_ANALYZER_TYPES = {"face_emotion", "eye_contact", "gesture", "scene"}
 
 
 class AnalysisService:
@@ -152,44 +157,36 @@ class AnalysisService:
     ) -> None:
         """Jalankan semua plugin analyzer lewat registry.
 
-        Untuk tiap analyzer: catat start_step (job step), jalankan di semua
-        window, lalu finish_step. Analyzer yang tak tersedia di-skip.
+        Untuk keempat analyzer visual (face_emotion, eye_contact, gesture, scene),
+        bila USE_VIDEO_VISION_PASS=True digunakan VideoVisionPass — satu pass decode
+        per window alih-alih 4 VideoCapture+seek terpisah (~3-4× lebih cepat).
+
+        Jalur lama (4 VideoCapture terpisah) tetap tersedia dan dipakai bila
+        USE_VIDEO_VISION_PASS=False (untuk A/B comparison).
+
+        Untuk semua analyzer lain (llm_content, voice_emotion, audio), jalur lama
+        tidak berubah.
         """
-        input_builders = {
+        if settings.USE_VIDEO_VISION_PASS and video_path:
+            self._run_visual_analyzers_single_pass(windows, video_path, video_id, job_id)
+        else:
+            # Jalur lama: 4 VideoCapture terpisah per window
+            self._run_visual_analyzers_legacy(windows, video_path, video_id, job_id)
+
+        # Analyzer non-visual (llm_content, voice_emotion, audio) — tidak berubah
+        non_visual_builders = {
             "llm_content": lambda w, i: {"transcript_text": window_texts[i]},
-            "face_emotion": (
-                lambda w, i: {"video_path": video_path, "start": w["start"], "end": w["end"]}
-                if video_path
-                else None
-            ),
-            "gesture": (
-                lambda w, i: {"video_path": video_path, "start": w["start"], "end": w["end"]}
-                if video_path
-                else None
-            ),
-            "eye_contact": (
-                lambda w, i: {"video_path": video_path, "start": w["start"], "end": w["end"]}
-                if video_path
-                else None
-            ),
-            "scene": (
-                lambda w, i: {"video_path": video_path, "start": w["start"], "end": w["end"]}
-                if video_path
-                else None
-            ),
             "voice_emotion": (
                 lambda w, i: {"audio_path": audio_path, "start": w["start"], "end": w["end"]}
-                if audio_path
-                else None
+                if audio_path else None
             ),
             "audio": (
                 lambda w, i: {"audio_path": audio_path, "start": w["start"], "end": w["end"]}
-                if audio_path
-                else None
+                if audio_path else None
             ),
         }
 
-        for analyzer_type, build in input_builders.items():
+        for analyzer_type, build in non_visual_builders.items():
             analyzer = get_analyzer(analyzer_type)
             if analyzer is None:
                 continue
@@ -223,6 +220,175 @@ class AnalysisService:
             self.job_service.finish_step(job_id, analyzer_type, success=success_count > 0)
             logger.info(
                 "Analyzer %s: %d/%d window berhasil untuk job %d",
+                analyzer_type, success_count, total_windows, job_id,
+            )
+
+    def _run_visual_analyzers_single_pass(
+        self,
+        windows: list[dict],
+        video_path: str,
+        video_id: int,
+        job_id: int,
+    ) -> None:
+        """Jalankan 4 analyzer visual via VideoVisionPass — 1 VideoCapture per window.
+
+        Bila USE_VISION_PROXY=True, generate proxy video 480p (atau sesuai
+        VISION_PROXY_HEIGHT) terlebih dahulu. Proxy di-cache di DB agar tidak
+        di-generate ulang untuk job berikutnya pada video yang sama.
+
+        job_service start_step / finish_step tetap dipanggil per analyzer_type
+        agar progress bar UI tidak berubah kontraknya.
+        """
+        from app.ai_modules.video_vision_pass import VideoVisionPass
+        from app.services.ffmpeg_service import FFmpegService
+
+        # ── Tentukan video yang akan di-decode (proxy atau asli) ─────────────
+        decode_path = video_path
+
+        if settings.USE_VISION_PROXY:
+            proxy_cache_key = f"video:{video_id}:vision_proxy"
+            existing_proxy = self.cache_repo.get_by_key(proxy_cache_key)
+
+            if existing_proxy and existing_proxy.file_path and \
+                    Path(existing_proxy.file_path).exists():
+                decode_path = existing_proxy.file_path
+                logger.info(
+                    "Vision proxy reuse dari cache untuk video %d: %s",
+                    video_id, decode_path,
+                )
+            else:
+                # Generate proxy baru
+                proxy_dir = settings.CACHE_DIR / "vision_proxy"
+                proxy_dir.mkdir(parents=True, exist_ok=True)
+                proxy_output = str(proxy_dir / f"video_{video_id}_proxy.mp4")
+
+                try:
+                    ffmpeg = FFmpegService()
+                    ffmpeg.generate_vision_proxy(
+                        video_path,
+                        proxy_output,
+                        height=settings.VISION_PROXY_HEIGHT,
+                    )
+                    decode_path = proxy_output
+
+                    # Simpan ke cache DB
+                    if existing_proxy is None:
+                        self.cache_repo.add(CacheEntryModel(
+                            cache_key=proxy_cache_key,
+                            video_id=video_id,
+                            step_name="vision_proxy",
+                            file_path=proxy_output,
+                        ))
+                    else:
+                        existing_proxy.file_path = proxy_output
+                        self.db.commit()
+
+                    logger.info(
+                        "Vision proxy generated dan di-cache untuk video %d: %s",
+                        video_id, proxy_output,
+                    )
+                except Exception as e:
+                    logger.warning(
+                        "Vision proxy generation gagal untuk video %d: %s. "
+                        "Fallback ke video asli.",
+                        video_id, e,
+                    )
+                    decode_path = video_path  # fallback ke video asli
+
+        # ── Start semua 4 step sebelum loop ──────────────────────────────────
+        for atype in _VISUAL_ANALYZER_TYPES:
+            self.job_service.start_step(job_id, atype)
+
+        # Satu instance VideoVisionPass per job — model MediaPipe di-build sekali
+        vvp = VideoVisionPass()
+        counts: dict[str, int] = {atype: 0 for atype in _VISUAL_ANALYZER_TYPES}
+
+        for i, window in enumerate(windows):
+            try:
+                results = vvp.analyze_window(
+                    decode_path,
+                    window["start"],
+                    window["end"],
+                )
+            except AnalyzerUnavailable as e:
+                logger.warning(
+                    "VideoVisionPass skip window %d [%.1f-%.1f]: %s",
+                    i, window["start"], window["end"], e,
+                )
+                continue
+
+            for atype, result in results.items():
+                self.analysis_repo.add(AnalysisResultModel(
+                    video_id=video_id,
+                    job_id=job_id,
+                    analyzer_type=atype,
+                    start_time=window["start"],
+                    end_time=window["end"],
+                    score=result.score,
+                    result_data=result.result_data,
+                ))
+                counts[atype] += 1
+
+        for atype in _VISUAL_ANALYZER_TYPES:
+            self.job_service.finish_step(job_id, atype, success=counts[atype] > 0)
+            logger.info(
+                "VideoVisionPass %s: %d/%d window berhasil untuk job %d",
+                atype, counts[atype], len(windows), job_id,
+            )
+
+    def _run_visual_analyzers_legacy(
+        self,
+        windows: list[dict],
+        video_path: str | None,
+        video_id: int,
+        job_id: int,
+    ) -> None:
+        """Jalur lama: 4 VideoCapture terpisah per window (untuk A/B comparison).
+
+        Identik dengan perilaku sebelum VideoVisionPass diperkenalkan.
+        """
+        visual_builders = {
+            atype: (
+                lambda w, i, _p=video_path: {"video_path": _p, "start": w["start"], "end": w["end"]}
+                if video_path else None
+            )
+            for atype in _VISUAL_ANALYZER_TYPES
+        }
+
+        for analyzer_type, build in visual_builders.items():
+            analyzer = get_analyzer(analyzer_type)
+            if analyzer is None:
+                continue
+
+            logger.debug("Analyze process (legacy): step %s start", analyzer_type)
+            self.job_service.start_step(job_id, analyzer_type)
+            success_count = 0
+            total_windows = 0
+
+            for i, window in enumerate(windows):
+                input_data = build(window, i)
+                if input_data is None:
+                    continue
+                total_windows += 1
+                try:
+                    result = analyzer.analyze(input_data)
+                except AnalyzerUnavailable as e:
+                    logger.warning("Skip analyzer %s di window %d: %s", analyzer_type, i, e)
+                    continue
+                self.analysis_repo.add(AnalysisResultModel(
+                    video_id=video_id,
+                    job_id=job_id,
+                    analyzer_type=analyzer_type,
+                    start_time=window["start"],
+                    end_time=window["end"],
+                    score=result.score,
+                    result_data=result.result_data,
+                ))
+                success_count += 1
+
+            self.job_service.finish_step(job_id, analyzer_type, success=success_count > 0)
+            logger.info(
+                "Analyzer %s (legacy): %d/%d window berhasil untuk job %d",
                 analyzer_type, success_count, total_windows, job_id,
             )
 
