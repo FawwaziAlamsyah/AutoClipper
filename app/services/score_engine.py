@@ -1,6 +1,7 @@
 """Score engine: aggregate analyzer scores into weighted final score."""
 
 import logging
+from pathlib import Path
 
 from app.core.config.settings import settings
 from app.ml.predictor import predict_score
@@ -53,11 +54,15 @@ class ScoreEngine:
         for candidate in candidates:
             breakdown = self._calculate_score_breakdown(job_id, candidate, job.category_id)
             meta = breakdown.get("_meta", {})
-            final_score = (
-                meta["model_predicted_score"]
-                if meta.get("scoring_method") == "trained_model"
-                else meta.get("legacy_weighted_sum_score", 0.0)
-            )
+            weighted = meta.get("legacy_weighted_sum_score", 0.0)
+            trained = meta.get("model_predicted_score")
+            # Kiblat = bobot (0.8). Trained model hanya koreksi tipis (0.2) bila ada.
+            # Bobot SELALU menentukan final score — trained tidak pernah ganti total.
+            if trained is not None:
+                final_score = round(0.8 * weighted + 0.2 * trained, 2)
+            else:
+                final_score = weighted
+            breakdown.setdefault("_meta", {})["final_score"] = final_score
             candidate.final_score = final_score
             candidate.score_breakdown = breakdown
 
@@ -78,7 +83,16 @@ class ScoreEngine:
         if not candidates:
             return []
 
-        ranked = sorted(candidates, key=lambda c: c.final_score or 0.0, reverse=True)
+        # Tolak candidate di bawah MIN_CANDIDATE_SCORE — mencegah clip sampah
+        # lolos murni karena relatif tertinggi (tanpa threshold, top-N diambil
+        # dari skor berapapun, meski semua rendah).
+        min_score = settings.MIN_CANDIDATE_SCORE
+        below = sum(1 for c in candidates if (c.final_score or 0.0) < min_score)
+        ranked = sorted(
+            (c for c in candidates if (c.final_score or 0.0) >= min_score),
+            key=lambda c: c.final_score or 0.0,
+            reverse=True,
+        )
 
         selected: list = []
         for cand in ranked:
@@ -100,8 +114,8 @@ class ScoreEngine:
 
         self.db.commit()
         logger.info(
-            "Job %d: %d selected, %d dihapus",
-            job_id, len(selected), len(drop_ids),
+            "Job %d: %d selected, %d dihapus (%d di bawah min_score=%.1f)",
+            job_id, len(selected), len(drop_ids), below, min_score,
         )
         return selected
 
@@ -174,13 +188,25 @@ class ScoreEngine:
 
         # Model terlatih — coba prediksi, None jika model belum ada atau gagal
         model_score = None
+        fallback_reason = None
         if settings.USE_TRAINED_SCORE_MODEL:
             model_score = predict_score(cand_analysis, category_id)
+            if model_score is None:
+                if category_id is None:
+                    fallback_reason = "tidak ada category_id (model per-kategori tidak bisa dipilih)"
+                else:
+                    path = Path(f"data/models/category_{category_id}/score_model.pkl")
+                    if not path.exists():
+                        fallback_reason = f"model kategori {category_id} belum dilatih"
+                    else:
+                        fallback_reason = f"prediksi model kategori {category_id} gagal"
 
         breakdown["_meta"] = {
             "scoring_method": "trained_model" if model_score is not None else "weighted_sum",
             "legacy_weighted_sum_score": round(legacy_score, 2),
             "model_predicted_score": round(model_score, 2) if model_score is not None else None,
+            "trained_model_used": model_score is not None,
+            "fallback_reason": fallback_reason,
         }
 
         return breakdown

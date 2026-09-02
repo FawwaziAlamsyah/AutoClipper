@@ -41,7 +41,71 @@ def test_calculate_score_breakdown() -> None:
         assert hook["reason"] == "Pembuka kuat"
 
 
-def test_score_differs_per_candidate_window() -> None:
+def test_final_score_uses_weighted_as_base_with_trained_blend() -> None:
+    """Kiblat bobot: final_score = bobot (0.8) + trained (0.2) bila model ada."""
+    mock_db = MagicMock()
+
+    cand = MagicMock(start_time=0.0, end_time=10.0, final_score=0.0, score_breakdown={})
+
+    with patch("app.services.score_engine.VideoRepository"), \
+         patch("app.services.score_engine.JobRepository") as MockJobRepo, \
+         patch("app.services.score_engine.AnalysisResultRepository") as MockAR, \
+         patch("app.services.score_engine.CandidateRepository") as MockCR, \
+         patch("app.services.score_engine.predict_score") as mock_predict:
+        mock_predict.return_value = 7.0
+        mock_job = MagicMock(category_id=66)
+        MockJobRepo.return_value.get.return_value = mock_job
+        MockCR.return_value.get_by_job.return_value = [cand]
+        MockAR.return_value.get_by_job.return_value = [
+            MagicMock(analyzer_type="hook", score=10.0, start_time=0.0, end_time=10.0, result_data={}),
+        ]
+
+        engine = ScoreEngine(mock_db)
+        # stub breakdown → weighted 4.0, trained 7.0 → final 0.8*4 + 0.2*7 = 4.6
+        engine._calculate_score_breakdown = lambda j, c, cat: {
+            "hook": {"score": 10.0, "weight": 0.4, "contribution": 4.0, "reason": ""},
+            "_meta": {
+                "scoring_method": "trained_model",
+                "legacy_weighted_sum_score": 4.0,
+                "model_predicted_score": 7.0,
+            },
+        }
+
+        engine.calculate_for_job(1)
+        assert cand.final_score == round(0.8 * 4.0 + 0.2 * 7.0, 2)  # 4.6
+
+
+def test_final_score_pure_weighted_when_no_model() -> None:
+    """Tanpa trained model → final_score = weighted sum murni (bobot kiblat)."""
+    mock_db = MagicMock()
+
+    cand = MagicMock(start_time=0.0, end_time=10.0, final_score=0.0, score_breakdown={})
+
+    with patch("app.services.score_engine.VideoRepository"), \
+         patch("app.services.score_engine.JobRepository") as MockJobRepo, \
+         patch("app.services.score_engine.AnalysisResultRepository") as MockAR, \
+         patch("app.services.score_engine.CandidateRepository") as MockCR, \
+         patch("app.services.score_engine.predict_score") as mock_predict:
+        mock_predict.return_value = None
+        MockJobRepo.return_value.get.return_value = MagicMock(category_id=None)
+        MockCR.return_value.get_by_job.return_value = [cand]
+        MockAR.return_value.get_by_job.return_value = [
+            MagicMock(analyzer_type="hook", score=10.0, start_time=0.0, end_time=10.0, result_data={}),
+        ]
+
+        engine = ScoreEngine(mock_db)
+        engine._calculate_score_breakdown = lambda j, c, cat: {
+            "hook": {"score": 10.0, "weight": 0.4, "contribution": 4.0, "reason": ""},
+            "_meta": {
+                "scoring_method": "weighted_sum",
+                "legacy_weighted_sum_score": 4.0,
+                "model_predicted_score": None,
+            },
+        }
+
+        engine.calculate_for_job(1)
+        assert cand.final_score == 4.0
+
     """Regression test: dua candidate window beda HARUS skor beda (bukan rata-rata global).
 
     Bug: analysis difilter per window. Tanpa filter, semua candidate dapat

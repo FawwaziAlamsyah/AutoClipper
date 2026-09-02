@@ -73,20 +73,23 @@ class Settings(BaseSettings):
     LLM_API_KEY: str = ""
     LLM_BASE_URL: str = "https://api.openai.com/v1"
 
-    # Score weights (default, user-overridable per job)
-    # Semua analyzer sudah diimplementasi asli di app/ai_modules/ — total bobot 100%.
-    SCORE_WEIGHT_LLM_CONTENT: float = 0.30
-    SCORE_WEIGHT_HOOK: float = 0.10
-    SCORE_WEIGHT_STORY: float = 0.10
-    SCORE_WEIGHT_VOICE_EMOTION: float = 0.10
-    SCORE_WEIGHT_FACE_EMOTION: float = 0.08
-    SCORE_WEIGHT_GESTURE: float = 0.05
-    SCORE_WEIGHT_EYE_CONTACT: float = 0.03
-    SCORE_WEIGHT_SCENE: float = 0.04
-    SCORE_WEIGHT_AUDIO: float = 0.05
-    SCORE_WEIGHT_CONTEXT: float = 0.05
-    SCORE_WEIGHT_ENDING: float = 0.05
-    SCORE_WEIGHT_VIRAL_POTENTIAL: float = 0.05  # total = 1.00
+    # Score weights — kiblat urutan scoring (default, user-overridable per job).
+    # Prioritas user: gesture > voice_emotion > face_emotion > hook.
+    # Sisa turun halus (isi/konten > visual teknis > pelengkap).
+    # llm_content sengaja TIDAK dinaikkan (masih bisa mock bila tanpa API key).
+    # Total bobot = 1.00. Final score = 0.8*bobot + 0.2*trained (bila model ada).
+    SCORE_WEIGHT_LLM_CONTENT: float = 0.10
+    SCORE_WEIGHT_HOOK: float = 0.12
+    SCORE_WEIGHT_STORY: float = 0.09
+    SCORE_WEIGHT_VOICE_EMOTION: float = 0.15
+    SCORE_WEIGHT_FACE_EMOTION: float = 0.13
+    SCORE_WEIGHT_GESTURE: float = 0.16
+    SCORE_WEIGHT_EYE_CONTACT: float = 0.06
+    SCORE_WEIGHT_SCENE: float = 0.08
+    SCORE_WEIGHT_AUDIO: float = 0.04
+    SCORE_WEIGHT_CONTEXT: float = 0.02
+    SCORE_WEIGHT_ENDING: float = 0.03
+    SCORE_WEIGHT_VIRAL_POTENTIAL: float = 0.02  # total = 1.00
 
     # Training data settings
     MAX_AUTO_NEGATIVES_PER_JOB: int = 5
@@ -94,6 +97,10 @@ class Settings(BaseSettings):
 
     # Model scoring toggle — set False di .env untuk paksa pakai weighted-sum lama
     USE_TRAINED_SCORE_MODEL: bool = True
+
+    # Candidate minimum final score (0-10). Candidates di bawah ini ditolak
+    # oleh select_top_n — mencegah "sampah" lolos murni karena relatif tertinggi.
+    MIN_CANDIDATE_SCORE: float = 4.0
 
     # Single-pass visual analyzer toggle
     # True  = pakai VideoVisionPass (1 VideoCapture per window, ~3-4x lebih cepat)
@@ -103,7 +110,9 @@ class Settings(BaseSettings):
     # Proxy video untuk analisis visual (hanya resolusi diturunkan, fps TETAP)
     # True  = generate + pakai proxy 480p sebelum VideoVisionPass
     # False = pakai video asli (lebih lambat tapi akurasi maksimal)
-    USE_VISION_PROXY: bool = True
+    # Default False sampai A/B membuktikan 480p tidak menggeser skor/ranking.
+    # Prioritas: QUALITY > CORRECTNESS > RELIABILITY > PERFORMANCE.
+    USE_VISION_PROXY: bool = False
     # Tinggi proxy (px). FPS tidak diturunkan. Ganti via .env kalau drift skor terlalu besar.
     VISION_PROXY_HEIGHT: int = 480
 

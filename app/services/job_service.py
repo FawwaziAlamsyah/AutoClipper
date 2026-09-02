@@ -56,7 +56,10 @@ class JobService:
         )
         job = self.repo.add(job)
 
-        for name in PIPELINE_STEPS:
+        # Seed SEMUA pipeline + analyzer steps sekali, sebelum pipeline jalan.
+        # Dulu analyzer steps di-seed di tengah analyze -> total step naik 5->12,
+        # progress UI drop (mis. 20% -> 17%). Sekarang denominator statis monotonic.
+        for name in PIPELINE_STEPS + ANALYZER_STEPS:
             self.step_repo.add(JobStepModel(job_id=job.id, step_name=name, status="pending"))
 
         logger.info("Created job %d for video %d", job.id, video_id)
@@ -119,6 +122,11 @@ class JobService:
         self.db.commit()
 
         step = self._get_step(job_id, step_name)
+        # Step yang sudah success TIDAK dibuka ulang (extract/transcribe bisa
+        # di-start ganda dari process_service + transcript_service). Kalau
+        # dibuka ulang, progress turun karena step sukses jadi running lagi.
+        if step.status == "success":
+            return step
         step.status = "running"
         step.started_at = datetime.now(UTC)
         self.db.commit()
@@ -147,8 +155,35 @@ class JobService:
         return step
 
     def complete_job(self, job_id: int) -> JobModel:
-        """Mark entire job as completed."""
+        """Mark entire job as completed.
+
+        JANGAN fake completion: tolak bila ada step wajib yang belum benar-benar
+        selesai (masih pending/running) atau gagal. Analyzer mandatory yang gagal
+        sudah membalik job.status jadi "failed" lewat finish_step(success=False),
+        jadi complete_job tidak akan menimpa job yang sudah failed.
+        """
         job = self.get(job_id)
+        steps = self.step_repo.get_by_job(job_id)
+        # "complete" dikecualikan — step itu sendiri sedang berjalan saat
+        # complete_job dipanggil; sisanya harus sudah tuntas.
+        incomplete = [
+            s.step_name for s in steps
+            if s.step_name != "complete" and s.status in ("pending", "running")
+        ]
+        if incomplete:
+            job.status = "failed"
+            job.error_message = (
+                f"Job ditandai complete sebelum mandatory steps selesai: {', '.join(incomplete)}"
+            )
+            job.finished_at = datetime.now(UTC)
+            job.current_step = None
+            self.db.commit()
+            self.db.refresh(job)
+            logger.warning(
+                "Refuse complete job %d — incomplete steps: %s", job_id, incomplete
+            )
+            return job
+
         job.status = "completed"
         job.finished_at = datetime.now(UTC)
         job.current_step = None
@@ -181,15 +216,21 @@ class JobService:
 
     def get_active_list(self) -> list[dict]:
         """Return list of active jobs with video info (for global indicator)."""
-        return [
-            {
+        result = []
+        for job in self.repo.get_running():
+            steps = self.step_repo.get_by_job(job.id)
+            total = len(steps)
+            completed = sum(1 for s in steps if s.status == "success")
+            progress_percent = round((completed / total) * 100) if total else 0
+            result.append({
                 "job_id": job.id,
                 "video_id": job.video_id,
                 "status": job.status,
                 "current_step": job.current_step or "running",
-            }
-            for job in self.repo.get_running()
-        ]
+                # Dulu widget render `job.percent` yang tidak ada -> "undefined%".
+                "percent": progress_percent,
+            })
+        return result
 
     def get_status(self, job_id: int) -> dict:
         """Return job status with per-step progress (for polling)."""
