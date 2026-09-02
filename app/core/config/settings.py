@@ -95,6 +95,18 @@ class Settings(BaseSettings):
     # Model scoring toggle — set False di .env untuk paksa pakai weighted-sum lama
     USE_TRAINED_SCORE_MODEL: bool = True
 
+    # Single-pass visual analyzer toggle
+    # True  = pakai VideoVisionPass (1 VideoCapture per window, ~3-4x lebih cepat)
+    # False = pakai jalur lama (4 VideoCapture+seek per window) — untuk A/B comparison
+    USE_VIDEO_VISION_PASS: bool = True
+
+    # Proxy video untuk analisis visual (hanya resolusi diturunkan, fps TETAP)
+    # True  = generate + pakai proxy 480p sebelum VideoVisionPass
+    # False = pakai video asli (lebih lambat tapi akurasi maksimal)
+    USE_VISION_PROXY: bool = True
+    # Tinggi proxy (px). FPS tidak diturunkan. Ganti via .env kalau drift skor terlalu besar.
+    VISION_PROXY_HEIGHT: int = 480
+
     # TikTok Content Posting API — kredensial app dari dashboard TikTok for Developers.
     # WAJIB lewat .env — nilai default sengaja kosong, jangan di-hardcode di source.
     TIKTOK_CLIENT_KEY: str = ""

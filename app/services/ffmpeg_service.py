@@ -134,3 +134,57 @@ class FFmpegService:
         except subprocess.SubprocessError as e:
             logger.error("FFmpeg audio extraction failed for: %s", video_path, exc_info=e)
             raise ExternalToolException(f"Gagal memisahkan audio dari video: {str(e)}")
+
+    def generate_vision_proxy(
+        self,
+        video_path: str,
+        output_path: str,
+        height: int = 480,
+    ) -> str:
+        """Generate proxy video beresolusi rendah khusus untuk analisis visual.
+
+        Hanya resolusi yang diturunkan (scale ke height px, lebar proporsional).
+        FPS TIDAK diubah — penting agar sampling temporal gesture/scene tetap akurat.
+        Audio di-strip karena proxy ini hanya untuk cv2 frame decode.
+
+        Proxy ini adalah step opsional sebelum VideoVisionPass. Karena hanya
+        resolusi yang berubah (bukan fps/durasi), semua timestamp window tetap valid.
+        """
+        if not Path(video_path).exists():
+            raise FileNotFoundError(f"Video file not found at: {video_path}")
+
+        Path(output_path).parent.mkdir(parents=True, exist_ok=True)
+
+        # scale=-2:{height} → lebar dihitung otomatis agar tetap divisible by 2
+        # (libx264 mensyaratkan dimensi genap).
+        # -an: strip audio (tidak dibutuhkan untuk visual-only analysis).
+        # -crf 28: kualitas sedikit lebih rendah dari default; cukup untuk deteksi
+        #          wajah/tangan/scene — bukan untuk output final.
+        # -preset fast: keseimbangan kecepatan encode vs ukuran file.
+        cmd = [
+            self.ffmpeg_path,
+            "-y",
+            "-i", video_path,
+            "-vf", f"scale=-2:{height}",
+            "-an",
+            "-c:v", "libx264",
+            "-crf", "28",
+            "-preset", "fast",
+            output_path,
+        ]
+
+        try:
+            logger.info(
+                "Generating vision proxy %dpx: %s → %s",
+                height, video_path, output_path,
+            )
+            subprocess.run(cmd, check=True, **_SUBPROCESS_KW)
+            logger.info("Vision proxy generated: %s", output_path)
+            return output_path
+        except subprocess.SubprocessError as e:
+            logger.error(
+                "Vision proxy generation failed for: %s", video_path, exc_info=e,
+            )
+            raise ExternalToolException(
+                f"Gagal membuat vision proxy video: {str(e)}"
+            )

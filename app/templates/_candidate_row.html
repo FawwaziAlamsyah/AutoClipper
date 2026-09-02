@@ -18,6 +18,9 @@
         <span class="badge bg-{{ 'success' if candidate.clip_filename else ('warning text-dark' if candidate.status == 'selected' else 'secondary') }}">
           {{ 'clip ready' if candidate.clip_filename else candidate.status }}
         </span>
+        {% if candidate.clip_filename %}
+        <span class="badge bg-success" title="Clip sudah di-generate">🎬 Generated</span>
+        {% endif %}
         {% if candidate.tiktok_uploaded %}
         <span class="badge bg-info text-dark" title="Klip sudah dikirim ke inbox TikTok">TikTok ✓</span>
         {% endif %}
@@ -28,15 +31,12 @@
     </div>
     <div class="card-footer bg-transparent border-top-0 pt-0 pb-3 px-3">
       <div class="d-flex flex-wrap gap-1">
-        {% if candidate.clip_filename %}
-        <a class="btn btn-sm btn-success" target="_blank" href="/data/outputs/{{ candidate.clip_filename }}">{{ t("widget.open") }}</a>
-        {% endif %}
         <a class="btn btn-sm btn-outline-info"
            href="/candidates/{{ candidate.id }}"
            hx-get="/candidates/{{ candidate.id }}"
            hx-target="#main-content"
            hx-push-url="true">{{ t("widget.detail") }}</a>
-        <button class="btn btn-sm btn-outline-danger" onclick="deleteCandidate(this, {{ candidate.id }})">{{ t("widget.delete") }}</button>
+        <button class="btn btn-sm btn-outline-danger" data-candidate-id="{{ candidate.id }}" onclick="deleteCandidate(this, parseInt(this.dataset.candidateId))">{{ t("widget.delete") }}</button>
       </div>
     </div>
   </div>

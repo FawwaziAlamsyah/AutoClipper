@@ -3,6 +3,16 @@
 Menjalankan: uvicorn app.main:app --reload
 """
 
+# ── Disable MediaPipe / TF / GLOG telemetry & verbose log SEBELUM import lain ──
+# Harus di sini (bukan di whisper_analyzer._load_model) karena mediapipe di-import
+# di level modul oleh gesture_analyzer, face_emotion_analyzer, eye_contact_analyzer
+# — semuanya masuk registry saat startup, jauh sebelum Whisper sempat di-load.
+import os
+os.environ.setdefault("MEDIAPIPE_DISABLE_TELEMETRY", "1")
+os.environ.setdefault("TF_CPP_MIN_LOG_LEVEL", "3")
+os.environ.setdefault("GLOG_minloglevel", "3")
+# ────────────────────────────────────────────────────────────────────────────────
+
 from pathlib import Path
 
 from fastapi import Depends, FastAPI, Request

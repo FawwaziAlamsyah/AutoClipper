@@ -299,10 +299,10 @@ class ClipEditorService:
     def add_watermark(
         self,
         clip_id: int,
-        position: str = "bottom",  # "top" | "bottom" | "center" (atas/bawah tengah)
-        scale: float = 0.30,   # lebar watermark relatif ke lebar video (0.05–0.5)
-        opacity: float = 0.8,  # 0.0–1.0
-        margin_px: int = 24,
+        position: str = "bottom",
+        scale: float = 0.30,
+        opacity: float = 0.8,
+        margin_px: int = 10,
     ):
         """Tempel watermark PNG (transparan) ke clip pakai FFmpeg overlay filter."""
         clip = self.clip_repo.get(clip_id)
@@ -331,20 +331,22 @@ class ClipEditorService:
         wm_width = max(int(video_width * scale), 10)
 
         position_map = {
-            # Tengah
+            # Tengah layar
             "center": ("(main_w-overlay_w)/2", "(main_h-overlay_h)/2"),
-            # Atas/bawah tengah (horizontal center)
+            # Atas tengah / Bawah tengah
             "top":    ("(main_w-overlay_w)/2", f"{margin_px}"),
             "bottom": ("(main_w-overlay_w)/2", f"main_h-overlay_h-{margin_px}"),
-            # Kanan (vertikal center)
-            "right":  (f"main_w-overlay_w-{margin_px}", "(main_h-overlay_h)/2"),
-            # Kanan atas / kanan bawah
-            "top_right":    (f"main_w-overlay_w-{margin_px}", f"{margin_px}"),
-            "bottom_right": (f"main_w-overlay_w-{margin_px}", f"main_h-overlay_h-{margin_px}"),
-            # Kiri (vertikal center)
-            "left":   (f"{margin_px}", "(main_h-overlay_h)/2"),
-            # Kiri atas / kiri bawah
+            # Kanan tengah (K)
+            "right":       (f"main_w-overlay_w-{margin_px}", "(main_h-overlay_h)/2"),
+            # Kanan atas (KA)
+            "top_right":   (f"main_w-overlay_w-{margin_px}", f"{margin_px}"),
+            # Kanan bawah (KB)
+            "bottom_right":(f"main_w-overlay_w-{margin_px}", f"main_h-overlay_h-{margin_px}"),
+            # Kiri tengah (Ki)
+            "left":        (f"{margin_px}", "(main_h-overlay_h)/2"),
+            # Kiri atas (KiA)
             "top_left":    (f"{margin_px}", f"{margin_px}"),
+            # Kiri bawah (KiB)
             "bottom_left": (f"{margin_px}", f"main_h-overlay_h-{margin_px}"),
             # Alias format lama (hyphen) untuk kompatibilitas mundur
             "top-left":    (f"{margin_px}", f"{margin_px}"),
@@ -353,9 +355,12 @@ class ClipEditorService:
             "bottom-right":(f"main_w-overlay_w-{margin_px}", f"main_h-overlay_h-{margin_px}"),
         }
         x_expr, y_expr = position_map.get(position, position_map["bottom"])
+        logger.info("add_watermark clip=%d position=%r → x=%s y=%s", clip_id, position, x_expr, y_expr)
 
         filter_complex = (
-            f"[1:v]scale={wm_width}:-1,format=rgba,colorchannelmixer=aa={opacity}[wm];"
+            f"[1:v]scale={wm_width}:-1,"
+            f"format=rgba,"
+            f"colorchannelmixer=rr=1:gg=1:bb=1:aa={opacity}[wm];"
             f"[0:v][wm]overlay=x={x_expr}:y={y_expr}:format=auto[vout]"
         )
 

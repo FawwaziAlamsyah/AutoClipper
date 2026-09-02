@@ -2,7 +2,7 @@
 
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, Float, Integer, Text
+from sqlalchemy import BigInteger, Boolean, DateTime, Float, Integer, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base, TimestampMixin
@@ -22,7 +22,7 @@ class VideoModel(Base, TimestampMixin):
     width: Mapped[int | None] = mapped_column(Integer)
     height: Mapped[int | None] = mapped_column(Integer)
     fps: Mapped[float | None] = mapped_column(Float)
-    file_size_bytes: Mapped[int | None] = mapped_column(Integer)
+    file_size_bytes: Mapped[int | None] = mapped_column(BigInteger)
     status: Mapped[str] = mapped_column(Text, nullable=False, default="uploaded")
     is_archived: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     archived_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
