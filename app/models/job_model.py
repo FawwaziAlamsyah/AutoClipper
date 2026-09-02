@@ -23,6 +23,9 @@ class JobModel(Base, TimestampMixin):
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     error_message: Mapped[str | None] = mapped_column(Text)
+    # Progress terakhir yang sudah "dikunci" (monotonic) — dijaga supaya stale
+    # update tidak bisa nurunin progress yang sudah dikirim ke UI.
+    progress_percent: Mapped[int | None] = mapped_column(Integer)
 
     video: Mapped["VideoModel"] = relationship(back_populates="jobs")
     category: Mapped["CategoryModel | None"] = relationship(back_populates="jobs")

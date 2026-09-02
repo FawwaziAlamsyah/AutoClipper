@@ -133,6 +133,29 @@ class JobService:
         self.db.refresh(step)
         return step
 
+    def update_progress(self, job_id: int, progress: int) -> int:
+        """Simpan progress monotonic: P = max(stored, given).
+
+        stale update (P baru lebih kecil dari yang sudah dikirim) tidak pernah
+        nurunin progress. Return nilai progress yang benar-benar tersimpan.
+        """
+        job = self.get(job_id)
+        stored = job.progress_percent or 0
+        new_value = max(stored, int(progress))
+        if new_value != stored:
+            job.progress_percent = new_value
+            self.db.commit()
+        return new_value
+
+    def _advance_progress_from_steps(self, job_id: int) -> None:
+        """Hitung progress dari step status lalu persist (monotonic via update_progress)."""
+        steps = self.step_repo.get_by_job(job_id)
+        total = len(steps)
+        if not total:
+            return
+        completed = sum(1 for s in steps if s.status == "success")
+        self.update_progress(job_id, round((completed / total) * 100))
+
     def finish_step(self, job_id: int, step_name: str, success: bool = True, error: str | None = None) -> JobStepModel:
         """Mark a step finished (success or failed)."""
         step = self._get_step(job_id, step_name)
@@ -144,6 +167,8 @@ class JobService:
             step.duration_ms = int((now - step.started_at).total_seconds() * 1000)
         self.db.commit()
         self.db.refresh(step)
+        # Progress naik mengikuti step yang selesai (monotonic).
+        self._advance_progress_from_steps(job_id)
 
         if not success:
             job = self.get(job_id)
@@ -233,12 +258,22 @@ class JobService:
         return result
 
     def get_status(self, job_id: int) -> dict:
-        """Return job status with per-step progress (for polling)."""
+        """Return job status with per-step progress (for polling).
+
+        Progress monotonic: gabung nilai terhitung dengan nilai tersimpan
+        (max). Invariant P(n+1) >= P(n) dijamin — tidak pernah turun walau
+        denominator/hitung berubah, dan nilai terbaru dipersist.
+        """
         job = self.get(job_id)
         steps = self.step_repo.get_by_job(job_id)
         completed = sum(1 for s in steps if s.status == "success")
         total = len(steps)
-        progress_percent = round((completed / total) * 100) if total else 0
+        computed = round((completed / total) * 100) if total else 0
+        stored = job.progress_percent or 0
+        progress_percent = max(stored, computed)
+        if computed > stored:
+            job.progress_percent = computed
+            self.db.commit()
 
         return {
             "job_id": job.id,

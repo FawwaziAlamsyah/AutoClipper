@@ -74,22 +74,23 @@ class Settings(BaseSettings):
     LLM_BASE_URL: str = "https://api.openai.com/v1"
 
     # Score weights — kiblat urutan scoring (default, user-overridable per job).
-    # Prioritas user: gesture > voice_emotion > face_emotion > hook.
-    # Sisa turun halus (isi/konten > visual teknis > pelengkap).
-    # llm_content sengaja TIDAK dinaikkan (masih bisa mock bila tanpa API key).
+    # Prioritas user: gesture(20%) > voice_emotion > face_emotion > hook (4 utama).
+    # gesture = gerakan tangan (HandLandmarker), bukan gerakan badan.
+    # Sisa (0.34) sesuai riset sinyal retention: story > llm_content > scene.
+    # llm_content sengaja rendah (masih bisa mock bila tanpa API key).
     # Total bobot = 1.00. Final score = 0.8*bobot + 0.2*trained (bila model ada).
-    SCORE_WEIGHT_LLM_CONTENT: float = 0.10
-    SCORE_WEIGHT_HOOK: float = 0.12
+    SCORE_WEIGHT_LLM_CONTENT: float = 0.07
+    SCORE_WEIGHT_HOOK: float = 0.14
     SCORE_WEIGHT_STORY: float = 0.09
-    SCORE_WEIGHT_VOICE_EMOTION: float = 0.15
-    SCORE_WEIGHT_FACE_EMOTION: float = 0.13
-    SCORE_WEIGHT_GESTURE: float = 0.16
-    SCORE_WEIGHT_EYE_CONTACT: float = 0.06
-    SCORE_WEIGHT_SCENE: float = 0.08
-    SCORE_WEIGHT_AUDIO: float = 0.04
+    SCORE_WEIGHT_VOICE_EMOTION: float = 0.17
+    SCORE_WEIGHT_FACE_EMOTION: float = 0.15
+    SCORE_WEIGHT_GESTURE: float = 0.20
+    SCORE_WEIGHT_EYE_CONTACT: float = 0.04
+    SCORE_WEIGHT_SCENE: float = 0.06
+    SCORE_WEIGHT_AUDIO: float = 0.03
     SCORE_WEIGHT_CONTEXT: float = 0.02
-    SCORE_WEIGHT_ENDING: float = 0.03
-    SCORE_WEIGHT_VIRAL_POTENTIAL: float = 0.02  # total = 1.00
+    SCORE_WEIGHT_ENDING: float = 0.02
+    SCORE_WEIGHT_VIRAL_POTENTIAL: float = 0.01  # total = 1.00
 
     # Training data settings
     MAX_AUTO_NEGATIVES_PER_JOB: int = 5

@@ -53,6 +53,20 @@ def _all_steps():
     return [_FakeStep(n) for n in PIPELINE_STEPS + ANALYZER_STEPS]
 
 
+def test_update_progress_never_decreases():
+    """Invariant P(n+1) >= P(n): update stale (lebih kecil) tidak nurunin progress."""
+    job = _FakeJob()
+    job.progress_percent = 20
+    svc = JobService.__new__(JobService)
+    svc.repo = _FakeJobRepo(job)
+    svc.db = _FakeDb()
+
+    assert svc.update_progress(1, 35) == 35
+    assert svc.update_progress(1, 17) == 35, "stale update tidak boleh nurunin progress"
+    assert svc.update_progress(1, 40) == 40
+    assert job.progress_percent == 40
+
+
 def test_progress_denominator_fixed_from_start():
     """Semua pipeline + analyzer steps di-seed sekali → denominator tak tumbuh."""
     steps = _all_steps()
