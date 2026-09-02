@@ -189,6 +189,18 @@ class AnalysisService:
         for analyzer_type, build in non_visual_builders.items():
             analyzer = get_analyzer(analyzer_type)
             if analyzer is None:
+                # Analyzer tak ter-register atau gagal instantiate. Mark step failed
+                # supaya job tidak diam-diam SUCCESS dengan step "pending" ——
+                # finish_step(success=False) mengubah job.status jadi "failed".
+                logger.error(
+                    "Analyzer %s tidak tersedia (register/instantiate gagal) untuk job %d",
+                    analyzer_type, job_id,
+                )
+                self.job_service.start_step(job_id, analyzer_type)
+                self.job_service.finish_step(
+                    job_id, analyzer_type, success=False,
+                    error=f"Analyzer {analyzer_type} tidak tersedia",
+                )
                 continue
 
             logger.debug("Analyze process: step %s start", analyzer_type)
@@ -358,6 +370,15 @@ class AnalysisService:
         for analyzer_type, build in visual_builders.items():
             analyzer = get_analyzer(analyzer_type)
             if analyzer is None:
+                logger.error(
+                    "Analyzer %s tidak tersedia (register/instantiate gagal) untuk job %d",
+                    analyzer_type, job_id,
+                )
+                self.job_service.start_step(job_id, analyzer_type)
+                self.job_service.finish_step(
+                    job_id, analyzer_type, success=False,
+                    error=f"Analyzer {analyzer_type} tidak tersedia",
+                )
                 continue
 
             logger.debug("Analyze process (legacy): step %s start", analyzer_type)

@@ -58,10 +58,13 @@ class LLMAnalyzer(AnalyzerInterface):
             analysis.get("educational_value", 5.0),
             analysis.get("viral_potential", 5.0),
         ]
+        # source: "mock" saat tidak pakai LLM sungguhan (no key / parse gagal) —
+        # biar 30%-bobot tak terlihat palsu. Result ini masuk analysis_results.
         return AnalysisResult(
             score=round(sum(sub) / len(sub), 2),
             result_data={
                 "reason": "Skor konten dari analisis LLM",
+                "source": analysis.get("_source", "llm"),
                 "summary": analysis.get("summary", ""),
                 "key_points": analysis.get("key_points", []),
             },
@@ -69,13 +72,11 @@ class LLMAnalyzer(AnalyzerInterface):
 
     def _analyze_video(self, transcript_text: str) -> dict:
         """Build prompt, call LLM, parse response."""
-        prompt = self._build_analysis_prompt(transcript_text)
-
         if not self.api_key:
             return self._mock_analysis(transcript_text)
 
         try:
-            response = self._call_llm(prompt)
+            response = self._call_llm(self._build_analysis_prompt(transcript_text))
             return self._parse_analysis_response(response, transcript_text)
         except httpx.HTTPError as e:
             logger.error("LLM request failed: %s", str(e))
@@ -174,6 +175,7 @@ Return JSON with:
             return round(min(base + extra, 10.0), 1)
 
         return {
+            "_source": "mock",
             "hook_score": _clamp(6.5, hook_boost + hook_q),
             "story_score": _clamp(7.0, story_boost),
             "emotional_score": _clamp(6.0, activity * 0.5),
