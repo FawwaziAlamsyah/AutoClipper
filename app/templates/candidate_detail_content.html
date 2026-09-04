@@ -86,9 +86,8 @@
     {% if clip.tiktok_uploaded %}
     <span class="badge bg-info text-dark mb-2 d-inline-block" title="Klip sudah dikirim ke inbox TikTok">TikTok ✓ Sudah di-upload</span>
     {% endif %}
-    <button class="btn btn-dark" id="tiktokPublishBtn" onclick="publishToTikTok({{ clip.id }})"
-      {% if clip.tiktok_uploaded %}disabled title="Sudah dikirim ke inbox TikTok"{% endif %}>
-      {% if clip.tiktok_uploaded %}Sudah di-upload ke TikTok{% else %}📤 Upload ke TikTok (Draft/Private){% endif %}
+    <button class="btn btn-dark" id="tiktokPublishBtn" onclick="publishToTikTok({{ clip.id }})">
+      📤 Upload ke TikTok (Draft/Private)
     </button>
     <div id="tiktok-publish-status" class="mt-2"></div>
   </div>
