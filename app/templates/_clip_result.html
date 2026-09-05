@@ -1,8 +1,10 @@
 {% set fname = clip.filename if clip.filename is defined else (clip.file_path.split('/')[-1] if '/' in clip.file_path else clip.file_path.split('\\')[-1]) %}
+{% set show = clip.show_path if clip.show_path is defined else clip.file_path %}
+{% set show_url = show.replace('\\', '/').split('data/outputs/')[-1] %}
 <p class="text-success mb-0">
   <i class="bi bi-check-circle"></i>
   Clip sudah dibuat:
-  <a target="_blank" href="/data/outputs/{{ fname }}">{{ t("widget.openClip") }}</a>
+  <a target="_blank" href="/data/outputs/{{ show_url }}?v={{ cachebust(show) }}">{{ t("widget.openClip") }}</a>
 </p>
 
 {% if clip.id %}

@@ -70,8 +70,9 @@
   <h5>{{ t("candDetail.renderClip") }}</h5>
 
   {% if clip %}
+  {% set clip_show_path = (clip.edited_file_path or clip.file_path).replace('\\', '/') %}
   <p class="text-success"><i class="bi bi-check-circle"></i> Clip sudah dibuat:
-    <a target="_blank" href="/data/outputs/{{ clip.file_path.split('/')[-1].split('\\')[-1] }}">{{ t("candDetail.openClip") }}</a>
+    <a target="_blank" href="/data/outputs/{{ clip_show_path.split('data/outputs/')[-1] }}?v={{ cachebust(clip_show_path) }}">{{ t("candDetail.openClip") }}</a>
   </p>
   {% else %}
   <div id="clip-action">
@@ -107,6 +108,7 @@
     <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-crop">{{ t("candDetail.crop") }}</button></li>
     <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-sound">{{ t("candDetail.sound") }}</button></li>
     <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-watermark">{{ t("candDetail.watermark") }}</button></li>
+    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-hook">🪝 {{ t("candDetail.hookTab") }}</button></li>
   </ul>
 
   <div class="tab-content border border-top-0 p-3">
@@ -253,6 +255,57 @@
         <button type="submit" class="btn btn-sm btn-primary">{{ t("candDetail.applyWatermark") }}</button>
       </form>
     </div>
+
+    <!-- Tab Hook -->
+    <div class="tab-pane fade" id="tab-hook">
+      <div id="hook-llm-status" class="mb-3">
+        <small class="text-muted">{{ t("candDetail.hookLlmLoading") }}</small>
+      </div>
+      {% if candidate.hook_moment_start is not none %}
+        <div class="mb-2">
+          <span class="badge bg-primary">{{ candidate.hook_type or 'hook' }}</span>
+          {% if candidate.hook_confidence %}
+          <span class="badge bg-secondary ms-1">
+            {{ t("candDetail.hookConfidence") }}: {{ (candidate.hook_confidence * 100)|int }}%
+          </span>
+          {% endif %}
+          {% if clip.hook_applied %}
+          <span class="badge bg-success ms-1">✓ {{ t("candDetail.hookApplied") }}</span>
+          {% elif clip.hook_skip_reason %}
+          <span class="badge bg-warning text-dark ms-1">{{ t("candDetail.hookSkipped") }}: {{ clip.hook_skip_reason }}</span>
+          {% endif %}
+        </div>
+        {% if candidate.hook_caption %}
+        <p class="mb-1"><strong>{{ t("candDetail.hookCaption") }}:</strong> {{ candidate.hook_caption }}</p>
+        {% endif %}
+        <p class="text-muted small mb-0">
+          {{ t("candDetail.hookMoment") }}:
+          {{ '%.1f'|format(candidate.hook_moment_start) }}s
+          – {{ '%.1f'|format(candidate.hook_moment_end) }}s
+        </p>
+      {% else %}
+        <p class="text-muted small mb-0">{{ t("candDetail.hookNotFound") }}</p>
+      {% endif %}
+
+      {% if candidate.hook_moment_start is not none %}
+      <div class="mt-3 d-flex flex-wrap gap-2 align-items-center">
+        {% if clip.hook_skip_reason == 'render_failed' %}
+        <span class="text-danger small">
+          <i class="bi bi-exclamation-triangle"></i> Render hook sebelumnya gagal —
+          clip normal tetap dipakai.
+        </span>
+        {% endif %}
+        {% if clip.hook_applied %}
+        <small class="text-muted">Hook sudah diterapkan. Ingin re-render?</small>
+        {% endif %}
+        <button type="button" class="btn btn-sm btn-outline-primary"
+                onclick="regenerateHook(this, {{ clip.id }})">
+          🔄 {{ t("candDetail.retryHook") }}
+        </button>
+      </div>
+      {% endif %}
+    </div>
+
   </div>
 
   <button class="btn btn-sm btn-outline-secondary mt-3" onclick="resetClipEdit({{ clip.id }})">
@@ -379,6 +432,23 @@ async function resetClipEdit(clipId) {
     document.getElementById('clip-edit-preview-wrapper').innerHTML = await res.text();
   } else {
     alert('Gagal reset.');
+  }
+}
+
+async function regenerateHook(btn, clipId) {
+  _startEditProgress(btn);
+  try {
+    const res = await fetch(`/clips/${clipId}/hook/regenerate`, { method: 'POST' });
+    if (res.ok) {
+      document.getElementById('clip-edit-preview-wrapper').innerHTML = await res.text();
+    } else {
+      const err = await res.json().catch(() => ({}));
+      alert(err.detail || 'Gagal generate ulang hook.');
+    }
+  } catch (e) {
+    alert('{{ t("candDetail.error") }}');
+  } finally {
+    _stopEditProgress(btn);
   }
 }
 
@@ -535,6 +605,69 @@ function _stopGenerateProgress(btn) {
   setTimeout(() => { if (bar) bar.style.display = 'none'; }, 800);
   btn.disabled = false;
   btn.textContent = btn.dataset.origText || 'Generate Clip';
+}
+
+// Load LLM status di tab Hook saat pertama kali dibuka
+document.addEventListener('DOMContentLoaded', () => {
+  const hookTab = document.querySelector('[data-bs-target="#tab-hook"]');
+  if (hookTab) {
+    hookTab.addEventListener('shown.bs.tab', loadHookStatus);
+  }
+});
+
+async function loadHookStatus() {
+  const el = document.getElementById('hook-llm-status');
+  if (!el) return;
+  try {
+    const res = await fetch('/llm/status');
+    if (!res.ok) { el.innerHTML = ''; return; }
+    const d = await res.json();
+
+    if (!d.api_key_configured) {
+      el.innerHTML = `<div class="alert alert-warning small py-2 mb-0">
+        ⚠️ LLM API key belum dikonfigurasi — Auto Hook tidak aktif.
+      </div>`;
+      return;
+    }
+
+    if (!d.use_auto_hook) {
+      el.innerHTML = `<div class="alert alert-secondary small py-2 mb-0">
+        Auto Hook dinonaktifkan via config (USE_AUTO_HOOK=false).
+      </div>`;
+      return;
+    }
+
+    let lines = [`<div class="d-flex flex-wrap gap-2 align-items-center mb-1">`];
+    lines.push(`<span class="badge bg-success">✓ LLM aktif (${d.model})</span>`);
+
+    if (d.remaining_tokens !== null) {
+      const pct = d.limit_tokens ? Math.round(d.remaining_tokens / d.limit_tokens * 100) : null;
+      const color = pct === null ? 'secondary' : pct > 30 ? 'success' : pct > 10 ? 'warning' : 'danger';
+      lines.push(`<span class="badge bg-${color}">Token tersisa: ${d.remaining_tokens.toLocaleString()}${d.limit_tokens ? ' / ' + d.limit_tokens.toLocaleString() : ''}</span>`);
+      if (d.reset_tokens_at) lines.push(`<span class="text-muted small">Reset: ${d.reset_tokens_at}</span>`);
+    }
+
+    if (d.remaining_requests !== null) {
+      lines.push(`<span class="badge bg-secondary">Request tersisa: ${d.remaining_requests}</span>`);
+    }
+
+    lines.push('</div>');
+
+    if (d.last_error) {
+      lines.push(`<div class="alert alert-danger small py-1 mb-0 mt-1">
+        Error terakhir: ${d.last_error.substring(0, 120)}${d.last_error.length > 120 ? '...' : ''}
+        <br><small class="text-muted">Saat token/quota habis, clip tetap di-generate normal tanpa hook.</small>
+      </div>`);
+    } else if (d.last_called_at) {
+      lines.push(`<small class="text-muted">Last call: ${new Date(d.last_called_at).toLocaleString()}</small>`);
+    } else {
+      lines.push(`<small class="text-muted">Belum ada LLM call sejak server start.</small>`);
+    }
+
+    el.innerHTML = lines.join('');
+  } catch (e) {
+    el.innerHTML = '';
+  }
 }
 
 async function doGenerateClip(btn, candidateId) {

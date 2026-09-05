@@ -2,7 +2,11 @@
   <div class="card shadow-sm h-100">
     <div class="position-relative bg-dark rounded-top overflow-hidden" style="aspect-ratio:16/9;">
       <video class="w-100 h-100" style="object-fit:cover;" controls preload="metadata">
+        {% if candidate.clip_show_path %}
+        <source src="/data/outputs/{{ candidate.clip_show_path.split('data/outputs/')[-1] }}?v={{ cachebust(candidate.clip_show_path) }}" type="video/mp4">
+        {% else %}
         <source src="/preview/candidates/{{ candidate.id }}/clip" type="video/mp4">
+        {% endif %}
       </video>
       <span class="badge bg-dark position-absolute bottom-0 end-0 m-2">
         {% set dur = candidate.end_time - candidate.start_time %}

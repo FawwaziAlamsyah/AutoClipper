@@ -84,10 +84,12 @@ def candidates_by_video(
     for c in candidates:
         clip = clip_by_candidate.get(c.id)
         clip_filename = None
+        clip_show_path = None
         tiktok_uploaded = False
         if clip and clip.file_path:
             import os
             clip_filename = os.path.basename(clip.file_path)
+            clip_show_path = (clip.edited_file_path or clip.file_path).replace("\\", "/")
             tiktok_uploaded = bool(clip.tiktok_uploaded)
         candidate_rows.append({
             "id": c.id,
@@ -99,6 +101,7 @@ def candidates_by_video(
             "actual_score": c.actual_score,
             "job_id": c.job_id,
             "clip_filename": clip_filename,
+            "clip_show_path": clip_show_path,
             "tiktok_uploaded": tiktok_uploaded,
             "category": c.category.name if c.category else None,
             "category_name": c.category.name if c.category else None,

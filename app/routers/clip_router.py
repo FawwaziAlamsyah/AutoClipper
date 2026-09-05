@@ -99,6 +99,7 @@ def generate_clip_htmx(
         "actual_score": candidate_obj.actual_score,
         "job_id": candidate_obj.job_id,
         "clip_filename": clip_filename,
+        "clip_show_path": (candidate_clip.edited_file_path or candidate_clip.file_path).replace("\\", "/") if (candidate_clip and candidate_clip.file_path) else None,
         "tiktok_uploaded": tiktok_uploaded,
     }
     
@@ -122,6 +123,7 @@ def generate_clip_detail(
     import os
     clip = service.generate_clip(candidate_id, aspect_ratio, subtitle_enabled, subtitle_style)
     filename = os.path.basename(clip.file_path)
+    show_path = clip.edited_file_path or clip.file_path
     return templates.TemplateResponse(
         request=request,
         name="_clip_result.html",
@@ -131,8 +133,25 @@ def generate_clip_detail(
                 "file_path": clip.file_path,
                 "id": clip.id,
                 "filename": filename,
+                "edited_file_path": clip.edited_file_path,
+                "show_path": show_path,
             }
         }
+    )
+
+
+@router.post("/{clip_id}/hook/regenerate", response_class=HTMLResponse)
+def regenerate_hook(
+    request: Request,
+    clip_id: int,
+    service: ClipService = Depends(get_clip_service),
+):
+    """Generate ulang hook dari momen tersimpan candidate (tanpa replay LLM)."""
+    clip = service.regenerate_hook(clip_id)
+    return templates.TemplateResponse(
+        request=request,
+        name="_clip_edit_preview.html",
+        context={"request": request, "clip": clip, "ts": int(time.time())},
     )
 
 
