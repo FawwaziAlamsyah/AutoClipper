@@ -26,6 +26,8 @@ class ClipModel(Base, TimestampMixin):
     status: Mapped[str] = mapped_column(Text, nullable=False, default="rendering")
     exported_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     edited_file_path: Mapped[str | None] = mapped_column(String(1024))
+    hook_applied: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")
+    hook_skip_reason: Mapped[str | None] = mapped_column(Text, nullable=True)  # llm_unavailable|low_confidence|window_too_short|moment_too_close_to_start|render_failed
 
     candidate: Mapped["CandidateModel | None"] = relationship(back_populates="clips")
     video: Mapped["VideoModel"] = relationship(back_populates="clips")

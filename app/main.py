@@ -36,6 +36,7 @@ from app.routers import health_router, video_router, history_router, transcript_
 from app.routers import training_router
 from app.routers import storage_router
 from app.routers import tiktok_router
+from app.routers import llm_router
 
 setup_logging()
 
@@ -63,6 +64,7 @@ app.include_router(settings_router.router)
 app.include_router(training_router.router)
 app.include_router(storage_router.router)
 app.include_router(tiktok_router.router)
+app.include_router(llm_router.router)
 
 
 @app.on_event("startup")

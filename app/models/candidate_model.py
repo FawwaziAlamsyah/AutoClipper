@@ -21,6 +21,12 @@ class CandidateModel(Base, TimestampMixin):
     final_score: Mapped[float] = mapped_column(Float, nullable=False)
     score_breakdown: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
     hook_text: Mapped[str | None] = mapped_column(Text)
+    # Auto Hook Engine — momen hook yang ditemukan saat generate clip (JANGAN ubah hook_text di atas)
+    hook_moment_start: Mapped[float | None] = mapped_column(Float, nullable=True)
+    hook_moment_end: Mapped[float | None] = mapped_column(Float, nullable=True)
+    hook_type: Mapped[str | None] = mapped_column(Text, nullable=True)       # question|shock|stat|conflict|curiosity_gap
+    hook_confidence: Mapped[float | None] = mapped_column(Float, nullable=True)  # 0.0-1.0 dari LLM
+    hook_caption: Mapped[str | None] = mapped_column(Text, nullable=True)    # caption overlay hasil LLM
     status: Mapped[str] = mapped_column(Text, nullable=False, default="candidate")
     actual_score: Mapped[float | None] = mapped_column(Float, nullable=True)
     is_training_example: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)

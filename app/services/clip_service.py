@@ -7,10 +7,15 @@ from pathlib import Path
 
 from sqlalchemy.orm import Session
 
+from app.core.config.settings import settings
 from app.core.exceptions.base import ValidationException
 from app.models.clip_model import ClipModel
 from app.repositories.clip_repository import ClipRepository
 from app.repositories.candidate_repository import CandidateRepository
+from app.repositories.transcript_repository import (
+    TranscriptRepository,
+    TranscriptSegmentRepository,
+)
 from app.repositories.video_repository import VideoRepository
 from app.services.ffmpeg_service import FFmpegService
 from app.services.history_service import HistoryService
@@ -28,6 +33,8 @@ class ClipService:
         self.video_repo = VideoRepository(db)
         self.candidate_repo = CandidateRepository(db)
         self.clip_repo = ClipRepository(db)
+        self.transcript_repo = TranscriptRepository(db)
+        self.segment_repo = TranscriptSegmentRepository(db)
         self.ffmpeg = FFmpegService()
         self.history_service = HistoryService(db)
         self.job_service = JobService(db)
@@ -39,7 +46,14 @@ class ClipService:
         subtitle_enabled: bool = False,
         subtitle_style: str = "minimal",
     ) -> ClipModel:
-        """Generate a final clip using FFmpeg from a candidate."""
+        """Generate a final clip using FFmpeg from a candidate.
+
+        Setelah _extract_clip() sukses, jalankan Auto Hook Engine (jika aktif):
+        - Cari momen hook via LLM (HookMomentFinder)
+        - Simpan hasil ke candidate.hook_* untuk ditampilkan di tab Hook UI
+        - Render cold-open teaser + concat via HookComposerService
+        Kegagalan hook engine TIDAK menggagalkan generate_clip.
+        """
         candidate = self.candidate_repo.get(candidate_id)
         if candidate is None:
             raise ValidationException(f"Candidate {candidate_id} not found")
@@ -48,7 +62,6 @@ class ClipService:
         if video is None:
             raise ValidationException(f"Video {candidate.video_id} not found")
 
-        # Cek file masih ada sebelum coba render.
         if video.is_archived or not Path(video.file_path).exists():
             raise ValidationException(
                 f"Video dengan ID {video.id} sudah dihapus. "
@@ -56,19 +69,21 @@ class ClipService:
                 "tetap tersimpan untuk training, tapi file sumbernya sudah tidak ada."
             )
 
-        # Generate output filename
+        # ── Render clip biasa ─────────────────────────────────────────────────
         unique_id = str(uuid.uuid4())[:8]
         output_dir = Path("data/outputs")
         output_dir.mkdir(parents=True, exist_ok=True)
         output_path = output_dir / f"clip_{video.id}_{candidate.id}_{unique_id}.mp4"
 
-        # Step opsional "generate" — catat job_steps TANPA ubah status job
-        # (job sudah completed, tak boleh jadi running lagi).
         job_id = candidate.job_id
         logger.debug("Generate process: render clip untuk candidate %d (%s)", candidate_id, aspect_ratio)
         self.job_service.start_optional_step(job_id, "generate")
         try:
-            self._extract_clip(video.file_path, str(output_path), candidate.start_time, candidate.end_time, aspect_ratio)
+            self._extract_clip(
+                video.file_path, str(output_path),
+                candidate.start_time, candidate.end_time,
+                aspect_ratio,
+            )
         except Exception:
             self.job_service.finish_optional_step(job_id, "generate", success=False, error="FFmpeg render gagal")
             logger.debug("Generate process: error - FFmpeg render gagal")
@@ -88,10 +103,12 @@ class ClipService:
         )
         clip = self.clip_repo.add(clip)
 
-        # Update candidate status via repository
-        self.candidate_repo.update_status(candidate_id, "selected")
+        # ── Auto Hook Engine (best-effort, TIDAK boleh raise) ─────────────────
+        if settings.USE_AUTO_HOOK:
+            self._run_auto_hook(clip, candidate, video)
 
-        # Log to history
+        # ── Update candidate + history ────────────────────────────────────────
+        self.candidate_repo.update_status(candidate_id, "selected")
         self.history_service.log(
             action="clip_exported",
             description=f"Clip {clip.id} exported: {aspect_ratio}",
@@ -100,6 +117,121 @@ class ClipService:
         )
 
         logger.info("Generated clip %d for candidate %d", clip.id, candidate_id)
+        return clip
+
+    def _run_auto_hook(self, clip: ClipModel, candidate, video) -> None:
+        """Cari momen hook via LLM, simpan ke candidate, lalu compose clip.
+
+        Semua exception di-catch di sini — generate_clip tidak boleh gagal karena hook.
+        """
+        try:
+            from app.ai_modules.hook_analysis.hook_moment_finder import HookMomentFinder
+            from app.services.hook_composer_service import HookComposerService
+
+            window_duration = candidate.end_time - candidate.start_time
+
+            # Ambil segments transcript
+            transcript = self.transcript_repo.get_by_video(video.id)
+            if not transcript:
+                logger.debug("Auto Hook skip candidate %d: tidak ada transcript", candidate.id)
+                clip.hook_skip_reason = "llm_unavailable"
+                self.db.commit()
+                return
+
+            segments = self.segment_repo.get_by_transcript(transcript.id)
+            # Filter ke window candidate saja
+            segs_in_window = [
+                s for s in segments
+                if s.end_time > candidate.start_time and s.start_time < candidate.end_time
+            ]
+
+            # Cari nama kategori untuk konteks LLM
+            category_name = candidate.category.name if candidate.category else None
+
+            finder = HookMomentFinder()
+            hook_moment, skip_reason = finder.find(segs_in_window, category_name)
+
+            if hook_moment is None:
+                logger.info(
+                    "Auto Hook skip candidate %d: %s (segments in window: %d, api_key_set: %s)",
+                    candidate.id, skip_reason, len(segs_in_window), bool(finder.api_key),
+                )
+                clip.hook_skip_reason = skip_reason
+                self.db.commit()
+                return
+
+            # Simpan hasil ke candidate (untuk ditampilkan di tab Hook UI)
+            candidate.hook_moment_start = hook_moment.hook_moment_start
+            candidate.hook_moment_end   = hook_moment.hook_moment_end
+            candidate.hook_type         = hook_moment.hook_type
+            candidate.hook_confidence   = hook_moment.hook_confidence
+            candidate.hook_caption      = hook_moment.hook_caption
+            self.db.commit()
+
+            # Compose cold-open
+            composer = HookComposerService(self.db)
+            composer.compose(
+                clip_id=clip.id,
+                video_source_path=video.file_path,
+                aspect_ratio=clip.aspect_ratio,
+                hook_moment=hook_moment,
+                window_duration=window_duration,
+            )
+
+        except Exception as e:
+            logger.warning(
+                "Auto Hook Engine gagal untuk clip %d (clip normal tetap dipakai): %s",
+                clip.id, e,
+            )
+            try:
+                clip.hook_skip_reason = "render_failed"
+                self.db.commit()
+            except Exception:
+                pass
+
+    def regenerate_hook(self, clip_id: int) -> ClipModel:
+        """Render ulang hook dari momen tersimpan candidate (tanpa replay LLM).
+
+        Dipakai tombol "Generate Ulang Hook" di UI saat render sebelumnya gagal
+        (hook_skip_reason=render_failed) atau user coba lagi. Re-uses momen hook
+        yang sudah tersimpan di candidate; langsung compose tanpa LLM call.
+        """
+        clip = self.clip_repo.get(clip_id)
+        if clip is None:
+            raise ValidationException(f"Clip {clip_id} not found")
+
+        candidate = self.candidate_repo.get(clip.candidate_id)
+        if candidate is None or candidate.hook_moment_start is None:
+            raise ValidationException(
+                "Tidak ada momen hook tersimpan untuk clip ini — generate ulang via 'Generate Clip'."
+            )
+
+        video = self.video_repo.get(candidate.video_id)
+        if video is None or not Path(video.file_path).exists():
+            raise ValidationException("Video sumber sudah tidak ada.")
+
+        from app.ai_modules.hook_analysis.hook_moment_finder import HookMoment
+        from app.services.hook_composer_service import HookComposerService
+
+        hook_moment = HookMoment(
+            hook_moment_start=candidate.hook_moment_start,
+            hook_moment_end=candidate.hook_moment_end,
+            hook_type=candidate.hook_type or "hook",
+            hook_confidence=candidate.hook_confidence or 0.0,
+            hook_caption=candidate.hook_caption or "",
+            best_idx=0,
+        )
+
+        composer = HookComposerService(self.db)
+        window_duration = candidate.end_time - candidate.start_time
+        composer.regenerate_from_candidate(
+            clip_id=clip.id,
+            video_source_path=video.file_path,
+            aspect_ratio=clip.aspect_ratio,
+            hook_moment=hook_moment,
+            window_duration=window_duration,
+        )
+        clip = self.clip_repo.get(clip_id)
         return clip
 
     def _extract_clip(self, input_path: str, output_path: str, start: float, end: float, aspect_ratio: str) -> None:

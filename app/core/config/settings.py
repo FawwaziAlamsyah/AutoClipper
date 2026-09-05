@@ -124,6 +124,13 @@ class Settings(BaseSettings):
     TIKTOK_REDIRECT_URI: str = "http://localhost:8000/tiktok/oauth/callback"
     TIKTOK_TOKEN_ENCRYPTION_KEY: str = ""  # generate sekali, simpan di .env (lihat instruksi di bawah)
 
+    # Auto Hook Engine — cold-open reorder + zoom-punch + LLM caption.
+    # Memerlukan LLM_API_KEY dikonfigurasi; kalau kosong → hook di-skip otomatis.
+    # Set USE_AUTO_HOOK=false di .env untuk matikan seluruh fitur.
+    USE_AUTO_HOOK: bool = True
+    AUTO_HOOK_MIN_CONFIDENCE: float = 0.6   # threshold confidence LLM (0.0–1.0)
+    AUTO_HOOK_MIN_WINDOW_SECONDS: float = 20.0  # durasi window minimum agar hook dicoba
+
 
 @lru_cache
 def get_settings() -> Settings:

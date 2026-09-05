@@ -197,6 +197,17 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "candDetail.watermarkUploaded": "Watermark baru disimpan.",
         "candDetail.watermarkUploadFail": "Gagal upload watermark.",
 
+        # Auto Hook tab
+        "candDetail.hookTab": "Hook",
+        "candDetail.hookCaption": "Caption hook",
+        "candDetail.hookMoment": "Momen hook",
+        "candDetail.hookConfidence": "Confidence",
+        "candDetail.hookApplied": "Hook diterapkan",
+        "candDetail.hookSkipped": "Hook di-skip",
+        "candDetail.hookNotFound": "Auto hook akan dicari otomatis saat clip di-generate.",
+        "candDetail.hookLlmLoading": "Memuat status LLM...",
+        "candDetail.retryHook": "Generate Ulang Hook",
+
         # History
         "hist.title": "Riwayat & Log Audit",
         "hist.subtitle": "Log proses aktivitas global dari system auto clipper.",
