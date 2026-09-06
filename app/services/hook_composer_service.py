@@ -32,7 +32,30 @@ logger = logging.getLogger(__name__)
 
 _SFX_PATH = Path("data/assets/sfx/whoosh.mp3")
 _SFX_WARNED = False   # log warning SFX sekali saja per process
+# Font hook (prioritas: Bold yang tegas & profesional). Format path memakai
+# gaya drawtext: backslash di-escape dan ":" drive di-escape (C\:/...).
 _FONTFILE = "C\\:/Windows/Fonts/arial.ttf"
+_SAFE_FONTS = [
+    "C\\:/Windows/Fonts/arialbd.ttf",
+    "C\\:/Windows/Fonts/Candarab.ttf",
+    "C\\:/Windows/Fonts/trebucbd.ttf",
+    "C\\:/Windows/Fonts/arial.ttf",
+]
+_FONTFILE_RESOLVED: str | None = None
+
+
+def _resolve_font() -> str:
+    """Pilih font pertama yang ada di sistem (dijamin ada), cache per process."""
+    global _FONTFILE_RESOLVED
+    if _FONTFILE_RESOLVED is None:
+        for path in _SAFE_FONTS:
+            real = path.replace("\\:", ":")  # C\:/... → C:/...
+            if Path(real).exists():
+                _FONTFILE_RESOLVED = path
+                break
+        if _FONTFILE_RESOLVED is None:
+            _FONTFILE_RESOLVED = _FONTFILE
+    return _FONTFILE_RESOLVED
 
 
 class HookComposerService:
@@ -278,20 +301,34 @@ class HookComposerService:
         caption: str,
         duration: float,
     ) -> None:
-        """Bakar caption overlay ke teaser — pola identik ClipEditorService.add_text()."""
+        """Bakar caption overlay ke teaser — gaya profesional: uppercase,
+        font Bold, box lembut, shadow halus.
+
+        Ukuran font adaptif: caption panjang mengecil supaya tidak overflow.
+        """
         # Escape identik dengan burn_subtitle: backslash dulu, colon, apostrophe → U+2019
         safe_text = (
-            caption.strip()
+            caption.strip().upper()
             .replace("\\", "\\\\")
             .replace(":", "\\:")
             .replace("'", "\u2019")
         )
-        font_size = settings.AUTO_HOOK_CAPTION_FONT_SIZE if hasattr(settings, "AUTO_HOOK_CAPTION_FONT_SIZE") else 64
+        base_size = settings.AUTO_HOOK_CAPTION_FONT_SIZE if hasattr(settings, "AUTO_HOOK_CAPTION_FONT_SIZE") else 64
+        if len(safe_text) > 34:
+            font_size = int(base_size * 0.7)
+        elif len(safe_text) > 18:
+            font_size = int(base_size * 0.85)
+        else:
+            font_size = int(base_size)
+
+        fontfile = _resolve_font()
         vf = (
-            f"drawtext=fontfile='{_FONTFILE}':text='{safe_text}':"
+            f"drawtext=fontfile='{fontfile}':text='{safe_text}':"
             f"fontcolor=white:fontsize={font_size}:"
+            f"line_spacing=10:"
             f"x=(w-text_w)/2:y=h*0.18:"
-            f"box=1:boxcolor=black@0.45:boxborderw=14:"
+            f"box=1:boxcolor=black@0.5:boxborderw=22:"
+            f"shadowcolor=black@0.35:shadowx=0:shadowy=6:"
             f"enable='between(t,0,{duration:.3f})'"
         )
         cmd = [
@@ -332,12 +369,13 @@ class HookComposerService:
         whoosh_dur = self._whoosh_duration()
         delay_ms = max(0, int((teaser_duration - whoosh_dur) * 1000))
 
-        # Mix SFX digeser ke akhir teaser; volume asli di-duck ke 0.3.
-        # amix duration=first memotong audio di panjang teaser — whoosh sudah
-        # ditempatkan penuh di dalam rentang itu jadi letupannya pas di cut.
+        # Mix SFX digeser ke akhir teaser; volume teaser tetap tinggi (0.9)
+        # supaya suara hook TIDAK mendem vs klip utuh — hanya whoosh yang
+        # diimbangi di 0.5. amix duration=first memotong audio di panjang
+        # teaser — whoosh sudah penuh di dalam rentang itu, letupannya di cut.
         af = (
-            f"[0:a]volume=0.3[a0];"
-            f"[1:a]volume=0.8,adelay={delay_ms}:all=1[a1];"
+            f"[0:a]volume=0.9[a0];"
+            f"[1:a]volume=0.5,adelay={delay_ms}:all=1[a1];"
             f"[a0][a1]amix=inputs=2:duration=first:dropout_transition=0[aout]"
         )
         cmd = [

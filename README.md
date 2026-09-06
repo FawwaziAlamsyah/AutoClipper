@@ -1,249 +1,128 @@
 # AI Auto Clipper
 
-Tool lokal berbasis AI untuk otomatis mengekstrak klip viral dari video panjang (YouTube, podcast, interview, dll). Menjalankan pipeline penuh: upload/download → transcribe (Whisper) → analisis multi-analyzer → scoring → pilih candidate → render clip + subtitle.
+Tool lokal AI untuk mengekstrak klip viral dari video panjang (YouTube, podcast, interview). Pipeline: upload/download → transcribe (Whisper) → analisis multi-analyzer → scoring → pilih candidate → render clip + subtitle + **Auto Hook** (cold-open teaser).
 
-**Dibangun dengan:** Python 3.14 + FastAPI + PostgreSQL + FFmpeg + Faster-Whisper + OpenAI-compatible LLM + MediaPipe/OpenCV + librosa + scikit-learn (model scoring per kategori).
+**Stack:** Python 3.14 · FastAPI · PostgreSQL · FFmpeg · Faster-Whisper · OpenAI-compatible LLM
 
-> **Catatan versi:** project ini diuji di **Python 3.14** (Windows). Beberapa dependency (mediapipe) punya wheel khusus untuk Python 3.14 yang berbeda perilakunya dari versi lama — lihat [Troubleshooting](#troubleshooting).
+## Fitur Utama
 
-## Fitur
-
-- ✅ Upload video lokal atau download dari URL (YouTube, TikTok, dll)
-- ✅ Speech-to-text dengan Faster-Whisper (large-v3)
-- ✅ 8 analyzer plugin: LLM content, face emotion, voice emotion, gesture, eye contact, scene change, audio quality, hook/story/context/ending (LLM)
-- ✅ Weighted scoring engine (bobot 100%) + non-overlap candidate selection
-- ✅ **Model scoring per kategori** — tiap kategori (Gaming, Podcast, dsb) punya model terlatih sendiri (scikit-learn GradientBoosting), fallback ke weighted-sum kalau kategori belum dilatih
-- ✅ **Training per kategori** — label candidate via dropdown kategori, training di-isolasi per kategori, riwayat run + rollback/aktifkan model per kategori
-- ✅ Sliding window menyapu seluruh video (bukan potongan linear)
-- ✅ Preview candidate tanpa render penuh
-- ✅ Final clip render dengan FFmpeg (9:16 / 16:9 / 1:1)
-- ✅ Subtitle generation (SRT/VTT, word-level)
-- ✅ Progress tracker realtime per-job step
-- ✅ Audit trail & history
-
-## Tech Stack
-
-| Layer | Tech |
-|-------|------|
-| Backend | Python 3.14+, FastAPI, Jinja2, SQLAlchemy |
-| Database | PostgreSQL 16 |
-| Audio/Video | FFmpeg, ffprobe, OpenCV, MediaPipe, librosa |
-| Speech-to-Text | Faster-Whisper |
-| AI | OpenAI-compatible LLM API (default gpt-4o-mini) |
-| Download | yt-dlp + curl_cffi + yt-dlp-ejs |
-| Frontend | Bootstrap 5, vanilla JS |
-| Testing | pytest |
+- ✅ Sliding window menyapu seluruh video, scoring + candidate terbaik
+- ✅ 8 analyzer: LLM content, face emotion, voice, gesture, eye contact, scene, audio, hook/story
+- ✅ Render clip 9:16 / 16:9 / 1:1 + subtitle SRT/VTT
+- ✅ **Auto Hook Engine** — potongan pembuka 1–5 detik dari momen paling menarik di dalam clip (teaser zoom + caption overlay + whoosh SFX), lalu concat ke full clip. Butuh LLM. Gagal hook = clip normal tetap dipakai (tak pernah ngerusak hasil).
+- ✅ Training model scoring per kategori
+- ✅ YouTube download + penanganan anti-bot
 
 ## Prasyarat
 
-1. **Python 3.14+** — [python.org](https://www.python.org/downloads/)
-2. **PostgreSQL 16** — [postgresql.org](https://www.postgresql.org/download/) atau Docker:
-   ```bash
-   docker run -d -p 5432:5432 -e POSTGRES_PASSWORD=yourpass -e POSTGRES_DB=ai_auto_clipper postgres:16-alpine
-   ```
-3. **FFmpeg + ffprobe** — [ffmpeg.org](https://ffmpeg.org/download.html)
-   - Windows: pastikan `ffmpeg` dan `ffprobe` di PATH, atau set `FFMPEG_PATH`/`FFPROBE_PATH` di `.env`
-   - macOS: `brew install ffmpeg` | Linux: `sudo apt install ffmpeg`
-4. **Node.js 18+** — [nodejs.org](https://nodejs.org/) — **WAJIB** untuk download YouTube (n-challenge solver). Verifikasi: `node --version`.
+| Tool | Versi | Catatan |
+|------|-------|---------|
+| Python | 3.14+ | wajib, dependency pin ke 3.14 |
+| PostgreSQL | 16 | koneksi via `DATABASE_URL` |
+| FFmpeg + ffprobe | apa saja | set path di `.env` kalau tidak di PATH |
+| Node.js | 18+ | **wajib** untuk download YouTube |
+| 9Router (opsional) | npm global | proxy LLM lokal, lihat di bawah |
 
-## Setup Project
+## Setup (5 langkah)
 
 ```bash
-# 1. Clone
-git clone https://github.com/yourusername/ai-auto-clipper.git
+# 1. Clone & masuk folder
+git clone <repo-url>
 cd ai-auto-clipper
 
-# 2. Buat & aktivasi venv
+# 2. Virtual env + install
 python -m venv .venv
 .venv\Scripts\activate        # Windows
-# source .venv/bin/activate   # macOS/Linux
-
-# 3. Install dependencies
+# source .venv/bin/activate   # macOS / Linux
 pip install -r requirements.txt
 
-# 4. Copy .env & isi
+# 3. Konfigurasi .env
 cp .env.example .env
-```
 
-### Konfigurasi `.env`
-
-Wajib minimal: `DATABASE_URL` (PostgreSQL) dan `LLM_API_KEY` (kalau mau scoring LLM aktif).
-
-```env
-DATABASE_URL=postgresql+psycopg://postgres:yourpass@localhost:5432/ai_auto_clipper
-LLM_API_KEY=sk-...                # kosong = LLM pakai mock (skor netral)
-WHISPER_MODEL=base                # kecil = cepat; large-v3 = akurat tapi butuh GPU
-```
-
-Lihat [.env.example](.env.example) untuk semua variabel + default.
-
-### Database Migration
-
-```bash
+# 4. Migrasi database (PostgreSQL harus jalan dulu)
 alembic upgrade head
-# atau .venv\Scripts\alembic upgrade head
+
+# 5. Jalankan
+uvicorn app.main:app --reload
 ```
 
-### Menjalankan App
+Buka **http://127.0.0.1:8000**
 
+## Konfigurasi LLM
+
+Semua fitur LLM (scoring content + Auto Hook) pakai API OpenAI-compatible lewat `LLM_BASE_URL`.
+
+**Opsi A — 9Router (proxy lokal gratis, direkomendasikan):**
 ```bash
-# --no-access-log: terminal fokus ke log.debug proses, bukan request per-halaman
-.\.venv\Scripts\uvicorn app.main:app --reload
-# atau .venv\Scripts\uvicorn app.main:app --reload --no-access-log
+npm install -g 9router
+9router
+# dashboard: http://localhost:20128/dashboard
+```
+```env
+LLM_MODEL=DABOJI
+LLM_API_KEY=sk-<key dari 9router>
+LLM_BASE_URL=http://localhost:20128/v1
 ```
 
-Buka browser: **http://127.0.0.1:8000**
-
-## Model AI (auto-download)
-
-- **Whisper model** — di-download otomatis saat pertama transcribe (cache di `~/.cache/huggingface`). `WHISPER_MODEL` di `.env`.
-- **MediaPipe CV models** (face_landmarker, hand_landmarker) — di-download otomatis ke `data/models/` saat pertama analyze.
-
-## Download dari URL (YouTube & anti-bot)
-
-YouTube sering memblokir dengan error `Sign in to confirm you're not a bot`. Project menangani ini dengan strategi client berlapis:
-
-1. **Client kualitas baik dulu** — app coba `tv`, `tv_simply`, `ios`, lalu `web` (format wajib minimal 720p, cap 1080p).
-2. **Fallback android** — kalau semua client di atas gagal, app coba client `android` (paling reliable lolos bot-check, tapi resolusi bisa di bawah 720p).
-3. **Node.js** — wajib terpasang; tanpanya format video disembunyikan (error `n challenge solving failed`).
-4. **Cookies manual (opsional)** — yt-dlp bisa membaca cookies login dari browser terpasang secara otomatis (fitur bawaan yt-dlp), atau dari file export manual, bila dibutuhkan untuk video yang butuh login.
-
-`data/models/` sudah di-`.gitignore` — tidak akan ter-push.
-
-## Cara Menggunakan
-
-### 1. Upload / Download
-- **Upload file:** pilih video lokal (mp4/mov/mkv/avi, maks 2GB).
-- **Download URL:** masukkan URL YouTube/TikTok → progress bar persen realtime.
-
-### 2. Atur Pipeline
-Bahasa, **kategori** (dropdown, diisi dari halaman Training), jumlah clip, durasi min/max, keyword boost, skip keywords. Setting tersimpan per-session browser (tidak reset saat pindah halaman).
-
-### 3. Proses Pipeline
-Tombol **Proses** → job berjalan di background dengan progress step realtime (`extract → transcribe → analyze → score → complete` + 7 sub-step analyzer). Video yang sudah pernah diproses (status `ready`) diminta konfirmasi sebelum diproses ulang.
-
-### 4. Review Candidate
-- **Candidates** → tabel skor. Klik **Detail** → breakdown per analyzer (skor + kontribusi), preview video, generate clip.
-- **Label training**: pilih kategori dari dropdown di tiap card candidate → tombol ✓ untuk menandai contoh positif kategori itu. Tombol 👎 hanya penanda kualitas (bukan data training).
-- Window tersebar di seluruh video (sliding window), top-N dipilih non-overlap.
-
-### 5. Generate Final Clip & Subtitle
-- Generate clip (FFmpeg, pilih aspect ratio).
-- Generate subtitle (SRT/VTT, style minimal/tiktok/youtube).
-
-### 6. Training Model per Kategori
-- **Halaman Training** (`/training`) — buat/rename/hapus kategori, pilih kategori aktif via tombol di dashboard.
-- **Data training** — kumpulkan ≥20 contoh per kategori lewat dropdown di candidate grid ATAU bulk CSV import (`/training`, CSV berformat `source,actual_score` + pilihan kategori).
-- **Train Model** — klik per kategori, model disimpan ke `data/models/category_{id}/`, riwayat run + metrik (val MAE / R²) per kategori.
-- **Aktifkan/Rollback** — pilih run historis kategori tertentu jadi aktif tanpa memengaruhi kategori lain.
-- Scoring pakai model terlatih kategori jika ada; kalau belum dilatih/kategori kosong → fallback weighted-sum.
-
-## Struktur Folder
-
-```
-ai-auto-clipper/
-├── app/
-│   ├── ai_modules/          # Analyzer plugin (plugin-ready, registrasi via registry.py)
-│   │   ├── base/            #   AnalyzerInterface + AnalysisResult
-│   │   ├── registry.py      #   daftar analyzer aktif
-│   │   ├── speech_to_text/  #   whisper
-│   │   ├── llm_analysis/    #   llm_content (hook/story/context/ending)
-│   │   ├── face_analysis/   #   face_emotion, eye_contact
-│   │   ├── gesture_analysis/#   gesture
-│   │   ├── scene_analysis/  #   scene
-│   │   └── voice_analysis/  #   voice_emotion, audio
-│   ├── core/                # config, logging (console + error.log), exceptions, DI
-│   ├── db/                  # koneksi DB (PostgreSQL)
-│   ├── ml/                  # training & prediksi model scoring (feature_builder, trainer, predictor)
-│   ├── models/              # SQLAlchemy ORM (termasuk CategoryModel, TrainingRunModel)
-│   ├── repositories/        # data access layer
-│   ├── schemas/             # Pydantic DTO
-│   ├── services/            # business logic (analysis, score, process, category, training, dll)
-│   ├── routers/             # FastAPI endpoints (termasuk category_router, training_router)
-│   ├── templates/           # Jinja2 HTML
-│   ├── static/              # CSS/JS
-│   └── main.py
-├── alembic/                 # DB migrations
-├── data/
-│   ├── uploads/             # video input
-│   ├── outputs/             # final clips + subtitle
-│   ├── cache/               # audio hasil extract
-│   ├── models/              # CV .tflite (auto-download, git-ignored) + category_{id}/ model per kategori
-│   └── ...
-├── logs/                    # error.log saja (progress di terminal via log.debug)
-├── tests/                   # pytest (55 test)
-├── .env.example
-├── requirements.txt
-└── README.md
+**Opsi B — provider langsung (OpenAI/Anthropic/Gemini proxied):**
+```env
+LLM_MODEL=gpt-4o-mini
+LLM_API_KEY=sk-...
+LLM_BASE_URL=https://api.openai.com/v1
 ```
 
-## Menambah Analyzer Baru (plugin-ready)
+**Tanpa LLM / key kosong:** scoring pakai mock (netral), Auto Hook otomatis skip.
 
-Tambah analyzer baru **tanpa mengubah pipeline**:
+## Auto Hook (ringkas)
 
-1. Buat `app/ai_modules/<nama>/<nama>_analyzer.py`:
-   ```python
-   from app.ai_modules.base.analyzer_interface import AnalyzerInterface, AnalysisResult
-   from app.ai_modules.registry import register_analyzer
+Saat *Generate Clip*: LLM pilih momen paling menarik di dalam window clip → potong 1–5 detik → zoom-punch + caption jujur (angka wajib dari transkrip asli) + whoosh di potongan → concat di depan full clip. Hasil disimpan di `clip.edited_file_path`.
 
-   @register_analyzer
-   class XAnalyzer(AnalyzerInterface):
-       analyzer_type = "x_type"
-       def analyze(self, input):  # input: dict (path video/audio/teks)
-           return AnalysisResult(score=8.0, result_data={"reason": "..."})
-   ```
-2. Import di `app/ai_modules/__init__.py` (agar auto-register).
-3. Tambahkan ke `input_builders` di `app/services/analysis_service.py`.
-4. Set bobot di `settings.py` (`SCORE_WEIGHT_*`).
+Catatan kualitas:
+- Durasi hook mengikuti momen (bukan kaku 2 detik), berakhir di akhir kalimat.
+- Caption faktual — angka yang tidak ada di transkrip otomatis diganti teks asli.
+- SFX whoosh: `data/assets/sfx/whoosh.mp3` (opsional, tanpa file = hook tetap jalan).
 
-`process_service.py` dan orchestration **tidak berubah**.
+Nonaktifkan: set `USE_AUTO_HOOK=false` di `.env`.
 
-## Environment Variables
+## Environment Variables (utama)
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| DATABASE_URL | postgresql://app:app@localhost:5432/ai_auto_clipper | PostgreSQL connection |
-| LLM_API_KEY | (empty) | API key LLM (kosong = mock, skor netral) |
-| LLM_MODEL | gpt-4o-mini | Nama model LLM |
-| LLM_BASE_URL | https://api.openai.com/v1 | Base URL (OpenAI-compatible) |
-| WHISPER_MODEL | large-v3 | Model whisper (base/small/large-v3) |
-| WHISPER_DEVICE | auto | auto/cuda/cpu |
-| FFMPEG_PATH | ffmpeg | Path FFmpeg binary |
-| FFPROBE_PATH | ffprobe | Path ffprobe binary |
-| MAX_UPLOAD_SIZE_MB | 2048 | Max upload size |
-| LOG_LEVEL | INFO | Level log |
-| USE_TRAINED_SCORE_MODEL | true | Pakai model terlatih per kategori; false = paksa weighted-sum |
-| LIKED_CLIP_DEFAULT_SCORE | 8.0 | Skor default candidate yang ditandai contoh positif via kategori |
+| Variable | Default | Deskripsi |
+|----------|---------|-----------|
+| DATABASE_URL | postgresql://app:app@localhost:5432/ai_auto_clipper | koneksi PostgreSQL |
+| LLM_API_KEY | (kosong) | key LLM — kosong = mock + hook skip |
+| LLM_MODEL | gpt-4o-mini | model LLM |
+| LLM_BASE_URL | https://api.openai.com/v1 | base URL OpenAI-compatible |
+| WHISPER_MODEL | large-v3 | base / small / large-v3 (small = cepat) |
+| WHISPER_DEVICE | auto | auto / cuda / cpu |
+| FFMPEG_PATH · FFPROBE_PATH | ffmpeg · ffprobe | path binary |
+| USE_AUTO_HOOK | true | auto hook aktif/nonaktif |
+| AUTO_HOOK_MIN_CONFIDENCE | 0.6 | threshold confidence LLM untuk hook |
+| AUTO_HOOK_MIN_WINDOW_SECONDS | 20.0 | min durasi window agar hook dicoba |
+
+Model Whisper & CV (MediaPipe) di-download otomatis saat pertama dipakai.
 
 ## Testing
 
 ```bash
 .venv\Scripts\pytest          # Windows
-# pytest                      # macOS/Linux
+pytest                        # macOS/Linux
 ```
-
-Semua test mock dependency berat (whisper, mediapipe, cv2) — tidak perlu GPU/FFmpeg untuk unit test.
+Unit test mock semua dependency berat — tidak butuh GPU/FFmpeg/database.
 
 ## Troubleshooting
 
-**`Sign in to confirm you're not a bot` (YouTube)**
-- App otomatis coba client `tv`/`tv_simply`/`ios`/`web` dulu (720p+), lalu fallback `android` kalau semua gagal. Coba download ulang.
+**`parse gagal / Extra data` saat hook** — 9router kadang sisipkan trailing `data: [DONE]` di body HTTP; sudah ditangani otomatis. Kalau masih gagal, restart 9router.
 
-**`n challenge solving failed: Some formats may be missing`**
-- Node.js tidak terdeteksi. Pastikan `node --version` jalan; project force `js_runtimes: {"node": {}}`.
+**`Sign in to confirm you're not a bot` (YouTube)** — app sudah coba multi-client + fallback `android`. Coba download ulang.
 
-**`module 'mediapipe' has no attribute 'solutions'`**
-- Python 3.14 wheel mediapipe hanya punya **Tasks API**, bukan `mp.solutions`. Project sudah pakai Tasks API (`FaceLandmarker`/`HandLandmarker`) — pastikan `mediapipe==0.10.35` (pin di requirements).
+**`n challenge solving failed`** — Node.js tidak terdeteksi. Pastikan `node --version` jalan.
 
-**`cublas64_12.dll not found` (GPU whisper)**
-- Install `nvidia-cublas-cu12` (sudah di requirements). Kalau tak pakai GPU, set `WHISPER_DEVICE=cpu`.
+**`module 'mediapipe' has no attribute 'solutions'`** — pastikan `mediapipe==0.10.35` (Python 3.14 pakai Tasks API, bukan `mp.solutions`).
 
-**Koneksi DB gagal**
-- Pastikan PostgreSQL jalan di port 5432. Password berkarakter khusus → URL-encode.
+**`cublas64_12.dll not found`** — install `nvidia-cublas-cu12` (sudah di requirements) atau set `WHISPER_DEVICE=cpu`.
 
-**LLM skor semua netral**
-- `LLM_API_KEY` kosong → analyzer llm_content pakai mock. Isi key di `.env`.
+**Koneksi DB gagal** — pastikan PostgreSQL jalan; password berkarakter khusus harus URL-encoded.
 
 ## License
 
-MIT License
+MIT
