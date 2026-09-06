@@ -204,8 +204,11 @@ class HookMomentFinder:
             else min(hook_duration_end, window_end_time)
         )
 
-        # Fallback caption: ambil teks segment kalau kosong
-        if not caption:
+        # Fallback caption: ambil teks segment kalau kosong.
+        # Guard konsistensi: kalau caption memuat angka yang TIDAK ada di
+        # transkrip window, kemungkinan LLM bohong/melebih-lebihkan → buang
+        # caption LLM, pakai teks verbatim segment (dijamin jujur).
+        if not caption or not self._caption_consistent(caption, segments):
             caption = " ".join(segments[best_idx].text.split()[:8])
 
         return HookMoment(
@@ -218,6 +221,20 @@ class HookMomentFinder:
         ), None
 
     # ── Private helpers ───────────────────────────────────────────────────────
+
+    @staticmethod
+    def _caption_consistent(caption: str, segments: list) -> bool:
+        """Cek tiap token angka di caption muncul di teks transkrip window.
+
+        Mencegah LLM membuat angka/klaim baru yang tidak ada di sumber.
+        Caption tanpa angka → dianggap konsisten (tidak ada angka bohong).
+        """
+        import re
+        numbers = re.findall(r"\d[\d.,]*", caption)
+        if not numbers:
+            return True
+        transcript = " ".join(seg.text or "" for seg in segments).lower()
+        return all(num.lower() in transcript for num in numbers)
 
     def _build_prompt(self, seg_list: list[dict], category_name: str | None) -> str:
         category_ctx = (
@@ -240,6 +257,7 @@ Aturan:
 - JANGAN pilih segmen di awal daftar (idx 0, 1, atau 2) — cold open hanya bermakna kalau momen tersebut jauh dari awal klip.
 - hook_type harus salah satu: question, shock, stat, conflict, curiosity_gap.
 - confidence: 0.0–1.0 seberapa yakin momen ini akan membuat penonton tertarik.
+- CAPTION WAJIB JUJUR: hanya boleh memakai ulang fakta/angka yang benar-benar ada di transkrip. DILARANG mengubah, menambah, atau melebih-lebihkan angka maupun klaim (contoh salah: transkrip bilang 6 juta tapi caption bilang 100 juta). Dilarang klikbait palsu — kalimat provokatif boleh, tapi isi faktual harus sama persis dengan transkrip.
 
 Balas HANYA dengan JSON valid (tidak ada teks lain):
 {{"best_idx": <int>, "hook_type": "<str>", "confidence": <float>, "hook_duration": <float, detik>, "reason": "<singkat>", "caption": "<maks 8 kata>"}}"""
@@ -254,7 +272,7 @@ Balas HANYA dengan JSON valid (tidak ada teks lain):
                 },
                 {"role": "user", "content": prompt},
             ],
-            "temperature": 0.4,
+            "temperature": 0.2,
         }
         response = self.client.post(f"{self.base_url}/chat/completions", json=payload)
         response.raise_for_status()

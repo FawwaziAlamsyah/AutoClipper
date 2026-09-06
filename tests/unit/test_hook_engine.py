@@ -274,6 +274,64 @@ def test_variable_hook_duration_snaps_to_segment_end() -> None:
     assert moment.hook_moment_end >= segs[6].start_time + 2.0  # lebih panjang dari 2s kaku
 
 
+# ── m. Caption bohong (angka baru) → fallback verbatim segment ───────────────
+
+def test_false_caption_falls_back_to_verbatim() -> None:
+    """LLM kirim caption dengan angka yang TIDAK ada di transkrip (misal
+    transkrip bilang 6 juta, caption bilang 100 juta) → caption dibuang,
+    pakai teks verbatim segment (dijamin jujur)."""
+    finder = HookMomentFinder()
+    finder.api_key = "dummy-key"
+
+    segs = [
+        _seg(i * 3.0, i * 3.0 + 2.5, f"Teks {i}.")
+        for i in range(8)
+    ]
+    segs[5] = _seg(15.0, 17.5, "Harganya 6 juta rupiah per unitnya.")
+
+    llm_response = json.dumps({
+        "best_idx": 5,
+        "hook_type": "shock",
+        "confidence": 0.9,
+        "reason": "angka besar",
+        "caption": "Harganya 100 juta rupiah!",
+    })
+
+    with patch.object(finder, "_call_llm", return_value=llm_response):
+        moment, reason = finder.find(segs)
+
+    assert moment is not None
+    assert moment.hook_caption != "Harganya 100 juta rupiah!"
+    assert "100 juta" not in moment.hook_caption
+    assert "6 juta" in moment.hook_caption  # pakai teks asli transkrip
+
+
+def test_true_caption_kept_when_number_matches_transcript() -> None:
+    """Angka caption muncul di transkrip → caption LLM dipertahankan."""
+    finder = HookMomentFinder()
+    finder.api_key = "dummy-key"
+
+    segs = [
+        _seg(i * 3.0, i * 3.0 + 2.5, f"Teks {i}.")
+        for i in range(8)
+    ]
+    segs[5] = _seg(15.0, 17.5, "Hal ini bisa lebih dari 6 juta orang setiap harinya.")
+
+    llm_response = json.dumps({
+        "best_idx": 5,
+        "hook_type": "stat",
+        "confidence": 0.8,
+        "reason": "angka besar",
+        "caption": "Gak nyangka 6 juta orang?",
+    })
+
+    with patch.object(finder, "_call_llm", return_value=llm_response):
+        moment, reason = finder.find(segs)
+
+    assert moment is not None
+    assert moment.hook_caption == "Gak nyangka 6 juta orang?"
+
+
 # ── _call_llm tahan trailing `data: [DONE]` di body HTTP 9router ─────────────
 
 def test_call_llm_strips_sse_done_trailing() -> None:
