@@ -47,12 +47,30 @@ class TikTokUploadService:
         # Endpoint inbox/draft: body HANYA source_info, TIDAK ada post_info
         # (endpoint ini tak menerima field itu). Video otomatis jadi draft
         # private di inbox user sampai mereka post manual dari app TikTok.
+        #
+        # Aturan chunk TikTok (docs resmi — Media Transfer Guide):
+        # - Video <= 64 MB -> upload whole: chunk_size = video_size, total = 1
+        # - Video > 64 MB  -> wajib multi-chunk, chunk_size = 64 MB, minimal 2 chunk
+        #   (lihat catatan di _calculate_chunks soal kasus tepian 64-128MB)
+        # - Chunk terakhir menampung SISA bytes (trailing), boleh lebih besar
+        #   dari chunk_size (maks 128 MB) — bukan dipotong sama rata.
+        chunk_size, total_chunks = self._calculate_chunks(video_size)
+
+        # Log SEBELUM request dikirim (bukan cuma setelah sukses) — supaya kalau
+        # init gagal/ditolak TikTok, angka video_size/chunk_size/total_chunks
+        # yang sebenarnya dikirim tetap kelihatan di log untuk debug.
+        logger.info(
+            "TikTok init request: clip %d, video_size=%d (%.1fMB), chunk_size=%d (%.1fMB), total_chunks=%d",
+            clip_id, video_size, video_size / 1024 / 1024,
+            chunk_size, chunk_size / 1024 / 1024, total_chunks,
+        )
+
         init_payload = {
             "source_info": {
                 "source": "FILE_UPLOAD",
                 "video_size": video_size,
-                "chunk_size": video_size,
-                "total_chunk_count": 1,
+                "chunk_size": chunk_size,
+                "total_chunk_count": total_chunks,
             },
         }
 
@@ -66,7 +84,10 @@ class TikTokUploadService:
             timeout=15,
         )
         if response.status_code != 200:
-            logger.error("TikTok init publish gagal: %s", response.text)
+            logger.error(
+                "TikTok init publish gagal (video_size=%d, chunk_size=%d, total_chunks=%d): %s",
+                video_size, chunk_size, total_chunks, response.text,
+            )
             raise ValidationException(f"Gagal init upload TikTok: {response.text}")
 
         init_data = response.json().get("data", {})
@@ -77,30 +98,124 @@ class TikTokUploadService:
 
         logger.info("TikTok init publish sukses untuk clip %d, publish_id=%s", clip_id, publish_id)
 
-        # --- Langkah 2: Upload file video ---
-        self._upload_video_bytes(upload_url, video_path, video_size)
+        # --- Langkah 2: Upload file video (chunked PUT) ---
+        # chunk_size & total_chunks dikirim apa adanya dari hasil hitung di atas
+        # (TIDAK dihitung ulang di sini) supaya nilai yang dipakai saat init dan
+        # saat upload selalu identik.
+        self._upload_video_bytes(upload_url, video_path, video_size, chunk_size, total_chunks)
 
         return publish_id
 
-    def _upload_video_bytes(self, upload_url: str, video_path: Path, video_size: int) -> None:
-        """PUT file video ke upload_url yang dikasih TikTok di langkah init."""
+    @staticmethod
+    def _calculate_chunks(video_size: int) -> tuple[int, int]:
+        """Hitung (chunk_size, total_chunk_count) sesuai aturan resmi TikTok
+        (Media Transfer Guide — Chunk restrictions).
+
+        PENTING (dikonfirmasi lewat 3 percobaan gagal nyata di video 78.8MB,
+        bukan tebakan lagi): field `chunk_size` itu HARD CAP di 64MB TANPA
+        pengecualian — termasuk untuk chunk tunggal/final. Kalimat resmi
+        "final chunk can be greater than chunk_size (up to 128MB)" itu bicara
+        soal byte FISIK yang dikirim di request terakhir, BUKAN nilai field
+        chunk_size di JSON — field itu sendiri selalu harus <=64MB.
+
+        Konsekuensinya:
+        - video_size <= 64MB -> 1 chunk, chunk_size = video_size (pola resmi
+          "whole upload", TIDAK diperluas ke 128MB — itu asumsi saya
+          sebelumnya yang sudah terbukti salah).
+        - video_size > 64MB  -> WAJIB multi-chunk. chunk_size dihitung DINAMIS
+          (bukan konstanta 64MB tetap) supaya total_chunk_count = floor(
+          video_size / chunk_size) benar-benar konsisten dan chunk_size tetap
+          <= 64MB:
+            total_chunk_count = ceil(video_size / 64MB)   # jumlah chunk minimum
+            chunk_size = floor(video_size / total_chunk_count)  # <=64MB, dan
+              floor(video_size / chunk_size) dijamin == total_chunk_count
+              (sifat matematis floor-division, bukan trial-error).
+        """
+        _MAX_CHUNK = 64 * 1024 * 1024  # 64 MB — batas MUTLAK field chunk_size
+
+        if video_size <= _MAX_CHUNK:
+            return video_size, 1
+
+        total_chunks = -(-video_size // _MAX_CHUNK)  # ceil: jumlah chunk minimum
+        chunk_size = video_size // total_chunks       # floor: <=64MB, konsisten
+        return chunk_size, total_chunks
+
+    def _upload_video_bytes(
+        self,
+        upload_url: str,
+        video_path: Path,
+        video_size: int,
+        chunk_size: int,
+        total_chunks: int,
+    ) -> None:
+        """Upload file video ke TikTok dengan chunked PUT sesuai docs resmi.
+
+        - chunk_size & total_chunks diterima dari caller (init_and_upload),
+          TIDAK dihitung ulang di sini — supaya konsisten dengan nilai yang
+          sudah dikirim ke endpoint init.
+        - Chunk terakhir membawa SEMUA sisa bytes (trailing) — bisa lebih besar
+          ATAU lebih kecil dari chunk_size, tergantung total_chunks dan video_size.
+        - Setiap chunk dikirim satu PUT berurutan (sequential, bukan paralel)
+          dengan Content-Range yang tepat.
+        - Response 206 = chunk diterima (masih ada chunk berikutnya),
+          200/201 = chunk terakhir diterima, upload selesai.
+        """
         with open(video_path, "rb") as f:
-            video_bytes = f.read()
+            for chunk_idx in range(total_chunks):
+                offset = chunk_idx * chunk_size
+                is_last = chunk_idx == total_chunks - 1
 
-        response = httpx.put(
-            upload_url,
-            content=video_bytes,
-            headers={
-                "Content-Range": f"bytes 0-{video_size - 1}/{video_size}",
-                "Content-Type": "video/mp4",
-            },
-            timeout=120,
-        )
-        if response.status_code not in (200, 201):
-            logger.error("Upload video ke TikTok gagal: %s %s", response.status_code, response.text)
-            raise ValidationException(f"Gagal upload video ke TikTok: {response.text}")
+                if not is_last:
+                    data = f.read(chunk_size)
+                else:
+                    # Chunk terakhir: baca SEMUA sisa bytes (trailing digabung),
+                    # bukan cuma chunk_size — bisa lebih besar atau lebih kecil
+                    # dari chunk_size tergantung sisa file.
+                    data = f.read()
 
-        logger.info("Video berhasil di-upload ke TikTok (%d bytes)", video_size)
+                if not data:
+                    # Safety net: kalau ternyata total_chunks dihitung kebesaran
+                    # (harusnya tidak terjadi kalau _calculate_chunks benar),
+                    # jangan kirim PUT kosong ke TikTok.
+                    logger.warning(
+                        "Chunk %d/%d kosong, dilewati (kemungkinan total_chunks salah hitung)",
+                        chunk_idx + 1, total_chunks,
+                    )
+                    break
+
+                end_byte = offset + len(data) - 1
+
+                response = httpx.put(
+                    upload_url,
+                    content=data,
+                    headers={
+                        "Content-Range": f"bytes {offset}-{end_byte}/{video_size}",
+                        "Content-Type": "video/mp4",
+                        "Content-Length": str(len(data)),
+                    },
+                    timeout=120,
+                )
+
+                # TikTok: 206 = partial accepted (masih ada chunk berikutnya),
+                # 200/201 = accepted, upload selesai (biasanya di chunk terakhir).
+                expected = (200, 201) if is_last else (200, 201, 206)
+                if response.status_code not in expected:
+                    logger.error(
+                        "Upload chunk %d/%d ke TikTok gagal: %s %s",
+                        chunk_idx + 1, total_chunks,
+                        response.status_code, response.text,
+                    )
+                    raise ValidationException(
+                        f"Gagal upload chunk {chunk_idx + 1}/{total_chunks} ke TikTok: {response.text}"
+                    )
+
+                logger.info(
+                    "Chunk %d/%d berhasil di-upload (status %d, %d bytes, offset %d-%d)",
+                    chunk_idx + 1, total_chunks,
+                    response.status_code, len(data), offset, end_byte,
+                )
+
+        logger.info("Video berhasil di-upload ke TikTok (%d bytes, %d chunk)", video_size, total_chunks)
 
     def check_status(self, publish_id: str) -> dict:
         """Cek status publish — return dict {status, fail_reason (kalau ada)}."""

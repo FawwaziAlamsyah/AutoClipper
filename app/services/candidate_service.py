@@ -223,6 +223,21 @@ class CandidateService:
             self.db.refresh(candidate)
         return candidate
 
+    def update_hook_caption(self, candidate_id: int, hook_caption: str) -> CandidateModel:
+        """Update hook_caption yang di-burn ke teaser hook.
+
+        Setelah disimpan, user bisa klik "Generate Ulang Hook" untuk re-render
+        video dengan caption baru — tanpa perlu generate ulang clip dari awal.
+        """
+        candidate = self.candidate_repo.get(candidate_id)
+        if candidate is None:
+            raise ValueError(f"Candidate {candidate_id} not found")
+        candidate.hook_caption = hook_caption.strip()
+        self.db.commit()
+        self.db.refresh(candidate)
+        logger.info("Candidate %d hook_caption diperbarui", candidate_id)
+        return candidate
+
     def delete_candidate(self, candidate_id: int) -> None:
         """Delete a candidate dan clip terkait (FK-safe)."""
         candidate = self.candidate_repo.get(candidate_id)

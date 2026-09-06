@@ -223,9 +223,9 @@ class HookComposerService:
             teaser_final = tmp / "teaser_final.mp4"
             self._apply_sfx(str(teaser_caption), str(teaser_final), teaser_duration)
 
-            # Step 5 — Concat teaser + clip utuh
+            # Step 5 — Concat teaser + clip utuh (dengan fadewhite di titik cut)
             output_path = output_dir / f"{stem}_hook.mp4"
-            self._concat(str(teaser_final), str(clip_path), str(output_path), tmp)
+            self._concat(str(teaser_final), str(clip_path), str(output_path), tmp, teaser_duration)
 
         return output_path
 
@@ -370,12 +370,12 @@ class HookComposerService:
         delay_ms = max(0, int((teaser_duration - whoosh_dur) * 1000))
 
         # Mix SFX digeser ke akhir teaser; volume teaser tetap tinggi (0.9)
-        # supaya suara hook TIDAK mendem vs klip utuh — hanya whoosh yang
-        # diimbangi di 0.5. amix duration=first memotong audio di panjang
-        # teaser — whoosh sudah penuh di dalam rentang itu, letupannya di cut.
+        # supaya suara hook TIDAK mendem vs klip utuh — whoosh dinaikkan ke 1.5
+        # (punchy, sinkron dengan flash visual fadewhite di cut point).
+        # amix duration=first memotong audio di panjang teaser.
         af = (
             f"[0:a]volume=0.9[a0];"
-            f"[1:a]volume=0.5,adelay={delay_ms}:all=1[a1];"
+            f"[1:a]volume=1.5,adelay={delay_ms}:all=1[a1];"
             f"[a0][a1]amix=inputs=2:duration=first:dropout_transition=0[aout]"
         )
         cmd = [
@@ -424,21 +424,36 @@ class HookComposerService:
         main_clip_path: str,
         output_path: str,
         tmp: Path,
+        teaser_duration: float = 2.0,
     ) -> None:
-        """Concat teaser + clip utuh via filter_complex concat.
+        """Concat teaser + clip utuh via filter_complex dengan xfade fadewhite.
 
         BUKAN concat demuxer: concat list file rawan di Windows (escaping
         backslash path, dan bisa diam-diam drop file kedua → output cuma
-        teaser 2 detik). filter_complex concat pakai input langsung, tidak
-        ada file list, tidak ada masalah path. Re-encode menjamin keyframe
-        align sempurna.
+        teaser 2 detik). filter_complex pakai input langsung, tidak ada file
+        list, tidak ada masalah path. Re-encode menjamin keyframe align sempurna.
+
+        Animasi transisi: xfade=fadewhite durasi 0.15 detik tepat di cut point
+        (teaser_duration - 0.15) — memberi efek flash putih singkat yang sinkron
+        dengan whoosh SFX di akhir teaser.
         """
+        # Durasi transisi fadewhite: 0.15 detik — cukup punchy, tidak terlalu lama.
+        # offset = kapan xfade mulai, dihitung dari awal video pertama.
+        # Clamp minimal 0.05s dari teaser supaya tidak overflow ke awal teaser.
+        xfade_duration = 0.15
+        xfade_offset = max(0.05, teaser_duration - xfade_duration)
+
+        # xfade hanya bekerja untuk video; audio disambung biasa via acrossfade
+        # (durasi sama, biar transisi audio juga mulus di cut point).
+        filter_complex = (
+            f"[0:v][1:v]xfade=transition=fadewhite:duration={xfade_duration:.3f}:offset={xfade_offset:.3f}[v];"
+            f"[0:a][1:a]acrossfade=d={xfade_duration:.3f}[a]"
+        )
         cmd = [
             self.ffmpeg.ffmpeg_path, "-y",
             "-i", str(teaser_path),
             "-i", str(main_clip_path),
-            "-filter_complex",
-            "[0:v][0:a][1:v][1:a]concat=n=2:v=1:a=1[v][a]",
+            "-filter_complex", filter_complex,
             "-map", "[v]",
             "-map", "[a]",
             "-c:v", "libx264", "-crf", "18", "-preset", "fast",

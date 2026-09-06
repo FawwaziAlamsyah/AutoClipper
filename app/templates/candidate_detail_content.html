@@ -275,9 +275,28 @@
           <span class="badge bg-warning text-dark ms-1">{{ t("candDetail.hookSkipped") }}: {{ clip.hook_skip_reason }}</span>
           {% endif %}
         </div>
-        {% if candidate.hook_caption %}
-        <p class="mb-1"><strong>{{ t("candDetail.hookCaption") }}:</strong> {{ candidate.hook_caption }}</p>
-        {% endif %}
+        <div class="mb-2">
+          <label class="form-label small fw-semibold mb-1">{{ t("candDetail.hookCaption") }}</label>
+          <div class="input-group input-group-sm">
+            <textarea
+              id="hook-caption-input-{{ candidate.id }}"
+              class="form-control form-control-sm"
+              rows="2"
+              maxlength="120"
+              style="resize:vertical;"
+              placeholder="Teks caption overlay hook..."
+            >{{ candidate.hook_caption or '' }}</textarea>
+            <button
+              class="btn btn-outline-success"
+              type="button"
+              onclick="saveHookCaption(this, {{ candidate.id }})"
+              title="Simpan caption baru — lalu klik Generate Ulang Hook untuk re-render video">
+              💾 Simpan
+            </button>
+          </div>
+          <div id="hook-caption-status-{{ candidate.id }}" class="mt-1"></div>
+          <small class="text-muted">Setelah simpan, klik <strong>Generate Ulang Hook</strong> untuk re-render video dengan teks baru.</small>
+        </div>
         <p class="text-muted small mb-0">
           {{ t("candDetail.hookMoment") }}:
           {{ '%.1f'|format(candidate.hook_moment_start) }}s
@@ -390,17 +409,17 @@ function _startEditProgress(btn) {
   btn.disabled = true;
   const origText = btn.textContent;
   btn.dataset.origText = origText;
-  // Sisipkan progress bar di atas form
-  const wrapper = document.getElementById('clip-edit-preview-wrapper');
+  // Selalu pindah progress bar ke bawah btn yang sedang diklik,
+  // supaya bar muncul di tempat yang benar di setiap tab / button action.
   let bar = document.getElementById('edit-progress-bar');
   if (!bar) {
-    const div = document.createElement('div');
-    div.id = 'edit-progress-bar';
-    div.className = 'mb-2';
-    div.innerHTML = '<div class="progress" style="height:6px"><div class="progress-bar progress-bar-striped progress-bar-animated bg-primary" id="edit-progress-inner" style="width:0%"></div></div><small class="text-muted" id="edit-progress-label">{{ t("candDetail.processing") }}</small>';
-    wrapper.parentNode.insertBefore(div, wrapper);
-    bar = div;
+    bar = document.createElement('div');
+    bar.id = 'edit-progress-bar';
+    bar.className = 'mt-2';
+    bar.innerHTML = '<div class="progress" style="height:6px"><div class="progress-bar progress-bar-striped progress-bar-animated bg-primary" id="edit-progress-inner" style="width:0%"></div></div><small class="text-muted" id="edit-progress-label">{{ t("candDetail.processing") }}</small>';
   }
+  // Re-insert ke bawah btn aktif (memindah node jika sudah ada di tempat lain)
+  btn.insertAdjacentElement('afterend', bar);
   bar.style.display = 'block';
   let pct = 0;
   const inner = document.getElementById('edit-progress-inner');
@@ -614,6 +633,45 @@ document.addEventListener('DOMContentLoaded', () => {
     hookTab.addEventListener('shown.bs.tab', loadHookStatus);
   }
 });
+
+async function saveHookCaption(btn, candidateId) {
+  const textarea = document.getElementById('hook-caption-input-' + candidateId);
+  const statusEl = document.getElementById('hook-caption-status-' + candidateId);
+  if (!textarea || !statusEl) return;
+
+  const newCaption = textarea.value.trim();
+  if (!newCaption) {
+    statusEl.innerHTML = '<small class="text-danger">Caption tidak boleh kosong.</small>';
+    return;
+  }
+
+  btn.disabled = true;
+  btn.textContent = '...';
+  statusEl.innerHTML = '';
+
+  try {
+    const formData = new URLSearchParams();
+    formData.append('hook_caption', newCaption);
+    const res = await fetch(`/candidates/${candidateId}/hook_caption`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: formData,
+    });
+    if (res.ok) {
+      const data = await res.json();
+      textarea.value = data.hook_caption;
+      statusEl.innerHTML = '<small class="text-success">✓ Caption disimpan. Klik <strong>Generate Ulang Hook</strong> untuk re-render.</small>';
+    } else {
+      const err = await res.json().catch(() => ({}));
+      statusEl.innerHTML = `<small class="text-danger">Gagal simpan: ${err.detail || 'unknown error'}</small>`;
+    }
+  } catch (e) {
+    statusEl.innerHTML = '<small class="text-danger">Terjadi kesalahan koneksi.</small>';
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '💾 Simpan';
+  }
+}
 
 async function loadHookStatus() {
   const el = document.getElementById('hook-llm-status');
