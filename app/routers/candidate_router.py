@@ -1,7 +1,7 @@
 """Candidate clip API and UI endpoints."""
 
-from fastapi import APIRouter, Depends, Query, Request
-from fastapi.responses import HTMLResponse
+from fastapi import APIRouter, Depends, Form, Query, Request
+from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates  # noqa: F401 (ke AppTemplates)
 from app.core.jinja import AppTemplates
 
@@ -298,6 +298,24 @@ def undislike_candidate(
         name="_rating_control.html",
         context={"request": request, "candidate": candidate, "categories": categories},
     )
+
+
+@router.patch("/{candidate_id}/hook_caption", response_class=JSONResponse)
+def update_hook_caption(
+    candidate_id: int,
+    hook_caption: str = Form(...),
+    service: CandidateService = Depends(get_candidate_service),
+) -> JSONResponse:
+    """Update teks caption overlay hook.
+
+    Setelah disimpan, user klik "Generate Ulang Hook" di UI untuk re-render
+    video teaser dengan caption baru — tanpa harus generate clip dari awal.
+    """
+    try:
+        candidate = service.update_hook_caption(candidate_id, hook_caption)
+    except ValueError:
+        raise NotFoundException(f"Candidate {candidate_id} tidak ditemukan")
+    return JSONResponse({"ok": True, "hook_caption": candidate.hook_caption})
 
 
 def _to_detail(c) -> CandidateDetail:
