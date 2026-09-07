@@ -155,6 +155,26 @@ def regenerate_hook(
     )
 
 
+@router.post("/{clip_id}/hook/retry-search", response_class=HTMLResponse)
+def retry_hook_search(
+    request: Request,
+    clip_id: int,
+    service: ClipService = Depends(get_clip_service),
+):
+    """Cari ulang momen hook dari awal via LLM.
+
+    Dipakai saat hook_moment_start masih null (LLM sebelumnya gagal/tidak bisa
+    dihubungi). Berbeda dari /regenerate yang hanya re-render momen tersimpan,
+    endpoint ini menjalankan ulang seluruh pipeline pencarian hook + compose.
+    """
+    clip = service.retry_hook_search(clip_id)
+    return templates.TemplateResponse(
+        request=request,
+        name="_clip_edit_preview.html",
+        context={"request": request, "clip": clip, "ts": int(time.time())},
+    )
+
+
 @router.post("/{clip_id}/edit/text", response_class=HTMLResponse)
 def edit_add_text(
     request: Request,

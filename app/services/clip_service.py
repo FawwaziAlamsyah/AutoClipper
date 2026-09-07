@@ -189,6 +189,35 @@ class ClipService:
             except Exception:
                 pass
 
+    def retry_hook_search(self, clip_id: int) -> ClipModel:
+        """Cari ulang momen hook dari awal via LLM — untuk kasus hook_moment_start null.
+
+        Dipakai tombol "Cari Hook Ulang" di UI saat LLM sebelumnya tidak bisa
+        dihubungi (llm_unavailable, low_confidence, dsb) sehingga hook_moment_start
+        masih null. Ini menjalankan ulang seluruh pipeline _run_auto_hook dari nol.
+        """
+        clip = self.clip_repo.get(clip_id)
+        if clip is None:
+            raise ValidationException(f"Clip {clip_id} tidak ditemukan")
+
+        candidate = self.candidate_repo.get(clip.candidate_id)
+        if candidate is None:
+            raise ValidationException(f"Candidate untuk clip {clip_id} tidak ditemukan")
+
+        video = self.video_repo.get(candidate.video_id)
+        if video is None or not Path(video.file_path).exists():
+            raise ValidationException("Video sumber sudah tidak ada.")
+
+        # Reset skip reason supaya _run_auto_hook bisa jalan ulang bersih
+        clip.hook_skip_reason = None
+        self.db.commit()
+
+        # Jalankan ulang seluruh pipeline pencarian hook + compose
+        self._run_auto_hook(clip, candidate, video)
+
+        clip = self.clip_repo.get(clip_id)
+        return clip
+
     def regenerate_hook(self, clip_id: int) -> ClipModel:
         """Render ulang hook dari momen tersimpan candidate (tanpa replay LLM).
 
