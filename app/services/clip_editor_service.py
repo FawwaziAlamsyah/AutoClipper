@@ -464,3 +464,98 @@ class ClipEditorService:
         self.db.commit()
         logger.info("Subtitle di-burn ke clip %d (%d cues)", clip_id, len(vf_parts))
         return clip
+
+    def crop_frame(
+        self,
+        clip_id: int,
+        x: int,
+        y: int,
+        width: int,
+        height: int,
+    ):
+        """Crop area visual frame video (spatial crop) — potong piksel, bukan durasi.
+
+        Berbeda dari crop() yang memotong durasi (temporal trim), method ini
+        memotong AREA FRAME menggunakan FFmpeg filter crop=w:h:x:y sehingga
+        resolusi output berubah sesuai ukuran area yang dipilih.
+
+        Args:
+            clip_id: ID clip yang akan di-crop.
+            x: jarak piksel dari tepi kiri frame ke titik awal crop.
+            y: jarak piksel dari tepi atas frame ke titik awal crop.
+            width: lebar area crop dalam piksel.
+            height: tinggi area crop dalam piksel.
+
+        Raises:
+            NotFoundException: clip tidak ditemukan.
+            ValidationException: parameter di luar batas video.
+        """
+        clip = self.clip_repo.get(clip_id)
+        if clip is None:
+            raise NotFoundException(f"Clip {clip_id} tidak ditemukan")
+
+        # Validasi parameter dasar
+        if x < 0 or y < 0:
+            raise ValidationException("x dan y tidak boleh negatif")
+        if width <= 0 or height <= 0:
+            raise ValidationException("width dan height harus lebih besar dari 0")
+
+        # Ambil dimensi video untuk validasi batas
+        source = self._current_source(clip)
+        try:
+            meta = self.ffmpeg.extract_metadata(str(source))
+            vid_w = meta.get("width") or 0
+            vid_h = meta.get("height") or 0
+        except Exception as e:
+            raise ValidationException(f"Gagal baca dimensi video: {str(e)}")
+
+        if vid_w <= 0 or vid_h <= 0:
+            raise ValidationException("Tidak bisa mendapatkan dimensi video")
+        if x + width > vid_w:
+            raise ValidationException(
+                f"Area crop melampaui lebar video ({x}+{width}={x+width} > {vid_w})"
+            )
+        if y + height > vid_h:
+            raise ValidationException(
+                f"Area crop melampaui tinggi video ({y}+{height}={y+height} > {vid_h})"
+            )
+
+        output_path = self._edited_output_path(clip_id)
+        temp_path = output_path.with_suffix(".tmp.mp4")
+
+        # FFmpeg filter crop=w:h:x:y — sesuai requirement di prompt
+        # -g 60 = keyframe tiap 2 detik (30fps × 2) supaya browser bisa seek
+        # tanpa freeze (sama seperti crop() trim & add_text).
+        cmd = [
+            self.ffmpeg.ffmpeg_path, "-y",
+            "-i", str(source),
+            "-vf", f"crop={width}:{height}:{x}:{y}",
+            "-c:v", "libx264", "-crf", "18", "-preset", "fast",
+            "-g", "60", "-keyint_min", "60", "-sc_threshold", "0",
+            "-c:a", "copy",
+            "-movflags", "+faststart",
+            str(temp_path),
+        ]
+
+        try:
+            subprocess.run(
+                cmd,
+                capture_output=True, text=True,
+                encoding="utf-8", errors="replace",
+                check=True,
+            )
+        except subprocess.SubprocessError as e:
+            temp_path.unlink(missing_ok=True)
+            logger.error("Gagal crop frame clip %d", clip_id, exc_info=e)
+            raise ValidationException(f"Gagal crop frame: {str(e)}")
+
+        if output_path.exists():
+            output_path.unlink()
+        temp_path.rename(output_path)
+
+        clip.edited_file_path = str(output_path)
+        self.db.commit()
+        logger.info(
+            "Clip %d di-crop frame: x=%d y=%d w=%d h=%d", clip_id, x, y, width, height
+        )
+        return clip

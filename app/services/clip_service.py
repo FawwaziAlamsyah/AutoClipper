@@ -239,6 +239,18 @@ class ClipService:
         if video is None or not Path(video.file_path).exists():
             raise ValidationException("Video sumber sudah tidak ada.")
 
+        # Baca hook_caption langsung dari DB via query fresh — bypass identity map
+        # sepenuhnya supaya perubahan dari request Simpan Caption sebelumnya
+        # selalu terbaca, tidak peduli state SQLAlchemy session cache.
+        from app.models.candidate_model import CandidateModel as _CandidateModel
+        self.db.expire_all()
+        fresh = (
+            self.db.query(_CandidateModel)
+            .filter(_CandidateModel.id == candidate.id)
+            .first()
+        )
+        fresh_caption = (fresh.hook_caption or "") if fresh else (candidate.hook_caption or "")
+
         from app.ai_modules.hook_analysis.hook_moment_finder import HookMoment
         from app.services.hook_composer_service import HookComposerService
 
@@ -247,7 +259,7 @@ class ClipService:
             hook_moment_end=candidate.hook_moment_end,
             hook_type=candidate.hook_type or "hook",
             hook_confidence=candidate.hook_confidence or 0.0,
-            hook_caption=candidate.hook_caption or "",
+            hook_caption=fresh_caption,
             best_idx=0,
         )
 
