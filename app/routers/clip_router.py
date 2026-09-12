@@ -175,6 +175,61 @@ def retry_hook_search(
     )
 
 
+@router.get("/{clip_id}/thumbnail")
+def get_clip_thumbnail(
+    clip_id: int,
+    meta: int = Query(0),
+    service: ClipService = Depends(get_clip_service),
+):
+    """Generate & serve thumbnail (JPEG) dari clip untuk preview crop box.
+
+    Thumbnail di-cache ke disk (data/cache/thumbnails/clip_{id}.jpg) supaya
+    tidak generate ulang setiap request. Cache di-invalidate otomatis saat
+    clip.edited_file_path berubah (mtime file thumbnail < mtime file clip).
+
+    meta=1 → jangan render gambar; kembalikan JSON {width, height} dimensi
+    video asli. Dipakai JS crop tab untuk konversi persen box → piksel crop,
+    supaya nilai X/Y/Width/Height sesuai resolusi asli (bukan thumbnail).
+    """
+    from fastapi.responses import FileResponse
+    from app.services.ffmpeg_service import FFmpegService
+
+    clip = service.clip_repo.get(clip_id)
+    if clip is None:
+        from app.core.exceptions.base import NotFoundException
+        raise NotFoundException(f"Clip {clip_id} tidak ditemukan")
+
+    video_path = clip.edited_file_path or clip.file_path
+    if not video_path or not Path(video_path).exists():
+        from app.core.exceptions.base import NotFoundException
+        raise NotFoundException("File clip tidak ditemukan di disk")
+
+    if meta == 1:
+        meta_data = FFmpegService().extract_metadata(video_path)
+        return {"width": meta_data.get("width"), "height": meta_data.get("height")}
+
+    cache_dir = Path("data/cache/thumbnails")
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    thumb_path = cache_dir / f"clip_{clip_id}.jpg"
+
+    # Invalidate cache jika clip lebih baru dari thumbnail
+    video_mtime = Path(video_path).stat().st_mtime
+    thumb_mtime = thumb_path.stat().st_mtime if thumb_path.exists() else 0
+
+    if not thumb_path.exists() or video_mtime > thumb_mtime:
+        ffmpeg = FFmpegService()
+        # Ambil frame di detik ke-1, atau tengah durasi kalau clip pendek
+        try:
+            meta = ffmpeg.extract_metadata(video_path)
+            dur = meta.get("duration_seconds") or 2.0
+            ts = min(1.0, dur / 2)
+        except Exception:
+            ts = 1.0
+        ffmpeg.extract_thumbnail(video_path, str(thumb_path), timestamp=ts)
+
+    return FileResponse(str(thumb_path), media_type="image/jpeg")
+
+
 @router.post("/{clip_id}/edit/text", response_class=HTMLResponse)
 def edit_add_text(
     request: Request,
@@ -202,6 +257,24 @@ def edit_crop(
     clip = service.crop(clip_id, start_time, end_time)
     return templates.TemplateResponse(
         request=request, name="_clip_edit_preview.html", context={"request": request, "clip": clip, "ts": int(time.time())},
+    )
+
+
+@router.post("/{clip_id}/edit/crop-frame", response_class=HTMLResponse)
+def edit_crop_frame(
+    request: Request,
+    clip_id: int,
+    x: int = Form(...),
+    y: int = Form(...),
+    width: int = Form(...),
+    height: int = Form(...),
+    service: ClipEditorService = Depends(get_clip_editor_service),
+):
+    """Crop area visual frame video (spatial crop) — potong piksel, bukan durasi."""
+    clip = service.crop_frame(clip_id, x, y, width, height)
+    return templates.TemplateResponse(
+        request=request, name="_clip_edit_preview.html",
+        context={"request": request, "clip": clip, "ts": int(time.time())},
     )
 
 

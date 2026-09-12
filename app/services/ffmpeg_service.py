@@ -188,3 +188,53 @@ class FFmpegService:
             raise ExternalToolException(
                 f"Gagal membuat vision proxy video: {str(e)}"
             )
+
+    def extract_thumbnail(
+        self,
+        video_path: str,
+        output_path: str,
+        timestamp: float = 1.0,
+    ) -> str:
+        """Extract satu frame dari video sebagai gambar JPEG.
+
+        Dipakai tab Crop di UI untuk menampilkan preview thumbnail statis
+        tempat user menggambar crop box. Lebih ringan dari <video> player
+        karena hanya butuh satu frame, tidak perlu stream video penuh.
+
+        Args:
+            video_path: path video sumber.
+            output_path: path output file JPEG.
+            timestamp: detik frame yang diambil (default 1.0 untuk hindari
+                       frame hitam di awal beberapa video).
+
+        Returns:
+            output_path (str) kalau berhasil.
+
+        Raises:
+            FileNotFoundError: kalau video_path tidak ada.
+            ExternalToolException: kalau ffmpeg gagal.
+        """
+        if not Path(video_path).exists():
+            raise FileNotFoundError(f"Video file not found at: {video_path}")
+
+        Path(output_path).parent.mkdir(parents=True, exist_ok=True)
+
+        cmd = [
+            self.ffmpeg_path,
+            "-y",
+            "-ss", str(timestamp),
+            "-i", video_path,
+            "-frames:v", "1",
+            "-q:v", "3",          # kualitas JPEG (2=terbaik, 5=cukup untuk preview)
+            "-vf", "scale=640:-2",  # lebar 640px, tinggi proporsional & genap
+            output_path,
+        ]
+
+        try:
+            logger.info("Extracting thumbnail at %.1fs: %s → %s", timestamp, video_path, output_path)
+            subprocess.run(cmd, check=True, **_SUBPROCESS_KW)
+            logger.info("Thumbnail extracted: %s", output_path)
+            return output_path
+        except subprocess.SubprocessError as e:
+            logger.error("Thumbnail extraction failed for: %s", video_path, exc_info=e)
+            raise ExternalToolException(f"Gagal mengekstrak thumbnail: {str(e)}")

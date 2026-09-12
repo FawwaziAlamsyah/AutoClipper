@@ -105,7 +105,8 @@
 
   <ul class="nav nav-tabs mt-3" role="tablist">
     <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tab-text">{{ t("candDetail.text") }}</button></li>
-    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-crop">{{ t("candDetail.crop") }}</button></li>
+    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-trim">{{ t("candDetail.crop") }}</button></li>
+    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-crop-frame" onclick="initCropTab({{ clip.id }})">{{ t("candDetail.cropFrame") }}</button></li>
     <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-sound">{{ t("candDetail.sound") }}</button></li>
     <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-watermark">{{ t("candDetail.watermark") }}</button></li>
     <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-hook">🪝 {{ t("candDetail.hookTab") }}</button></li>
@@ -137,8 +138,8 @@
       </form>
     </div>
 
-    <!-- Tab Crop -->
-    <div class="tab-pane fade" id="tab-crop">
+    <!-- Tab Trim -->
+    <div class="tab-pane fade" id="tab-trim">
       <p class="text-muted small">{{ t("candDetail.trimDesc") }}</p>
       <form onsubmit="return submitEditForm(event, '/clips/{{ clip.id }}/edit/crop')">
         <div class="row g-2 mb-2">
@@ -152,6 +153,98 @@
           </div>
         </div>
         <button type="submit" class="btn btn-sm btn-primary">{{ t("candDetail.applyTrim") }}</button>
+      </form>
+    </div>
+
+    <!-- Tab Crop Frame (spatial crop) -->
+    <div class="tab-pane fade" id="tab-crop-frame">
+      <p class="text-muted small mb-3">{{ t("candDetail.cropFrameDesc") }}</p>
+
+      <!-- Preset rasio -->
+      <div class="mb-3 d-flex flex-wrap gap-2 align-items-center">
+        <span class="small fw-semibold me-1">{{ t("candDetail.cropFramePreset") }}:</span>
+        <button type="button" class="btn btn-sm btn-outline-secondary" onclick="setCropPreset('free')">{{ t("candDetail.cropFramePresetFree") }}</button>
+        <button type="button" class="btn btn-sm btn-outline-secondary" onclick="setCropPreset('9:16')">{{ t("candDetail.cropFramePreset916") }}</button>
+        <button type="button" class="btn btn-sm btn-outline-secondary" onclick="setCropPreset('1:1')">{{ t("candDetail.cropFramePreset11") }}</button>
+        <button type="button" class="btn btn-sm btn-outline-secondary" onclick="setCropPreset('16:9')">{{ t("candDetail.cropFramePreset169") }}</button>
+      </div>
+
+      <!-- Area preview: ruler + thumbnail + crop box overlay -->
+      <div id="crop-preview-area" class="position-relative d-inline-block" style="max-width:100%;">
+        <!-- Ruler atas (sumbu X) -->
+        <div id="crop-ruler-x" style="height:18px;margin-left:20px;position:relative;background:#f8f9fa;border:1px solid #dee2e6;border-bottom:none;font-size:10px;color:#6c757d;overflow:hidden;">
+          <span style="position:absolute;left:0%;">0%</span>
+          <span style="position:absolute;left:25%;transform:translateX(-50%)">25%</span>
+          <span style="position:absolute;left:50%;transform:translateX(-50%)">50%</span>
+          <span style="position:absolute;left:75%;transform:translateX(-50%)">75%</span>
+          <span style="position:absolute;right:0;">100%</span>
+        </div>
+        <div class="d-flex">
+          <!-- Ruler kiri (sumbu Y) -->
+          <div id="crop-ruler-y" style="width:20px;position:relative;background:#f8f9fa;border:1px solid #dee2e6;border-right:none;font-size:10px;color:#6c757d;writing-mode:vertical-rl;text-orientation:mixed;overflow:hidden;">
+            <span style="position:absolute;top:0;">0%</span>
+            <span style="position:absolute;top:25%;transform:translateY(-50%)">25%</span>
+            <span style="position:absolute;top:50%;transform:translateY(-50%)">50%</span>
+            <span style="position:absolute;top:75%;transform:translateY(-50%)">75%</span>
+            <span style="position:absolute;bottom:0;">100%</span>
+          </div>
+          <!-- Wrapper thumbnail + crop box -->
+          <div id="crop-thumb-wrapper" class="position-relative" style="border:1px solid #dee2e6;overflow:hidden;cursor:crosshair;user-select:none;">
+            <div id="crop-thumb-loading" class="d-flex align-items-center justify-content-center bg-secondary text-white" style="width:400px;height:225px;">
+              <span>{{ t("candDetail.cropFrameLoadingThumb") }}</span>
+            </div>
+            <img id="crop-thumb-img" src="" alt="thumbnail" style="display:none;max-width:100%;display:block;">
+            <!-- Crop box overlay -->
+            <div id="crop-box" style="
+              display:none;
+              position:absolute;
+              border:2px solid #0d6efd;
+              box-shadow:0 0 0 9999px rgba(0,0,0,0.35);
+              cursor:move;
+              box-sizing:border-box;
+            ">
+              <!-- 8 resize handle: sudut + tengah tepi -->
+              <div class="crop-handle" data-dir="nw" style="position:absolute;width:10px;height:10px;background:#0d6efd;top:-5px;left:-5px;cursor:nw-resize;"></div>
+              <div class="crop-handle" data-dir="n"  style="position:absolute;width:10px;height:10px;background:#0d6efd;top:-5px;left:50%;margin-left:-5px;cursor:n-resize;"></div>
+              <div class="crop-handle" data-dir="ne" style="position:absolute;width:10px;height:10px;background:#0d6efd;top:-5px;right:-5px;cursor:ne-resize;"></div>
+              <div class="crop-handle" data-dir="e"  style="position:absolute;width:10px;height:10px;background:#0d6efd;top:50%;margin-top:-5px;right:-5px;cursor:e-resize;"></div>
+              <div class="crop-handle" data-dir="se" style="position:absolute;width:10px;height:10px;background:#0d6efd;bottom:-5px;right:-5px;cursor:se-resize;"></div>
+              <div class="crop-handle" data-dir="s"  style="position:absolute;width:10px;height:10px;background:#0d6efd;bottom:-5px;left:50%;margin-left:-5px;cursor:s-resize;"></div>
+              <div class="crop-handle" data-dir="sw" style="position:absolute;width:10px;height:10px;background:#0d6efd;bottom:-5px;left:-5px;cursor:sw-resize;"></div>
+              <div class="crop-handle" data-dir="w"  style="position:absolute;width:10px;height:10px;background:#0d6efd;top:50%;margin-top:-5px;left:-5px;cursor:w-resize;"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Readout angka real-time -->
+      <div class="mt-3 row g-2" id="crop-readout">
+        <div class="col-6 col-md-3">
+          <label class="form-label small">{{ t("candDetail.cropFrameX") }}</label>
+          <input type="number" id="crop-input-x" class="form-control form-control-sm" value="0" min="0" oninput="onCropInputChange()">
+        </div>
+        <div class="col-6 col-md-3">
+          <label class="form-label small">{{ t("candDetail.cropFrameY") }}</label>
+          <input type="number" id="crop-input-y" class="form-control form-control-sm" value="0" min="0" oninput="onCropInputChange()">
+        </div>
+        <div class="col-6 col-md-3">
+          <label class="form-label small">{{ t("candDetail.cropFrameW") }}</label>
+          <input type="number" id="crop-input-w" class="form-control form-control-sm" value="0" min="1" oninput="onCropInputChange()">
+        </div>
+        <div class="col-6 col-md-3">
+          <label class="form-label small">{{ t("candDetail.cropFrameH") }}</label>
+          <input type="number" id="crop-input-h" class="form-control form-control-sm" value="0" min="1" oninput="onCropInputChange()">
+        </div>
+      </div>
+      <p class="text-muted small mt-1">{{ t("candDetail.cropFrameNote") }}</p>
+
+      <!-- Tombol apply -->
+      <form id="crop-frame-form" onsubmit="return submitCropFrame(event, {{ clip.id }})">
+        <input type="hidden" name="x" id="crop-form-x">
+        <input type="hidden" name="y" id="crop-form-y">
+        <input type="hidden" name="width"  id="crop-form-w">
+        <input type="hidden" name="height" id="crop-form-h">
+        <button type="submit" class="btn btn-sm btn-primary mt-2" id="crop-apply-btn">{{ t("candDetail.cropFrameApply") }}</button>
       </form>
     </div>
 
@@ -400,7 +493,7 @@ async function submitEditForm(event, url) {
   const res = await fetch(url, { method: 'POST', body: formData });
   _stopEditProgress(btn);
   if (res.ok) {
-    document.getElementById('clip-edit-preview-wrapper').innerHTML = await res.text();
+    _setPreviewHtml(await res.text());
   } else {
     const err = await res.json().catch(() => ({}));
     alert(err.detail || 'Gagal edit clip.');
@@ -416,12 +509,26 @@ async function submitEditFormFile(event, url) {
   const res = await fetch(url, { method: 'POST', body: new FormData(form) });
   _stopEditProgress(btn);
   if (res.ok) {
-    document.getElementById('clip-edit-preview-wrapper').innerHTML = await res.text();
+    _setPreviewHtml(await res.text());
   } else {
     const err = await res.json().catch(() => ({}));
     alert(err.detail || 'Gagal edit clip.');
   }
   return false;
+}
+
+// Helper: set HTML preview baru lalu delay 1.5s sebelum video di-load.
+// Mencegah error "Response content shorter than Content-Length" yang terjadi
+// saat browser langsung request file video yang baru saja selesai ditulis FFmpeg
+// (OS buffer belum flush, ukuran file belum stabil).
+function _setPreviewHtml(html) {
+  const wrapper = document.getElementById('clip-edit-preview-wrapper');
+  wrapper.innerHTML = html;
+  // Tunda load video sampai file stabil di disk
+  setTimeout(() => {
+    const video = wrapper.querySelector('video');
+    if (video) video.load();
+  }, 1500);
 }
 
 // Progress bar helper — estimasi visual, increment 0→90% selama proses, 100% saat selesai
@@ -469,7 +576,7 @@ async function resetClipEdit(clipId) {
   if (!confirm('Reset semua edit dan kembali ke clip original?')) return;
   const res = await fetch(`/clips/${clipId}/edit/reset`, { method: 'POST' });
   if (res.ok) {
-    document.getElementById('clip-edit-preview-wrapper').innerHTML = await res.text();
+    _setPreviewHtml(await res.text());
   } else {
     alert('Gagal reset.');
   }
@@ -480,7 +587,7 @@ async function regenerateHook(btn, clipId) {
   try {
     const res = await fetch(`/clips/${clipId}/hook/regenerate`, { method: 'POST' });
     if (res.ok) {
-      document.getElementById('clip-edit-preview-wrapper').innerHTML = await res.text();
+      _setPreviewHtml(await res.text());
     } else {
       const err = await res.json().catch(() => ({}));
       alert(err.detail || 'Gagal generate ulang hook.');
@@ -497,7 +604,7 @@ async function retryHookSearch(btn, clipId) {
   try {
     const res = await fetch(`/clips/${clipId}/hook/retry-search`, { method: 'POST' });
     if (res.ok) {
-      document.getElementById('clip-edit-preview-wrapper').innerHTML = await res.text();
+      _setPreviewHtml(await res.text());
     } else {
       const err = await res.json().catch(() => ({}));
       alert(err.detail || 'Gagal mencari hook. Pastikan LLM sudah aktif dan coba lagi.');
@@ -765,6 +872,255 @@ async function loadHookStatus() {
     el.innerHTML = '';
   }
 }
+
+// ── Crop Frame Tab ────────────────────────────────────────────────────────────
+// State internal crop box (dalam persen relatif ke thumbnail)
+const _crop = {
+  pctX: 10, pctY: 10, pctW: 80, pctH: 80,  // default: box 80% tengah
+  vidW: 0, vidH: 0,      // dimensi video asli (diisi saat thumbnail load)
+  thumbW: 0, thumbH: 0,  // dimensi thumbnail DOM (diisi saat load)
+  aspect: null,          // null = bebas, "9:16" / "1:1" / "16:9"
+  dragging: false, resizing: false, dir: null,
+  startX: 0, startY: 0,
+  startPctX: 0, startPctY: 0, startPctW: 0, startPctH: 0,
+};
+
+function initCropTab(clipId) {
+  const img = document.getElementById('crop-thumb-img');
+  if (!img) return;
+  const loading = document.getElementById('crop-thumb-loading');
+  const startLoad = () => {
+    if (loading) loading.style.display = 'flex';
+    img.style.display = 'none';
+    img.src = `/clips/${clipId}/thumbnail?_ts=${Date.now()}`;
+  };
+  if (img.src && img.complete && img.naturalWidth > 0) return; // sudah ter-load
+  img.onload = () => {
+    if (loading) loading.style.display = 'none';
+    img.style.display = 'block';
+    _crop.thumbW = img.naturalWidth;
+    _crop.thumbH = img.naturalHeight;
+    syncRulerSize();
+    showCropBox();
+  };
+  img.onerror = () => {
+    if (loading) loading.innerHTML = '<span class="text-danger small">Gagal muat thumbnail.</span>';
+  };
+  // Muat dimensi video asli via metadata (meta=1 → JSON). Tanpa ini konversi
+  // persen→piksel berbasis thumbnail 640px, bukan resolusi asli, jadi angka
+  // X/Y/Width/Height yang dikirim ke /crop-frame meleset dari yang user lihat.
+  fetch(`/clips/${clipId}/thumbnail?meta=1`)
+    .then(r => (r.ok ? r.json() : Promise.reject()))
+    .then(m => {
+      if (m && m.width > 0 && m.height > 0) {
+        _crop.vidW = m.width; _crop.vidH = m.height;
+        updateReadout();
+      }
+    })
+    .catch(() => { /* fallback: dimensi dari naturalWidth/Height thumbnail */ });
+  startLoad();
+}
+
+function syncRulerSize() {
+  const wrapper = document.getElementById('crop-thumb-wrapper');
+  const rulerX = document.getElementById('crop-ruler-x');
+  const rulerY = document.getElementById('crop-ruler-y');
+  if (!wrapper) return;
+  const w = wrapper.offsetWidth;
+  const h = wrapper.offsetHeight;
+  if (rulerX) rulerX.style.width = w + 'px';
+  if (rulerY) rulerY.style.height = h + 'px';
+  _crop.thumbW = w;
+  _crop.thumbH = h;
+}
+
+function showCropBox() {
+  const box = document.getElementById('crop-box');
+  if (!box) return;
+  box.style.display = 'block';
+  updateBoxFromPct();
+}
+
+function updateBoxFromPct() {
+  const wrapper = document.getElementById('crop-thumb-wrapper');
+  const box = document.getElementById('crop-box');
+  if (!wrapper || !box) return;
+  const W = wrapper.offsetWidth;
+  const H = wrapper.offsetHeight;
+  box.style.left   = (_crop.pctX / 100 * W) + 'px';
+  box.style.top    = (_crop.pctY / 100 * H) + 'px';
+  box.style.width  = (_crop.pctW / 100 * W) + 'px';
+  box.style.height = (_crop.pctH / 100 * H) + 'px';
+  updateReadout();
+}
+
+function updateReadout() {
+  // Konversi ke piksel video asli kalau dimensi tersedia, else tampilkan persen
+  const usePixels = _crop.vidW > 0 && _crop.vidH > 0;
+  const x = usePixels ? Math.round(_crop.pctX / 100 * _crop.vidW) : Math.round(_crop.pctX);
+  const y = usePixels ? Math.round(_crop.pctY / 100 * _crop.vidH) : Math.round(_crop.pctY);
+  const w = usePixels ? Math.round(_crop.pctW / 100 * _crop.vidW) : Math.round(_crop.pctW);
+  const h = usePixels ? Math.round(_crop.pctH / 100 * _crop.vidH) : Math.round(_crop.pctH);
+  const setVal = (id, v) => { const el = document.getElementById(id); if (el) el.value = v; };
+  setVal('crop-input-x', x);
+  setVal('crop-input-y', y);
+  setVal('crop-input-w', w);
+  setVal('crop-input-h', h);
+}
+
+function onCropInputChange() {
+  // Update crop box dari input angka (readonly visual feedback)
+  const vidW = _crop.vidW || 100;
+  const vidH = _crop.vidH || 100;
+  const getVal = (id) => parseFloat(document.getElementById(id)?.value || 0);
+  const x = getVal('crop-input-x');
+  const y = getVal('crop-input-y');
+  const w = getVal('crop-input-w');
+  const h = getVal('crop-input-h');
+  _crop.pctX = x / vidW * 100;
+  _crop.pctY = y / vidH * 100;
+  _crop.pctW = w / vidW * 100;
+  _crop.pctH = h / vidH * 100;
+  updateBoxFromPct();
+}
+
+function setCropPreset(ratio) {
+  _crop.aspect = ratio === 'free' ? null : ratio;
+  if (ratio === 'free') return;
+  // Hitung pctW & pctH yang memenuhi rasio, terpusat, maks 90% sisi terbesar
+  let [rw, rh] = ratio.split(':').map(Number);
+  const wrapper = document.getElementById('crop-thumb-wrapper');
+  if (!wrapper) return;
+  const W = wrapper.offsetWidth;
+  const H = wrapper.offsetHeight;
+  // Cari ukuran kotak terbesar yang muat di wrapper dengan rasio tsb
+  let bw = W * 0.9, bh = bw * rh / rw;
+  if (bh > H * 0.9) { bh = H * 0.9; bw = bh * rw / rh; }
+  _crop.pctW = bw / W * 100;
+  _crop.pctH = bh / H * 100;
+  _crop.pctX = (100 - _crop.pctW) / 2;
+  _crop.pctY = (100 - _crop.pctH) / 2;
+  updateBoxFromPct();
+}
+
+// ── Drag & Resize event listeners ─────────────────────────────────────────────
+(function() {
+  let _startMouseX, _startMouseY;
+
+  function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+
+  function onPointerDown(e) {
+    const wrapper = document.getElementById('crop-thumb-wrapper');
+    if (!wrapper) return;
+    // Listener global (supaya jalan saat konten di-swap htmx tanpa re-scan) —
+    // lewati klik di luar area crop.
+    if (!(e.target === wrapper || wrapper.contains(e.target))) return;
+    _startMouseX = e.clientX ?? e.touches?.[0]?.clientX;
+    _startMouseY = e.clientY ?? e.touches?.[0]?.clientY;
+    const W = wrapper.offsetWidth, H = wrapper.offsetHeight;
+
+    if (e.target.classList.contains('crop-handle')) {
+      _crop.resizing = true;
+      _crop.dir = e.target.dataset.dir;
+    } else if (e.target.id === 'crop-box' || e.target.closest('#crop-box')) {
+      _crop.dragging = true;
+    } else if (e.target === wrapper || e.target.id === 'crop-thumb-img') {
+      // Klik di thumbnail → mulai gambar box baru
+      const rect = wrapper.getBoundingClientRect();
+      const mx = _startMouseX - rect.left;
+      const my = _startMouseY - rect.top;
+      _crop.pctX = mx / W * 100;
+      _crop.pctY = my / H * 100;
+      _crop.pctW = 0.1; _crop.pctH = 0.1;
+      _crop.resizing = true; _crop.dir = 'se';
+      document.getElementById('crop-box').style.display = 'block';
+    }
+    _crop.startPctX = _crop.pctX; _crop.startPctY = _crop.pctY;
+    _crop.startPctW = _crop.pctW; _crop.startPctH = _crop.pctH;
+    e.preventDefault();
+  }
+
+  function onPointerMove(e) {
+    if (!_crop.dragging && !_crop.resizing) return;
+    const wrapper = document.getElementById('crop-thumb-wrapper');
+    if (!wrapper) return;
+    const W = wrapper.offsetWidth, H = wrapper.offsetHeight;
+    const cx = e.clientX ?? e.touches?.[0]?.clientX;
+    const cy = e.clientY ?? e.touches?.[0]?.clientY;
+    const dpx = (cx - _startMouseX) / W * 100;
+    const dpy = (cy - _startMouseY) / H * 100;
+
+    if (_crop.dragging) {
+      _crop.pctX = clamp(_crop.startPctX + dpx, 0, 100 - _crop.pctW);
+      _crop.pctY = clamp(_crop.startPctY + dpy, 0, 100 - _crop.pctH);
+    } else if (_crop.resizing) {
+      let x = _crop.startPctX, y = _crop.startPctY;
+      let w = _crop.startPctW, h = _crop.startPctH;
+      const d = _crop.dir;
+      if (d.includes('e')) w = clamp(w + dpx, 2, 100 - x);
+      if (d.includes('s')) h = clamp(h + dpy, 2, 100 - y);
+      if (d.includes('w')) { const nx = clamp(x + dpx, 0, x + w - 2); w = w + x - nx; x = nx; }
+      if (d.includes('n')) { const ny = clamp(y + dpy, 0, y + h - 2); h = h + y - ny; y = ny; }
+      // Pertahankan rasio kalau preset aktif
+      if (_crop.aspect) {
+        const [rw, rh] = _crop.aspect.split(':').map(Number);
+        if (d.includes('e') || d.includes('w')) h = w * rh / rw;
+        else w = h * rw / rh;
+      }
+      _crop.pctX = x; _crop.pctY = y; _crop.pctW = w; _crop.pctH = h;
+    }
+    updateBoxFromPct();
+  }
+
+  function onPointerUp() {
+    _crop.dragging = false; _crop.resizing = false; _crop.dir = null;
+  }
+
+  document.addEventListener('mousedown', onPointerDown);
+  document.addEventListener('touchstart', onPointerDown, { passive: false });
+  document.addEventListener('mousemove', onPointerMove);
+  document.addEventListener('touchmove', onPointerMove, { passive: false });
+  document.addEventListener('mouseup', onPointerUp);
+  document.addEventListener('touchend', onPointerUp);
+})();
+
+async function submitCropFrame(event, clipId) {
+  event.preventDefault();
+  // Sync hidden inputs dari state internal sebelum submit
+  const vidW = _crop.vidW > 0 ? _crop.vidW : (_crop.thumbW || 640);
+  const vidH = _crop.vidH > 0 ? _crop.vidH : (_crop.thumbH || 360);
+  const x = Math.max(0, Math.round(_crop.pctX / 100 * vidW));
+  const y = Math.max(0, Math.round(_crop.pctY / 100 * vidH));
+  const w = Math.max(1, Math.round(_crop.pctW / 100 * vidW));
+  const h = Math.max(1, Math.round(_crop.pctH / 100 * vidH));
+  document.getElementById('crop-form-x').value = x;
+  document.getElementById('crop-form-y').value = y;
+  document.getElementById('crop-form-w').value = w;
+  document.getElementById('crop-form-h').value = h;
+
+  const btn = document.getElementById('crop-apply-btn');
+  _startEditProgress(btn);
+  try {
+    const formData = new URLSearchParams({ x, y, width: w, height: h });
+    const res = await fetch(`/clips/${clipId}/edit/crop-frame`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: formData,
+    });
+    if (res.ok) {
+      _setPreviewHtml(await res.text());
+    } else {
+      const err = await res.json().catch(() => ({}));
+      alert(err.detail || 'Gagal crop frame. Cek nilai X/Y/Width/Height.');
+    }
+  } catch (e) {
+    alert('{{ t("candDetail.error") }}');
+  } finally {
+    _stopEditProgress(btn);
+  }
+  return false;
+}
+// ── End Crop Frame Tab ────────────────────────────────────────────────────────
 
 async function doGenerateClip(btn, candidateId) {
   _startGenerateProgress(btn);
