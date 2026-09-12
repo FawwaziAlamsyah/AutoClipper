@@ -4,6 +4,7 @@ File asli (clips.file_path) tidak pernah ditimpa — tiap edit menulis ke
 clips.edited_file_path, supaya "Reset ke Original" tidak perlu render ulang.
 """
 
+import json
 import logging
 import subprocess
 from pathlib import Path
@@ -303,8 +304,14 @@ class ClipEditorService:
         scale: float = 0.30,
         opacity: float = 0.8,
         margin_px: int = 10,
+        x_pct: float | None = None,   # 0.0–1.0, posisi kiri watermark relatif ke lebar video
+        y_pct: float | None = None,   # 0.0–1.0, posisi atas watermark relatif ke tinggi video
     ):
-        """Tempel watermark PNG (transparan) ke clip pakai FFmpeg overlay filter."""
+        """Tempel watermark PNG (transparan) ke clip pakai FFmpeg overlay filter.
+
+        Kalau x_pct/y_pct diisi → posisi bebas dari drag (override position_map),
+        kalau None → backward-compat pakai `position`/`margin_px`.
+        """
         clip = self.clip_repo.get(clip_id)
         if clip is None:
             raise NotFoundException(f"Clip {clip_id} tidak ditemukan")
@@ -317,6 +324,10 @@ class ClipEditorService:
             )
         if not (0.05 <= scale <= 0.5):
             raise ValidationException("scale harus antara 0.05–0.5")
+        if x_pct is not None and not (0.0 <= x_pct <= 1.0):
+            raise ValidationException("x_pct harus antara 0.0–1.0")
+        if y_pct is not None and not (0.0 <= y_pct <= 1.0):
+            raise ValidationException("y_pct harus antara 0.0–1.0")
         if not (0.0 <= opacity <= 1.0):
             raise ValidationException("opacity harus antara 0.0–1.0")
 
@@ -354,8 +365,14 @@ class ClipEditorService:
             "bottom-left": (f"{margin_px}", f"main_h-overlay_h-{margin_px}"),
             "bottom-right":(f"main_w-overlay_w-{margin_px}", f"main_h-overlay_h-{margin_px}"),
         }
-        x_expr, y_expr = position_map.get(position, position_map["bottom"])
-        logger.info("add_watermark clip=%d position=%r → x=%s y=%s", clip_id, position, x_expr, y_expr)
+        if x_pct is not None and y_pct is not None:
+            # Jalur drag: abai position_map & margin_px sepenuhnya.
+            x_expr = f"(main_w-overlay_w)*{x_pct}"
+            y_expr = f"(main_h-overlay_h)*{y_pct}"
+            logger.info("add_watermark clip=%d drag → x=%s y=%s", clip_id, x_expr, y_expr)
+        else:
+            x_expr, y_expr = position_map.get(position, position_map["bottom"])
+            logger.info("add_watermark clip=%d position=%r → x=%s y=%s", clip_id, position, x_expr, y_expr)
 
         filter_complex = (
             f"[1:v]scale={wm_width}:-1,"
@@ -392,8 +409,43 @@ class ClipEditorService:
         clip.edited_file_path = str(output_path)
         clip.has_watermark = True
         self.db.commit()
-        logger.info("Watermark ditambahkan ke clip %d (pos=%s, scale=%.2f, opacity=%.2f)", clip_id, position, scale, opacity)
+
+        # Simpan posisi/ukuran/opacity terakhir yang dipakai (hanya jalur drag).
+        # Gagal simpan preferensi JANGAN menggagalkan proses watermark utama.
+        if x_pct is not None and y_pct is not None:
+            try:
+                pos_file = settings.WATERMARK_PATH.parent / "watermark_position.json"
+                pos_file.write_text(
+                    json.dumps({
+                        "x_pct": x_pct, "y_pct": y_pct,
+                        "scale": scale, "opacity": opacity,
+                    }),
+                    encoding="utf-8",
+                )
+            except Exception:
+                logger.warning("Gagal simpan watermark_position.json (tidak fatal)", exc_info=True)
+
+        logger.info(
+            "Watermark ditambahkan ke clip %d (pos=%s, scale=%.2f, opacity=%.2f)",
+            clip_id, position if x_pct is None else f"drag(x={x_pct},y={y_pct})", scale, opacity,
+        )
         return clip
+
+    def get_last_watermark_position(self) -> dict:
+        """Baca posisi/ukuran watermark terakhir dari watermark_position.json.
+
+        Return default (x_pct=0.65, y_pct=0.80, scale=0.30, opacity=0.8)
+        kalau file belum ada / corrupt.
+        """
+        default = {"x_pct": 0.65, "y_pct": 0.80, "scale": 0.30, "opacity": 0.8}
+        pos_file = settings.WATERMARK_PATH.parent / "watermark_position.json"
+        try:
+            data = json.loads(pos_file.read_text(encoding="utf-8"))
+            merged = dict(default)
+            merged.update({k: v for k, v in data.items() if k in default})
+            return merged
+        except Exception:
+            return default
 
     def burn_subtitle(self, clip_id: int, cues: list[dict]):
         """Burn (hardcode) subtitle ke video clip.

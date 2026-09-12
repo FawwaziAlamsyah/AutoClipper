@@ -3,6 +3,8 @@
 from datetime import datetime, UTC
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from app.models.clip_model import ClipModel
 from app.services.clip_service import ClipService
 
@@ -293,3 +295,123 @@ def test_hook_composer_disabled_flag() -> None:
 
     assert result is False
     assert mock_clip.hook_skip_reason == "disabled"
+
+
+# ── Watermark drag (add_watermark x_pct/y_pct) tests ──────────────────────────
+
+def _make_watermark_service(tmp_path):
+    """ClipEditorService dengan deps di-mock + WATERMARK_PATH di tmp_path."""
+    from app.services.clip_editor_service import ClipEditorService
+
+    clip = MagicMock()
+    clip.id = 3
+    clip.file_path = "C:/output/clip_9.mp4"
+    clip.edited_file_path = None
+    clip.start_time = 0.0
+    clip.end_time = 10.0
+    clip.has_watermark = False
+
+    repo = MagicMock()
+    repo.get.return_value = clip
+
+    ffmpeg = MagicMock()
+    ffmpeg.extract_metadata.return_value = {"width": 1920, "height": 1080}
+
+    service = ClipEditorService(MagicMock())
+    service.clip_repo = repo
+    service.ffmpeg = ffmpeg
+
+    mock_settings = MagicMock()
+    mock_settings.WATERMARK_PATH = tmp_path / "assets" / "watermark.png"
+    return service, clip, mock_settings
+
+
+def _run_watermark(service, mock_settings, **kw):
+    """Patch settings + subprocess + Path ops, jalankan add_watermark."""
+    import subprocess as sp
+    mock_settings.WATERMARK_PATH.parent.mkdir(parents=True, exist_ok=True)
+    mock_settings.WATERMARK_PATH.write_bytes(b"png")  # supaya exists() True
+    completed = MagicMock()
+    completed.returncode = 0
+    with patch("app.services.clip_editor_service.settings", mock_settings), \
+         patch("app.services.clip_editor_service.subprocess.run", return_value=completed) as m, \
+         patch("pathlib.Path.exists", return_value=True), \
+         patch("pathlib.Path.mkdir"), \
+         patch("pathlib.Path.rename"):
+        service.add_watermark(3, **kw)
+    return m
+
+
+def test_add_watermark_drag_uses_xpct_ypct(tmp_path) -> None:
+    """add_watermark dengan x_pct/y_pct → ekspresi overlay pakai pct, bukan position_map."""
+    service, _, mock_settings = _make_watermark_service(tmp_path)
+
+    m = _run_watermark(service, mock_settings, x_pct=0.25, y_pct=0.75, scale=0.30, opacity=0.8)
+
+    fc = m.call_args[0][0][m.call_args[0][0].index("-filter_complex") + 1]
+    assert "(main_w-overlay_w)*0.25" in fc
+    assert "(main_h-overlay_h)*0.75" in fc
+    assert "main_w-overlay_w-10" not in fc  # bukan jalur margin
+
+
+def test_add_watermark_validation_xpct_ypct(tmp_path) -> None:
+    """x_pct=1.5 / y_pct=-0.1 → ValidationException."""
+    from app.core.exceptions.base import ValidationException
+
+    service, _, mock_settings = _make_watermark_service(tmp_path)
+
+    with pytest.raises(ValidationException, match="x_pct"):
+        _run_watermark(service, mock_settings, x_pct=1.5, y_pct=0.5)
+    with pytest.raises(ValidationException, match="y_pct"):
+        _run_watermark(service, mock_settings, x_pct=0.5, y_pct=-0.1)
+
+
+def test_add_watermark_backward_compat_no_pct(tmp_path) -> None:
+    """Tanpa x_pct/y_pct → pakai position_map (behavior lama)."""
+    service, _, mock_settings = _make_watermark_service(tmp_path)
+
+    m = _run_watermark(service, mock_settings, position="top_right", scale=0.30, opacity=0.8)
+
+    fc = m.call_args[0][0][m.call_args[0][0].index("-filter_complex") + 1]
+    assert "main_w-overlay_w-10" in fc  # position_map top_right pakai margin
+
+    # JSON position file TIDAK ditulis
+    assert not (tmp_path / "assets" / "watermark_position.json").exists()
+
+
+def test_add_watermark_writes_position_file_on_drag(tmp_path) -> None:
+    """Dengan x_pct/y_pct → watermark_position.json ditulis sesuai isi."""
+    import json
+
+    service, _, mock_settings = _make_watermark_service(tmp_path)
+
+    _run_watermark(service, mock_settings, x_pct=0.2, y_pct=0.8, scale=0.25, opacity=0.7)
+
+    data = json.loads((tmp_path / "assets" / "watermark_position.json").read_text(encoding="utf-8"))
+    assert data["x_pct"] == 0.2
+    assert data["y_pct"] == 0.8
+    assert data["scale"] == 0.25
+    assert data["opacity"] == 0.7
+
+
+def test_get_last_watermark_position_default_and_file(tmp_path) -> None:
+    """get_last_watermark_position: default saat file belum ada, isi saat ada."""
+    import json
+
+    service, _, mock_settings = _make_watermark_service(tmp_path)
+    pos_file = tmp_path / "assets" / "watermark_position.json"
+
+    with patch("app.services.clip_editor_service.settings", mock_settings):
+        d = service.get_last_watermark_position()
+        assert d == {"x_pct": 0.65, "y_pct": 0.80, "scale": 0.30, "opacity": 0.8}
+
+        pos_file.parent.mkdir(parents=True, exist_ok=True)
+        pos_file.write_text(json.dumps({"x_pct": 0.1, "y_pct": 0.9, "scale": 0.5, "opacity": 0.4}), encoding="utf-8")
+        d = service.get_last_watermark_position()
+        assert d["x_pct"] == 0.1 and d["y_pct"] == 0.9
+        assert d["scale"] == 0.5 and d["opacity"] == 0.4
+
+        # file corrupt → default
+        pos_file.write_text("bukan json", encoding="utf-8")
+        d = service.get_last_watermark_position()
+        assert d == {"x_pct": 0.65, "y_pct": 0.80, "scale": 0.30, "opacity": 0.8}
