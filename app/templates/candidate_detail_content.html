@@ -108,7 +108,7 @@
     <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-trim">{{ t("candDetail.crop") }}</button></li>
     <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-crop-frame" onclick="initCropTab({{ clip.id }})">{{ t("candDetail.cropFrame") }}</button></li>
     <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-sound">{{ t("candDetail.sound") }}</button></li>
-    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-watermark">{{ t("candDetail.watermark") }}</button></li>
+    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-watermark" onclick="initWatermarkTab({{ clip.id }})">{{ t("candDetail.watermark") }}</button></li>
     <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-hook">🪝 {{ t("candDetail.hookTab") }}</button></li>
   </ul>
 
@@ -189,11 +189,11 @@
             <span style="position:absolute;bottom:0;">100%</span>
           </div>
           <!-- Wrapper thumbnail + crop box -->
-          <div id="crop-thumb-wrapper" class="position-relative" style="border:1px solid #dee2e6;overflow:hidden;cursor:crosshair;user-select:none;">
-            <div id="crop-thumb-loading" class="d-flex align-items-center justify-content-center bg-secondary text-white" style="width:400px;height:225px;">
+          <div id="crop-thumb-wrapper" class="position-relative" style="border:1px solid #dee2e6;overflow:hidden;cursor:crosshair;user-select:none;min-height:225px;">
+            <img id="crop-thumb-img" src="" alt="thumbnail" style="display:none;max-width:100%;width:100%;height:auto;">
+            <div id="crop-thumb-loading" class="d-flex align-items-center justify-content-center bg-secondary text-white position-absolute top-0 start-0 w-100 h-100">
               <span>{{ t("candDetail.cropFrameLoadingThumb") }}</span>
             </div>
-            <img id="crop-thumb-img" src="" alt="thumbnail" style="display:none;max-width:100%;display:block;">
             <!-- Crop box overlay -->
             <div id="crop-box" style="
               display:none;
@@ -314,33 +314,40 @@
         <small id="wm-upload-status" class="text-muted"></small>
       </div>
       <p class="text-muted small">{{ t("candDetail.watermarkDesc") }}</p>
+      <p class="text-muted small mb-2">{{ t("candDetail.watermarkDragHint") }}</p>
+
+      <!-- Drag stage: preview video + watermark overlay draggable.
+           "Wrapper baru khusus tab watermark" (video source sama dengan
+           preview, bukan re-render FFmpeg — lihat prompt). -->
+      <div id="wm-drag-stage" class="position-relative d-inline-block mb-2" style="max-width:100%;">
+        {% set raw_wm = clip.edited_file_path or clip.file_path %}
+        {% set wm_preview = raw_wm.replace('\\', '/').split('data/outputs/')[-1] %}
+        <video id="wm-preview-video" class="w-100 rounded" controls muted preload="metadata" style="max-height:420px;object-fit:contain;">
+          <source src="/data/outputs/{{ wm_preview }}?v={{ cachebust(raw_wm) }}" type="video/mp4">
+        </video>
+        <img id="wm-drag-handle" src="/data/assets/watermark.png?v={{ ts|default(0) }}"
+             alt="watermark"
+             style="position:absolute; cursor:move; touch-action:none; z-index:5;
+                    pointer-events:auto; display:none; user-select:none;">
+        <div id="wm-resize-handle"
+             style="position:absolute; width:14px; height:14px; border-radius:50%;
+                    background:#fff; border:2px solid #0d6efd; cursor:nwse-resize;
+                    z-index:6; pointer-events:auto; display:none;"></div>
+      </div>
+
       <form onsubmit="return submitEditForm(event, '/clips/{{ clip.id }}/edit/watermark')">
-        <div class="row g-2 mb-2">
-          <div class="col">
-            <label class="form-label small">{{ t("candDetail.watermarkPosition") }}</label>
-            <select name="position" class="form-select form-select-sm">
-              <option value="center">{{ t("candDetail.center") }}</option>
-              <option value="bottom" selected>{{ t("candDetail.watermarkBottom") }}</option>
-              <option value="top">{{ t("candDetail.watermarkTop") }}</option>
-              <option value="right">{{ t("candDetail.watermarkRight") }}</option>
-              <option value="top_right">{{ t("candDetail.watermarkTopRight") }}</option>
-              <option value="bottom_right">{{ t("candDetail.watermarkBottomRight") }}</option>
-              <option value="left">{{ t("candDetail.watermarkLeft") }}</option>
-              <option value="top_left">{{ t("candDetail.watermarkTopLeft") }}</option>
-              <option value="bottom_left">{{ t("candDetail.watermarkBottomLeft") }}</option>
-            </select>
-          </div>
-        </div>
+        <input type="hidden" name="x_pct" id="wm-x-pct">
+        <input type="hidden" name="y_pct" id="wm-y-pct">
         <div class="row g-2 mb-2">
           <div class="col">
             <label class="form-label small">{{ t("candDetail.watermarkSize") }}</label>
-            <input type="range" name="scale" class="form-range" min="0.05" max="0.5" step="0.01" value="0.3"
-              oninput="this.nextElementSibling.textContent = (parseFloat(this.value)*100).toFixed(0) + '%'">
+            <input type="range" name="scale" id="wm-scale" class="form-range" min="0.05" max="0.5" step="0.01" value="0.3"
+              oninput="wmScaleChange(this)">
             <small class="text-muted">30%</small>
           </div>
           <div class="col">
             <label class="form-label small">{{ t("candDetail.watermarkOpacity") }}</label>
-            <input type="range" name="opacity" class="form-range" min="0.1" max="1" step="0.05" value="0.8"
+            <input type="range" name="opacity" id="wm-opacity" class="form-range" min="0.1" max="1" step="0.05" value="0.8"
               oninput="this.nextElementSibling.textContent = (parseFloat(this.value)*100).toFixed(0) + '%'">
             <small class="text-muted">80%</small>
           </div>
@@ -501,6 +508,194 @@ async function submitEditForm(event, url) {
   return false;
 }
 
+// ── Watermark Drag & Resize (Pointer Events, vanilla) ──────────────────────────
+// Posisi/ukuran/opacity inisialisasi dari GET /clips/watermark/last-position.
+// koordinat disimpan x_pct/y_pct relatif ke VIDEO ASLI (0.0–1.0) — kalau
+// <video> pakai object-fit:contain dan ada letterbox, hitung area efektif
+// dulu biar persen tidak meleset.
+const _wm = { mode: null, startX: 0, startY: 0, origLeft: 0, origTop: 0,
+              origW: 0, origH: 0, scale: 0.30, opacity: 0.8 };
+
+function _wmStageAndHandle() {
+  const stage = document.getElementById('wm-drag-stage');
+  const img = document.getElementById('wm-drag-handle');
+  if (!stage || !img) return null;
+  return { stage, img };
+}
+
+function _wmVideoRect(clientW, clientH, vidW, vidH) {
+  // Hitung rect area video efektif (object-fit:contain) dengan benar.
+  const scale = Math.min(clientW / vidW, clientH / vidH);
+  const w = vidW * scale, h = vidH * scale;
+  return { left: (clientW - w) / 2, top: (clientH - h) / 2, w, h };
+}
+
+function _wmGetEffectiveRect(video, img) {
+  if (video && video.videoWidth && video.clientWidth) {
+    const r = _wmVideoRect(video.clientWidth, video.clientHeight, video.videoWidth, video.videoHeight);
+    // Video mungkin belum loaded metadata — fallback ke client rect.
+    if (r.w > 0 && r.h > 0) return r;
+  }
+  const st = document.getElementById('wm-drag-stage');
+  return { left: 0, top: 0, w: st.offsetWidth, h: st.offsetHeight };
+}
+
+function _wmSyncHandle(img, video) {
+  let rect = _wmVideoRect(video.clientWidth, video.clientHeight, video.videoWidth, video.videoHeight);
+  if (!video.videoWidth) rect = { left: 0, top: 0, w: video.clientWidth, h: video.clientHeight };
+  img.style.left = (rect.left + _wm.x * rect.w) + 'px';
+  img.style.top  = (rect.top  + _wm.y * rect.h) + 'px';
+  const st = document.getElementById('wm-drag-stage');
+  img.style.width = (rect.w * _wm.scale) + 'px';
+  img.style.height = 'auto';
+}
+
+function _wmSetHiddenInputs() {
+  const x = document.getElementById('wm-x-pct');
+  const y = document.getElementById('wm-y-pct');
+  if (x) x.value = _wm.x.toFixed(3);
+  if (y) y.value = _wm.y.toFixed(3);
+}
+
+function initWatermarkTab(clipId) {
+  const { img } = (_wmStageAndHandle() || { img: null });
+  if (!img) return;
+  const video = document.getElementById('wm-preview-video');
+  const stage = document.getElementById('wm-drag-stage');
+  fetch('/clips/watermark/last-position')
+    .then(r => (r.ok ? r.json() : Promise.reject()))
+    .then(d => {
+      _wm.x = typeof d.x_pct === 'number' ? d.x_pct : 0.65;
+      _wm.y = typeof d.y_pct === 'number' ? d.y_pct : 0.80;
+      _wm.scale = typeof d.scale === 'number' ? d.scale : 0.30;
+      _wm.opacity = typeof d.opacity === 'number' ? d.opacity : 0.8;
+      const sc = document.getElementById('wm-scale');
+      const op = document.getElementById('wm-opacity');
+      if (sc) sc.value = _wm.scale;
+      if (op) op.value = _wm.opacity;
+      img.style.display = 'block';
+      document.getElementById('wm-resize-handle').style.display = 'block';
+      const onVideoLoad = () => {
+        _wmSyncHandle(img, video);
+        _wmSetHiddenInputs();
+        video.removeEventListener('loadedmetadata', onVideoLoad);
+      };
+      video.addEventListener('loadedmetadata', onVideoLoad);
+      _wmSyncHandle(img, video);
+      _wmSetHiddenInputs();
+    })
+    .catch(() => { /* pakai default; stage tetap utuh */ });
+}
+
+function wmScaleChange(input) {
+  const v = parseFloat(input.value);
+  _wm.scale = v;
+  const { img } = (_wmStageAndHandle() || { img: null });
+  const video = document.getElementById('wm-preview-video');
+  if (img && video && video.clientWidth) {
+    _wmSyncHandle(img, video);
+  }
+  input.nextElementSibling.textContent = Math.round(v * 100) + '%';
+}
+
+function _wmOnPointerDown(e) {
+  const { stage, img } = (_wmStageAndHandle() || { stage: null, img: null });
+  if (!stage || !img) return;
+  const target = e.target;
+  const resize = document.getElementById('wm-resize-handle');
+  const video = document.getElementById('wm-preview-video');
+  const r = (video && video.clientWidth) ? _wmGetEffectiveRect(video, img) : { left: 0, top: 0, w: stage.offsetWidth, h: stage.offsetHeight };
+
+  if (target === resize) {
+    // mode resize
+    _wm.mode = 'resize';
+    _wm.startX = (e.clientX ?? e.touches?.[0]?.clientX);
+    _wm.startY = (e.clientY ?? e.touches?.[0]?.clientY);
+    _wm.origW = parseFloat(img.style.width) || 0;
+    _wm.origH = parseFloat(img.style.height) || 0;
+    _wm.stageW = r.w; _wm.stageH = r.h;
+    e.preventDefault();
+    return;
+  }
+  if (target === img || target.id === 'wm-drag-handle') {
+    // mode move
+    _wm.mode = 'move';
+    _wm.startX = (e.clientX ?? e.touches?.[0]?.clientX);
+    _wm.startY = (e.clientY ?? e.touches?.[0]?.clientY);
+    _wm.origLeft = parseFloat(img.style.left) || 0;
+    _wm.origTop  = parseFloat(img.style.top)  || 0;
+    _wm.rect = r;
+    e.preventDefault();
+  }
+}
+
+function _wmOnPointerMove(e) {
+  if (!_wm.mode) return;
+  const { stage, img } = (_wmStageAndHandle() || { stage: null, img: null });
+  if (!stage || !img) return;
+  const video = document.getElementById('wm-preview-video');
+  const r = (video && video.clientWidth) ? _wmGetEffectiveRect(video, img) : { left: 0, top: 0, w: stage.offsetWidth, h: stage.offsetHeight };
+  const cx = e.clientX ?? e.touches?.[0]?.clientX;
+  const cy = e.clientY ?? e.touches?.[0]?.clientY;
+
+  if (_wm.mode === 'move') {
+    let left = _wm.origLeft + (cx - _wm.startX);
+    let top  = _wm.origTop  + (cy - _wm.startY);
+    const maxLeft = r.w - (parseFloat(img.style.width) || 0);
+    const maxTop  = r.h - (parseFloat(img.style.height) || 0);
+    left = Math.max(r.left, Math.min(r.left + maxLeft, left));
+    top  = Math.max(r.top,  Math.min(r.top  + maxTop,  top));
+    img.style.left = left + 'px';
+    img.style.top  = top  + 'px';
+  } else if (_wm.mode === 'resize') {
+    // ukuran berdasarkan jarak drag dari sudut kiri-atas-nya
+    const dx = cx - _wm.startX;
+    const dy = cy - _wm.startY;
+    let w = _wm.origW + Math.hypot(dx, dy) * (dx >= 0 ? 1 : -1);
+    const vW = video && video.clientWidth ? r.w : stage.offsetWidth;
+    // clamp 5%–50% lebar stage
+    w = Math.max(vW * 0.05, Math.min(vW * 0.5, w));
+    _wm.scale = w / vW;
+    img.style.width = w + 'px';
+    img.style.height = 'auto';
+    const sc = document.getElementById('wm-scale');
+    if (sc) sc.value = _wm.scale.toFixed(2);
+    // keep left/top agar anchor sudut kiri-atas tetap
+  }
+}
+
+function _wmOnPointerUp() {
+  if (!_wm.mode) return;
+  const { img } = (_wmStageAndHandle() || { img: null });
+  const video = document.getElementById('wm-preview-video');
+  if (img && video && video.clientWidth) {
+    // konversi ke x_pct/y_pct relatif area video efektif
+    const r = _wmGetEffectiveRect(video, img);
+    const left = parseFloat(img.style.left) || 0;
+    const top  = parseFloat(img.style.top)  || 0;
+    _wm.x = (left - r.left) / r.w;
+    _wm.y = (top  - r.top)  / r.h;
+  } else {
+    const st = document.getElementById('wm-drag-stage');
+    _wm.x = (parseFloat(img.style.left) || 0) / (st.offsetWidth || 1);
+    _wm.y = (parseFloat(img.style.top)  || 0) / (st.offsetHeight || 1);
+  }
+  _wmSetHiddenInputs();
+  _wm.mode = null;
+}
+
+// listener: document-level (aman untuk htmx swap), guard oleh getElementById
+(function() {
+  document.addEventListener('mousedown', _wmOnPointerDown);
+  document.addEventListener('touchstart', _wmOnPointerDown, { passive: false });
+  document.addEventListener('mousemove', _wmOnPointerMove);
+  document.addEventListener('touchmove', _wmOnPointerMove, { passive: false });
+  document.addEventListener('mouseup', _wmOnPointerUp);
+  document.addEventListener('touchend', _wmOnPointerUp);
+})();
+
+// Init saat tab watermark dibuka (onclick di tab button) — load posisi terakhir.
+// Dipanggil inline di nav tab: onclick="initWatermarkTab({{ clip.id }})"
 async function submitEditFormFile(event, url) {
   event.preventDefault();
   const form = event.target;
@@ -890,16 +1085,24 @@ function initCropTab(clipId) {
   if (!img) return;
   const loading = document.getElementById('crop-thumb-loading');
   const startLoad = () => {
-    if (loading) loading.style.display = 'flex';
+    if (loading) { loading.classList.remove('d-none'); loading.classList.add('d-flex'); }
     img.style.display = 'none';
     img.src = `/clips/${clipId}/thumbnail?_ts=${Date.now()}`;
   };
-  if (img.src && img.complete && img.naturalWidth > 0) return; // sudah ter-load
-  img.onload = () => {
-    if (loading) loading.style.display = 'none';
+  if (img.src && img.complete && img.naturalWidth > 0) {
+    // Sudah pernah ter-load — pastikan state tetap benar: loading tertutup,
+    // ruler & crop box di-sync ke ukuran wrapper SEKARANG (bukan asumsi lama).
+    // Penting saat tab baru jadi visible, karena offsetWidth/offsetHeight bisa
+    // 0 kalau diukur sewaktu elemen masih display:none.
+    if (loading) { loading.classList.remove('d-flex'); loading.classList.add('d-none'); }
     img.style.display = 'block';
-    _crop.thumbW = img.naturalWidth;
-    _crop.thumbH = img.naturalHeight;
+    syncRulerSize();
+    showCropBox();
+    return;
+  }
+  img.onload = () => {
+    if (loading) { loading.classList.remove('d-flex'); loading.classList.add('d-none'); }
+    img.style.display = 'block';
     syncRulerSize();
     showCropBox();
   };
@@ -921,17 +1124,28 @@ function initCropTab(clipId) {
   startLoad();
 }
 
+// Ukur gambar crop yang sebenarnya dirender (bukan wrapper). Wrapper bisa saja
+// berisi elemen lain yang mengubah tingginya (placeholder, notifikasi, dll);
+// ruler & crop box harus match dengan gambar asli, supaya koordinat %Y tidak
+// meleset kalau ada elemen tambahan di dalam wrapper.
+function _getImgSize() {
+  const img = document.getElementById('crop-thumb-img');
+  if (!img) return null;
+  const w = img.offsetWidth || img.naturalWidth;
+  const h = img.offsetHeight || img.naturalHeight;
+  if (!w || !h) return null;
+  return { w, h };
+}
+
 function syncRulerSize() {
-  const wrapper = document.getElementById('crop-thumb-wrapper');
+  const size = _getImgSize();
   const rulerX = document.getElementById('crop-ruler-x');
   const rulerY = document.getElementById('crop-ruler-y');
-  if (!wrapper) return;
-  const w = wrapper.offsetWidth;
-  const h = wrapper.offsetHeight;
-  if (rulerX) rulerX.style.width = w + 'px';
-  if (rulerY) rulerY.style.height = h + 'px';
-  _crop.thumbW = w;
-  _crop.thumbH = h;
+  if (!size) return;
+  if (rulerX) rulerX.style.width = size.w + 'px';
+  if (rulerY) rulerY.style.height = size.h + 'px';
+  _crop.thumbW = size.w;
+  _crop.thumbH = size.h;
 }
 
 function showCropBox() {
@@ -942,11 +1156,11 @@ function showCropBox() {
 }
 
 function updateBoxFromPct() {
-  const wrapper = document.getElementById('crop-thumb-wrapper');
+  const size = _getImgSize();
   const box = document.getElementById('crop-box');
-  if (!wrapper || !box) return;
-  const W = wrapper.offsetWidth;
-  const H = wrapper.offsetHeight;
+  if (!size || !box) return;
+  const W = size.w;
+  const H = size.h;
   box.style.left   = (_crop.pctX / 100 * W) + 'px';
   box.style.top    = (_crop.pctY / 100 * H) + 'px';
   box.style.width  = (_crop.pctW / 100 * W) + 'px';
@@ -972,6 +1186,8 @@ function onCropInputChange() {
   // Update crop box dari input angka (readonly visual feedback)
   const vidW = _crop.vidW || 100;
   const vidH = _crop.vidH || 100;
+  const size = _getImgSize();
+  if (size) { _crop.thumbW = size.w; _crop.thumbH = size.h; }
   const getVal = (id) => parseFloat(document.getElementById(id)?.value || 0);
   const x = getVal('crop-input-x');
   const y = getVal('crop-input-y');
@@ -989,11 +1205,10 @@ function setCropPreset(ratio) {
   if (ratio === 'free') return;
   // Hitung pctW & pctH yang memenuhi rasio, terpusat, maks 90% sisi terbesar
   let [rw, rh] = ratio.split(':').map(Number);
-  const wrapper = document.getElementById('crop-thumb-wrapper');
-  if (!wrapper) return;
-  const W = wrapper.offsetWidth;
-  const H = wrapper.offsetHeight;
-  // Cari ukuran kotak terbesar yang muat di wrapper dengan rasio tsb
+  const size = _getImgSize();
+  if (!size) return;
+  const W = size.w, H = size.h;
+  // Cari ukuran kotak terbesar yang muat di dalam gambar dengan rasio tsb
   let bw = W * 0.9, bh = bw * rh / rw;
   if (bh > H * 0.9) { bh = H * 0.9; bw = bh * rw / rh; }
   _crop.pctW = bw / W * 100;
@@ -1017,7 +1232,6 @@ function setCropPreset(ratio) {
     if (!(e.target === wrapper || wrapper.contains(e.target))) return;
     _startMouseX = e.clientX ?? e.touches?.[0]?.clientX;
     _startMouseY = e.clientY ?? e.touches?.[0]?.clientY;
-    const W = wrapper.offsetWidth, H = wrapper.offsetHeight;
 
     if (e.target.classList.contains('crop-handle')) {
       _crop.resizing = true;
@@ -1026,11 +1240,14 @@ function setCropPreset(ratio) {
       _crop.dragging = true;
     } else if (e.target === wrapper || e.target.id === 'crop-thumb-img') {
       // Klik di thumbnail → mulai gambar box baru
-      const rect = wrapper.getBoundingClientRect();
+      const size = _getImgSize();
+      const img = document.getElementById('crop-thumb-img');
+      if (!size || !img) return;
+      const rect = img.getBoundingClientRect();
       const mx = _startMouseX - rect.left;
       const my = _startMouseY - rect.top;
-      _crop.pctX = mx / W * 100;
-      _crop.pctY = my / H * 100;
+      _crop.pctX = mx / size.w * 100;
+      _crop.pctY = my / size.h * 100;
       _crop.pctW = 0.1; _crop.pctH = 0.1;
       _crop.resizing = true; _crop.dir = 'se';
       document.getElementById('crop-box').style.display = 'block';
@@ -1044,7 +1261,9 @@ function setCropPreset(ratio) {
     if (!_crop.dragging && !_crop.resizing) return;
     const wrapper = document.getElementById('crop-thumb-wrapper');
     if (!wrapper) return;
-    const W = wrapper.offsetWidth, H = wrapper.offsetHeight;
+    const size = _getImgSize();
+    if (!size) return;
+    const W = size.w, H = size.h;
     const cx = e.clientX ?? e.touches?.[0]?.clientX;
     const cy = e.clientY ?? e.touches?.[0]?.clientY;
     const dpx = (cx - _startMouseX) / W * 100;
@@ -1083,6 +1302,19 @@ function setCropPreset(ratio) {
   document.addEventListener('mouseup', onPointerUp);
   document.addEventListener('touchend', onPointerUp);
 })();
+
+// Bootstrap tab pane transisinya async (fade) — onclick initCropTab() bisa jalan
+// SEBELUM tab benar-benar visible, jadi offsetWidth/offsetHeight yang dibaca
+// waktu itu 0/salah. Re-sync tiap kali tab Crop benar-benar tampil.
+document.querySelectorAll('button[data-bs-toggle="tab"][data-bs-target="#tab-crop-frame"]').forEach(btn => {
+  btn.addEventListener('shown.bs.tab', () => {
+    syncRulerSize();
+    const img = document.getElementById('crop-thumb-img');
+    if (img && img.style.display === 'block') {
+      showCropBox();
+    }
+  });
+});
 
 async function submitCropFrame(event, clipId) {
   event.preventDefault();

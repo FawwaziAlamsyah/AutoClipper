@@ -326,12 +326,23 @@ def edit_add_watermark(
     position: str = Form("bottom"),
     scale: float = Form(0.40),
     opacity: float = Form(0.8),
+    x_pct: float | None = Form(None),
+    y_pct: float | None = Form(None),
     service: ClipEditorService = Depends(get_clip_editor_service),
 ):
-    clip = service.add_watermark(clip_id, position, scale, opacity)
+    clip = service.add_watermark(clip_id, position, scale, opacity, x_pct=x_pct, y_pct=y_pct)
     return templates.TemplateResponse(
         request=request, name="_clip_edit_preview.html", context={"request": request, "clip": clip, "ts": int(time.time())},
     )
+
+
+@router.get("/watermark/last-position", response_class=JSONResponse)
+def get_last_watermark_position(
+    service: ClipEditorService = Depends(get_clip_editor_service),
+) -> dict:
+    """Posisi/ukuran/opacity watermark terakhir dipakai, untuk
+    inisialisasi drag handle saat tab watermark dibuka."""
+    return service.get_last_watermark_position()
 
 
 @router.post("/watermark/upload", response_class=JSONResponse)
