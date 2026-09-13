@@ -345,6 +345,15 @@ def get_last_watermark_position(
     return service.get_last_watermark_position()
 
 
+@router.get("/watermark/dimensions", response_class=JSONResponse)
+def get_watermark_dimensions(
+    service: ClipEditorService = Depends(get_clip_editor_service),
+) -> dict:
+    """Dimensi canvas + visible bbox watershed PNG, untuk perhitungan
+    ukuran/drag/resize yang akurat di frontend (anti transparent-padding)."""
+    return service.get_watermark_dimensions()
+
+
 @router.post("/watermark/upload", response_class=JSONResponse)
 async def upload_watermark(watermark: UploadFile = File(...)) -> dict:
     """Upload/replace asset watermark global (PNG) — dipakai semua clip.
@@ -361,6 +370,9 @@ async def upload_watermark(watermark: UploadFile = File(...)) -> dict:
     settings.WATERMARK_PATH.parent.mkdir(parents=True, exist_ok=True)
     settings.WATERMARK_PATH.write_bytes(data)
     logger.info("Watermark global di-update (%d bytes)", len(data))
+    # Refresh visible-bbox cache supaya watermark baru langsung terpakai
+    # ukuran/rasio yang benar oleh frontend.
+    ClipEditorService._write_watermark_ids()
     return {"success": True, "filename": settings.WATERMARK_PATH.name}
 
 

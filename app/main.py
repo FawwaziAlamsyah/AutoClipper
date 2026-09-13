@@ -79,6 +79,9 @@ def cleanup_stale_jobs() -> None:
         video_service.mark_stale_uploading_failed()
     finally:
         db.close()
+    # Watermark: hitung visible bbox + ukuran canvas PNG, simpan untuk frontend.
+    from app.services.clip_editor_service import ClipEditorService
+    ClipEditorService._write_watermark_ids()
 
 
 @app.get("/")

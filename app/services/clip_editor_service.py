@@ -16,6 +16,13 @@ from app.core.exceptions.base import NotFoundException, ValidationException
 from app.repositories.clip_repository import ClipRepository
 from app.services.ffmpeg_service import FFmpegService
 
+try:
+    from PIL import Image
+except ImportError:  # pragma: no cover — kalau PIL belum ada, visible bbox fallback ke canvas
+    Image = None
+
+WATERMARK_IDS_FILE = "watermark_ids.json"  # dipakai frontend: visible bbox + img natural size
+
 logger = logging.getLogger(__name__)
 
 
@@ -322,6 +329,9 @@ class ClipEditorService:
                 f"File watermark tidak ditemukan di {watermark_path}. "
                 "Download watermark resmi dan taruh di path tsb dulu."
             )
+        # Pakai versi sudak di-CROP (visible) sebagai input overlay, supaya
+        # ukuran watermark di layar & hasil FFmpeg identik (anti transparent padding).
+        watermark_path = self._crop_watermark()
         if not (0.05 <= scale <= 0.5):
             raise ValidationException("scale harus antara 0.05–0.5")
         if x_pct is not None and not (0.0 <= x_pct <= 1.0):
@@ -339,6 +349,9 @@ class ClipEditorService:
         # extract_metadata yang sudah ada di FFmpegService, tidak perlu ffprobe manual lagi).
         meta = self.ffmpeg.extract_metadata(str(source))
         video_width = meta.get("width") or 1080
+        # `scale` = pecahan LEBAR VIDEO untuk ukuran WATERMARK (sudah crop/visible).
+        # File overlay = watermark_visible.png → lebarnya sudah = konten, jadi
+        # wm_width = video_width * scale langsung (tanpa kompensasi padding).
         wm_width = max(int(video_width * scale), 10)
 
         position_map = {
@@ -436,6 +449,100 @@ class ClipEditorService:
             clip_id, position if x_pct is None else f"drag(x={x_pct},y={y_pct})", scale, opacity,
         )
         return clip
+
+    @staticmethod
+    def _visible_bbox(path: Path) -> dict | None:
+        """Ukur visible (non-transparent) bounding box PNG lewat alpha channel.
+
+        PNG watermark bisa punya kanvas jauh lebih besar dari konten yang terlihat
+        (transparent padding). Semua perhitungan ukuran/boundary overlay harus
+        berdasarkan bbox ini, bukan ukuran canvas.
+
+        Return {"minX","minY","maxX","maxY","w","h"} dalam piksel CANVAS asli,
+        atau None kalau PNG kosong / gagal baca.
+        """
+        if Image is None:
+            return None
+        try:
+            with Image.open(path) as im:
+                im = im.convert("RGBA")
+                alpha = im.getchannel("A")
+                bbox = alpha.getbbox()  # (minX, minY, maxX, maxY), None kalau semua transparan
+                if not bbox:
+                    return None
+                minX, minY, maxX, maxY = bbox
+                return {"minX": minX, "minY": minY, "maxX": maxX, "maxY": maxY,
+                        "w": maxX - minX, "h": maxY - minY}
+        except Exception:
+            logger.warning("Gagal baca visible bbox watermark", exc_info=True)
+            return None
+
+    @staticmethod
+    def _crop_watermark() -> Path:
+        """Crop transparent padding PNG watermark ke visible bbox.
+
+        Hasil disimpan sebagai file TERPISAH (watermark_visible.png) di data/assets/
+        supaya file asli tidak berubah. Frontend & FFmpeg memakai versi crop ini,
+        sehingga ukuran/rasio/boundary = konten yang benar-benar terlihat
+        (tanpa padding). Kalau PNG sudah tanpa padding / gagal, pakai file asli.
+        """
+        src = settings.WATERMARK_PATH
+        out = src.parent / "watermark_visible.png"
+        if not src.exists() or Image is None:
+            return src
+        try:
+            bb = ClipEditorService._visible_bbox(src)
+            if not bb:
+                # salin asli kalau tidak ketemu bbox (semua transparan? pakai canvas)
+                out.write_bytes(src.read_bytes())
+                return out
+            with Image.open(src) as im:
+                im = im.convert("RGBA")
+                cropped = im.crop((bb["minX"], bb["minY"], bb["maxX"], bb["maxY"]))
+                cropped.save(out, format="PNG")
+            return out
+        except Exception:
+            logger.warning("Gagal crop watermark, pakai asli", exc_info=True)
+            return src
+
+    @staticmethod
+    def _write_watermark_ids() -> None:
+        """Generate crop PNG + simpan dimensi (visible) ke watermark_ids.json.
+
+        File ini dibaca frontend via endpoint /watermark/dimensions; ditulis ulang
+        tiap start & setiap upload watermark supaya selalu sinkron dengan file.
+        """
+        try:
+            crop = ClipEditorService._crop_watermark()
+            dims = {"canvasW": 399, "canvasH": 168, "bboxW": 399, "bboxH": 168,
+                    "minX": 0, "minY": 0}
+            # Ukuran visible = ukuran file crop (Pillow).
+            if Image is not None:
+                with Image.open(crop) as im:
+                    dims = {"canvasW": im.width, "canvasH": im.height,
+                            "bboxW": im.width, "bboxH": im.height,
+                            "minX": 0, "minY": 0}
+            out = settings.WATERMARK_PATH.parent / WATERMARK_IDS_FILE
+            out.write_text(json.dumps(dims), encoding="utf-8")
+        except Exception:
+            logger.warning("Gagal menulis %s (tidak fatal)", WATERMARK_IDS_FILE, exc_info=True)
+
+    @staticmethod
+    def get_watermark_dimensions() -> dict:
+        """Ukuran visible (crop) watermark — dipakai frontend full."""
+        default = {"canvasW": 399, "canvasH": 168, "bboxW": 399, "bboxH": 168,
+                   "minX": 0, "minY": 0}
+        try:
+            data = json.loads((settings.WATERMARK_PATH.parent / WATERMARK_IDS_FILE).read_text(encoding="utf-8"))
+            merged = dict(default)
+            merged.update({k: v for k, v in data.items() if k in merged})
+            # frontend pakai canvasW/H = visible crop size
+            if merged.get("bboxW") and merged["bboxW"] != merged.get("canvasW"):
+                merged["canvasW"] = merged["bboxW"]
+                merged["canvasH"] = merged["bboxH"]
+            return merged
+        except Exception:
+            return default
 
     def get_last_watermark_position(self) -> dict:
         """Baca posisi/ukuran watermark terakhir dari watermark_position.json.
