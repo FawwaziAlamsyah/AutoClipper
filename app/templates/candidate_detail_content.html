@@ -545,6 +545,18 @@ function _wmGetPreviewImg() {
 
 // Rect area gambar preview yang sebenarnya dirender — untuk foto statis,
 // selalu posisi (0,0) di dalam stage, ukuran = clientWidth/Height img itu sendiri.
+function _wmMaxScale(img, handle) {
+  // Batas ukuran watermark harus mempertimbangkan lebar DAN tinggi frame
+  // sekaligus — kalau cuma dibatasi persen lebar tanpa cek tinggi, watermark
+  // rasio kurus-tinggi bisa diminta lebih tinggi dari frame landscape itu
+  // sendiri, hasilnya meluber keluar bawah berapa pun posisinya digeser.
+  const r = _wmRect();
+  const ratio = (handle.naturalWidth && handle.naturalHeight) ? (handle.naturalHeight / handle.naturalWidth) : 1;
+  const _CONFIG_MAX = 0.5; // batas lama (50% lebar video)
+  const maxByHeight = ratio > 0 ? (r.h / ratio) / r.w : _CONFIG_MAX;
+  return Math.max(0.05, Math.min(_CONFIG_MAX, maxByHeight));
+}
+
 function _wmRect() {
   const img = _wmGetPreviewImg();
   if (!img || !img.clientWidth) {
@@ -558,9 +570,31 @@ function _wmSyncHandle(handle) {
   const img = _wmGetPreviewImg();
   if (!img || !img.clientWidth) return;
   const r = _wmRect();
-  handle.style.left = (r.left + _wm.x * r.w) + 'px';
-  handle.style.top  = (r.top  + _wm.y * r.h) + 'px';
-  _wmApplyWidth(handle, r.w * _wm.scale);
+  const oldW = parseFloat(handle.style.width)  || (r.w * _wm.scale);
+  const oldH = parseFloat(handle.style.height) || 0;
+  const oldLeft = r.left + _wm.x * r.w;
+  const oldTop  = r.top  + _wm.y * r.h;
+  const centerX = oldLeft + oldW / 2;
+  const centerY = oldTop  + oldH / 2;
+
+  const newW = r.w * _wm.scale;
+  const ratio = (handle.naturalWidth && handle.naturalHeight) ? (handle.naturalHeight / handle.naturalWidth) : 1;
+  const newH = newW * ratio;
+
+  let newLeft = centerX - newW / 2;
+  let newTop  = centerY - newH / 2;
+  newLeft = Math.max(r.left, Math.min(r.left + r.w - newW, newLeft));
+  newTop  = Math.max(r.top,  Math.min(r.top  + r.h - newH, newTop));
+
+  handle.style.left = newLeft + 'px';
+  handle.style.top  = newTop + 'px';
+  _wmApplyWidth(handle, newW);
+
+  // _wm.x/_wm.y tetap fraksi TOP-LEFT (bukan center) — WAJIB tetap begitu
+  // karena backend/ffmpeg pakai formula (main_w-overlay_w)*x_pct yang
+  // berbasis top-left. Cuma cara HITUNG posisi barunya yang lewat center dulu.
+  _wm.x = r.w > 0 ? (newLeft - r.left) / r.w : 0;
+  _wm.y = r.h > 0 ? (newTop  - r.top)  / r.h : 0;
 }
 
 function _wmSetHiddenInputs() {
@@ -603,9 +637,17 @@ function initWatermarkTab(clipId) {
 }
 
 function wmScaleChange(input) {
-  const v = parseFloat(input.value);
-  _wm.scale = v;
+  let v = parseFloat(input.value);
+  const img = _wmGetPreviewImg();
   const { handle } = (_wmStageAndHandle() || { handle: null });
+  if (img && handle) {
+    const maxScale = _wmMaxScale(img, handle);
+    if (v > maxScale) {
+      v = maxScale;
+      input.value = v.toFixed(2); // sinkronkan posisi slider, bukan cuma nilai internal
+    }
+  }
+  _wm.scale = v;
   if (handle) _wmSyncHandle(handle);
   input.nextElementSibling.textContent = Math.round(v * 100) + '%';
 }
@@ -622,6 +664,8 @@ function _wmOnPointerDown(e) {
     _wm.startY = (e.clientY ?? e.touches?.[0]?.clientY);
     _wm.origW = parseFloat(handle.style.width) || 0;
     _wm.origH = parseFloat(handle.style.height) || 0;
+    _wm.origLeft = parseFloat(handle.style.left) || 0;
+    _wm.origTop  = parseFloat(handle.style.top)  || 0;
     e.preventDefault();
     return;
   }
@@ -658,8 +702,20 @@ function _wmOnPointerMove(e) {
     const dy = cy - _wm.startY;
     let w = _wm.origW + Math.hypot(dx, dy) * (dx >= 0 ? 1 : -1);
     const vW = img && img.clientWidth ? img.clientWidth : stage.offsetWidth;
-    w = Math.max(vW * 0.05, Math.min(vW * 0.5, w));
+    const maxScale = _wmMaxScale(img, handle);
+    w = Math.max(vW * 0.05, Math.min(vW * maxScale, w));
     _wm.scale = w / vW;
+
+    const ratio = (handle.naturalWidth && handle.naturalHeight) ? (handle.naturalHeight / handle.naturalWidth) : 1;
+    const newH = w * ratio;
+    const centerX = _wm.origLeft + _wm.origW / 2;
+    const centerY = _wm.origTop  + _wm.origH / 2;
+    const r = _wmRect();
+    let newLeft = Math.max(r.left, Math.min(r.left + r.w - w,    centerX - w / 2));
+    let newTop  = Math.max(r.top,  Math.min(r.top  + r.h - newH, centerY - newH / 2));
+
+    handle.style.left = newLeft + 'px';
+    handle.style.top  = newTop  + 'px';
     _wmApplyWidth(handle, w);
     const sc = document.getElementById('wm-scale');
     if (sc) sc.value = _wm.scale.toFixed(2);

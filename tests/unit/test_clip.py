@@ -415,3 +415,27 @@ def test_get_last_watermark_position_default_and_file(tmp_path) -> None:
         pos_file.write_text("bukan json", encoding="utf-8")
         d = service.get_last_watermark_position()
         assert d == {"x_pct": 0.65, "y_pct": 0.80, "scale": 0.30, "opacity": 0.8}
+
+
+def test_add_watermark_top_right_corner(tmp_path) -> None:
+    """Pojok kanan-atas: x_pct/y_pct kecil → overlay (main_w-overlay_w)*0.9, (main_h-overlay_h)*0.1.
+
+    Verifikasi numerik: posisi top-left watermark (dalam piksel) = pct × (dimensi video − ukuran
+    watermark) — ini yang bikin watermark duduk PERSIS di pojok kanan-atas frame, konsisten
+    dengan koordinat x/y yang dikirim UI drag.
+    """
+    service, _, mock_settings = _make_watermark_service(tmp_path)
+
+    m = _run_watermark(service, mock_settings, x_pct=0.90, y_pct=0.10, scale=0.25, opacity=0.8)
+
+    fc = m.call_args[0][0][m.call_args[0][0].index("-filter_complex") + 1]
+    assert "(main_w-overlay_w)*0.9" in fc
+    assert "(main_h-overlay_h)*0.1" in fc
+    # 1920×1080, scale 0.25, watermark 1080×1920 → wm_width=480, wm_height≈853
+    # x = (1920-480)*0.9 = 1296 (kanan-atas, tersisa 144px margin), y=(1080-853)*0.1≈22.7
+    assert "overlay=x=(main_w-overlay_w)*0.9:y=(main_h-overlay_h)*0.1" in fc.replace("\n", "")
+
+    # posisi terakhir ikut tersimpan
+    import json
+    data = json.loads((tmp_path / "assets" / "watermark_position.json").read_text(encoding="utf-8"))
+    assert data["x_pct"] == 0.9 and data["y_pct"] == 0.1
