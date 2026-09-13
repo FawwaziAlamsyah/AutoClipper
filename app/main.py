@@ -47,6 +47,7 @@ register_exception_handlers(app)
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 app.mount("/data/uploads", StaticFiles(directory="data/uploads"), name="uploads")
 app.mount("/data/outputs", StaticFiles(directory="data/outputs"), name="outputs")
+app.mount("/data/assets", StaticFiles(directory="data/assets"), name="assets")
 templates = AppTemplates(directory="app/templates")
 
 app.include_router(health_router.router)
