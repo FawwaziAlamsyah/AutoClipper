@@ -175,6 +175,22 @@ def retry_hook_search(
     )
 
 
+@router.get("/{clip_id}/hook/status", response_class=JSONResponse)
+def hook_status(clip_id: int, service: ClipService = Depends(get_clip_service)) -> dict:
+    """Status hook saat ini — dipakai frontend untuk feedback setelah retry/regenerate."""
+    clip = service.clip_repo.get(clip_id)
+    if clip is None:
+        from app.core.exceptions.base import NotFoundException
+        raise NotFoundException(f"Clip {clip_id} tidak ditemukan")
+    candidate = service.candidate_repo.get(clip.candidate_id)
+    return {
+        "has_moment": bool(candidate and candidate.hook_moment_start is not None),
+        "hook_skip_reason": clip.hook_skip_reason,
+        "hook_applied": bool(clip.hook_applied),
+        "moment_start": candidate.hook_moment_start if candidate else None,
+    }
+
+
 @router.get("/{clip_id}/thumbnail")
 def get_clip_thumbnail(
     clip_id: int,

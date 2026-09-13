@@ -99,6 +99,14 @@ class Settings(BaseSettings):
     # Model scoring toggle — set False di .env untuk paksa pakai weighted-sum lama
     USE_TRAINED_SCORE_MODEL: bool = True
 
+    # Blend score saat model terlatih tersedia (untuk kategori yang SUDAH dilatih).
+    # Default: training dominan (0.8) atas bobot analyzer (0.2) — bisa diubah user
+    # lewat menu Settings → "Trained category weight" (disimpan ke data/score_blend.json).
+    # Kedua nilai ini hanya dipakai JIKA model kategori tsb tersedia; kategori tanpa
+    # model tetap murni weighted-sum (fallback weight tidak dipakai).
+    SCORE_TRAINED_WEIGHT: float = 0.8
+    SCORE_FALLBACK_WEIGHT: float = 0.2
+
     # Candidate minimum final score (0-10). Candidates di bawah ini ditolak
     # oleh select_top_n — mencegah "sampah" lolos murni karena relatif tertinggi.
     MIN_CANDIDATE_SCORE: float = 4.0

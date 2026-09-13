@@ -38,6 +38,10 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "settings.saved": "Preferences saved.",
         "settings.english": "English",
         "settings.indonesian": "Indonesia",
+        "settings.trainedCategoryTitle": "Trained Category Weight",
+        "settings.trainedCategoryDesc": "Rasio skor akhir untuk kategori yang SUDAH dilatih. Trained = bobot model terlatih, Fallback = bobot analyzer default. Kategori tanpa model tetap pakai weighted-sum murni.",
+        "settings.trainedWeightLabel": "Trained (model)",
+        "settings.fallbackWeightLabel": "Fallback (analyzer)",
 
         # Dashboard
         "dash.totalVideos": "Total Videos",
@@ -349,6 +353,11 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "settings.indonesian": "Indonesia",
         "upload.english": "English",
         "upload.indonesia": "Indonesia",
+
+        "settings.trainedCategoryTitle": "Trained Category Weight",
+        "settings.trainedCategoryDesc": "Rasio skor akhir untuk kategori yang SUDAH dilatih. Trained = bobot model terlatih, Fallback = bobot analyzer default. Kategori tanpa model tetap pakai weighted-sum murni.",
+        "settings.trainedWeightLabel": "Trained (model)",
+        "settings.fallbackWeightLabel": "Fallback (analyzer)",
 
         "candDetail.watermarkDragHint": "Geser logo untuk atur posisi, geser titik pojok untuk ubah ukuran.",
     },

@@ -13,6 +13,7 @@ from fastapi import APIRouter, Form, Request, Response
 from fastapi.responses import RedirectResponse
 
 from app.core.config.settings import settings
+from app.core.config.score_blend import get_blend, save_blend
 from app.core.jinja import PREF_COOKIE, AppTemplates
 
 router = APIRouter(prefix="/settings", tags=["settings"])
@@ -37,12 +38,15 @@ def _cookie(pref: dict) -> dict:
 @router.get("")
 def settings_page(request: Request):
     """Halaman preferences — full page (bukan partial htmx)."""
+    blend = get_blend()
     return templates.TemplateResponse(
         request=request,
         name="settings.html",
         context={
             "request": request,
             "app_name": settings.APP_NAME,
+            "trained_weight": blend["trained_weight"],
+            "fallback_weight": blend["fallback_weight"],
         },
     )
 
@@ -52,12 +56,16 @@ def settings_save(
     request: Request,
     lang: str = Form("en"),
     theme: str = Form("light"),
+    trained_weight: float = Form(0.8),
+    fallback_weight: float = Form(0.2),
 ):
     """Simpan preferensi ke cookie, kembali ke halaman sebelumnya."""
     if lang not in ("en", "id"):
         lang = settings.APP_DEFAULT_LANGUAGE
     if theme not in ("light", "dark"):
         theme = settings.APP_DEFAULT_THEME
+
+    save_blend(trained_weight, fallback_weight)
 
     resp = RedirectResponse(url=request.headers.get("referer") or "/", status_code=303)
     resp.set_cookie(**_cookie({"lang": lang, "theme": theme}))

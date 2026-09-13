@@ -4,6 +4,7 @@ import logging
 from pathlib import Path
 
 from app.core.config.settings import settings
+from app.core.config.score_blend import get_fallback_weight, get_trained_weight
 from app.ml.predictor import predict_score
 from app.models.candidate_model import CandidateModel
 from app.models.clip_model import ClipModel
@@ -59,7 +60,16 @@ class ScoreEngine:
             # Kiblat = bobot (0.8). Trained model hanya koreksi tipis (0.2) bila ada.
             # Bobot SELALU menentukan final score — trained tidak pernah ganti total.
             if trained is not None:
-                final_score = round(0.8 * weighted + 0.2 * trained, 2)
+                # Kategori sudah dilatih → campur sesuai preferensi user
+                # (default: trained 0.8, fallback 0.2). Tunable via Settings.
+                tw = get_trained_weight()
+                fw = get_fallback_weight()
+                total = tw + fw
+                if total <= 0:
+                    tw, fw = 0.8, 0.2
+                else:
+                    tw, fw = tw / total, fw / total
+                final_score = round(tw * trained + fw * weighted, 2)
             else:
                 final_score = weighted
             breakdown.setdefault("_meta", {})["final_score"] = final_score
