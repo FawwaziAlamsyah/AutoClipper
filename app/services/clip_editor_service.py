@@ -371,8 +371,14 @@ class ClipEditorService:
             y_expr = f"(main_h-overlay_h)*{y_pct}"
             logger.info("add_watermark clip=%d drag → x=%s y=%s", clip_id, x_expr, y_expr)
         else:
+            # UI watermark baru SELALU kirim x_pct/y_pct (tidak ada dropdown position lagi).
+            # Kalau sampai None di sini, tandanya ada bug di pengiriman form.
+            logger.warning(
+                "add_watermark clip=%d: x_pct/y_pct kosong (None), fallback ke position=%r — "
+                "ini seharusnya tidak terjadi dari UI drag, cek pengiriman form.",
+                clip_id, position,
+            )
             x_expr, y_expr = position_map.get(position, position_map["bottom"])
-            logger.info("add_watermark clip=%d position=%r → x=%s y=%s", clip_id, position, x_expr, y_expr)
 
         filter_complex = (
             f"[1:v]scale={wm_width}:-1,"
