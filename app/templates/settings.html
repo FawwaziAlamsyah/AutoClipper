@@ -46,6 +46,27 @@
         </div>
       </div>
 
+      <div class="mb-4">
+        <label class="form-label fw-semibold">{{ t("settings.trainedCategoryTitle") }}</label>
+        <p class="text-muted small">{{ t("settings.trainedCategoryDesc") }}</p>
+        <div class="row g-3">
+          <div class="col-md-6">
+            <label class="form-label small">{{ t("settings.trainedWeightLabel") }}</label>
+            <input type="range" name="trained_weight" class="form-range" min="0" max="1" step="0.05"
+                   value="{{ trained_weight }}"
+                   oninput="this.nextElementSibling.textContent = (parseFloat(this.value)*100).toFixed(0) + '%'">
+            <small class="text-muted">{{ (trained_weight * 100)|round|int }}%</small>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label small">{{ t("settings.fallbackWeightLabel") }}</label>
+            <input type="range" name="fallback_weight" class="form-range" min="0" max="1" step="0.05"
+                   value="{{ fallback_weight }}"
+                   oninput="this.nextElementSibling.textContent = (parseFloat(this.value)*100).toFixed(0) + '%'">
+            <small class="text-muted">{{ (fallback_weight * 100)|round|int }}%</small>
+          </div>
+        </div>
+      </div>
+
       <div>
         <button type="submit" class="btn btn-primary">{{ t("settings.save") }}</button>
       </div>

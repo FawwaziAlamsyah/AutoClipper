@@ -20,6 +20,14 @@ data/temp/*
 data/models/*
 # Cookies export — rahasia, jangan pernah ke git
 data/cookies.txt
+
+# Runtime artifacts watermark & score blend — jangan commit (generated)
+# (watermark.png & sfx adalah asset default, tetap di-track)
+data/score_blend.json
+data/assets/watermark_visible.png
+data/assets/watermark_ids.json
+data/assets/watermark_position.json
+
 !data/**/.gitkeep
 
 logs/*

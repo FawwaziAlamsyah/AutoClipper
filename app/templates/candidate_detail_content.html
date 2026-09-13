@@ -422,7 +422,7 @@
       </div>
       {% endif %}
 
-      {% if clip and candidate.hook_moment_start is none and clip.hook_skip_reason not in ('disabled', 'window_too_short') %}
+      {% if clip and candidate.hook_moment_start is none and clip.hook_skip_reason not in ('disabled',) %}
       <div class="mt-3">
         {% if clip.hook_skip_reason %}
         <div class="alert alert-warning py-2 px-3 mb-2 small">
@@ -832,15 +832,38 @@ async function resetClipEdit(clipId) {
   }
 }
 
-async function regenerateHook(btn, clipId) {
+async function _hookStatusMessage(clipId) {
+  // Cek status hook setelah operasi; kembalikan pesan atau null kalau sukses.
+  try {
+    const r = await fetch(`/clips/${clipId}/hook/status`);
+    if (!r.ok) return null;
+    const s = await r.json();
+    if (s.has_moment) return null;                     // ada momen → sukses
+    if (s.hook_applied) return null;                   // sudah terpasang → sukses
+    const reason = s.hook_skip_reason;
+    let why = '';
+    if (reason === 'window_too_short') why = ' window video terlalu pendek / tidak ada momen hook yang cocok di segmen transcript.';
+    else if (reason === 'llm_unavailable') why = ' LLM tidak bisa dihubungi. Pastikan LLM aktif lalu coba lagi.';
+    else if (reason === 'low_confidence') why = ' confidence keluaran LLM terlalu rendah.';
+    else if (reason === 'moment_too_close_to_start') why = ' momen hook terlalu dekat ke awal video.';
+    else if (reason) why = ` (${reason})`;
+    return 'Hook tidak ditemukan:' + why;
+  } catch (e) {
+    return null;
+  }
+}
+
+async function _applyHookAction(btn, clipId, url, failMsg) {
   _startEditProgress(btn);
   try {
-    const res = await fetch(`/clips/${clipId}/hook/regenerate`, { method: 'POST' });
+    const res = await fetch(url, { method: 'POST' });
     if (res.ok) {
       _setPreviewHtml(await res.text());
+      const msg = await _hookStatusMessage(clipId);
+      if (msg) alert(msg);
     } else {
       const err = await res.json().catch(() => ({}));
-      alert(err.detail || 'Gagal generate ulang hook.');
+      alert(err.detail || failMsg);
     }
   } catch (e) {
     alert('{{ t("candDetail.error") }}');
@@ -849,21 +872,12 @@ async function regenerateHook(btn, clipId) {
   }
 }
 
+async function regenerateHook(btn, clipId) {
+  await _applyHookAction(btn, clipId, `/clips/${clipId}/hook/regenerate`, 'Gagal generate ulang hook.');
+}
+
 async function retryHookSearch(btn, clipId) {
-  _startEditProgress(btn);
-  try {
-    const res = await fetch(`/clips/${clipId}/hook/retry-search`, { method: 'POST' });
-    if (res.ok) {
-      _setPreviewHtml(await res.text());
-    } else {
-      const err = await res.json().catch(() => ({}));
-      alert(err.detail || 'Gagal mencari hook. Pastikan LLM sudah aktif dan coba lagi.');
-    }
-  } catch (e) {
-    alert('{{ t("candDetail.error") }}');
-  } finally {
-    _stopEditProgress(btn);
-  }
+  await _applyHookAction(btn, clipId, `/clips/${clipId}/hook/retry-search`, 'Gagal mencari hook. Pastikan LLM sudah aktif dan coba lagi.');
 }
 
 async function generateSubtitle(btn, clipId) {

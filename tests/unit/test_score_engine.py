@@ -51,7 +51,9 @@ def test_final_score_uses_weighted_as_base_with_trained_blend() -> None:
          patch("app.services.score_engine.JobRepository") as MockJobRepo, \
          patch("app.services.score_engine.AnalysisResultRepository") as MockAR, \
          patch("app.services.score_engine.CandidateRepository") as MockCR, \
-         patch("app.services.score_engine.predict_score") as mock_predict:
+         patch("app.services.score_engine.predict_score") as mock_predict, \
+         patch("app.services.score_engine.get_trained_weight", return_value=0.8), \
+         patch("app.services.score_engine.get_fallback_weight", return_value=0.2):
         mock_predict.return_value = 7.0
         mock_job = MagicMock(category_id=66)
         MockJobRepo.return_value.get.return_value = mock_job
@@ -61,7 +63,7 @@ def test_final_score_uses_weighted_as_base_with_trained_blend() -> None:
         ]
 
         engine = ScoreEngine(mock_db)
-        # stub breakdown → weighted 4.0, trained 7.0 → final 0.8*4 + 0.2*7 = 4.6
+        # stub breakdown → weighted 4.0, trained 7.0 → final 0.8*7 + 0.2*4 = 6.4
         engine._calculate_score_breakdown = lambda j, c, cat: {
             "hook": {"score": 10.0, "weight": 0.4, "contribution": 4.0, "reason": ""},
             "_meta": {
@@ -72,7 +74,7 @@ def test_final_score_uses_weighted_as_base_with_trained_blend() -> None:
         }
 
         engine.calculate_for_job(1)
-        assert cand.final_score == round(0.8 * 4.0 + 0.2 * 7.0, 2)  # 4.6
+        assert cand.final_score == round(0.8 * 7.0 + 0.2 * 4.0, 2)  # 6.4
 
 
 def test_final_score_pure_weighted_when_no_model() -> None:
