@@ -323,7 +323,7 @@
         <img id="wm-preview-img" class="w-100 rounded" alt="preview clip"
              src="/clips/{{ clip.id }}/thumbnail?v={{ ts|default(0) }}"
              style="max-height:420px;width:100%;height:auto;display:block;">
-        <img id="wm-drag-handle" src="/data/assets/watermark.png?v={{ ts|default(0) }}"
+        <img id="wm-drag-handle" src="/data/assets/watermark_visible.png?v={{ ts|default(0) }}"
              alt="watermark"
              style="position:absolute; cursor:move; touch-action:none; z-index:5;
                     pointer-events:auto; display:none; user-select:none;">
@@ -517,20 +517,17 @@ async function submitEditForm(event, url) {
 }
 
 // ── Watermark Drag & Resize (Pointer Events, vanilla) ──────────────────────────
-// Preview pakai foto statis (thumbnail), bukan <video>.
-// Koordinat x_pct/y_pct disimpan relatif ke ukuran natural gambar (0.0–1.0).
-// Sejak foto statis selalu render tanpa letterbox (width:100%;height:auto),
-// rect efektif selalu = {left:0, top:0, w:img.clientWidth, h:img.clientHeight}.
+// KOORDINAT: satu sistem normalized-top-left.
+//   x=0 -> paling kiri, x=1 -> paling kanan (watermark top-left di maxX)
+//   y=0 -> paling atas,  y=1 -> paling bawah  (watermark top-left di maxY)
+//   maxX = videoWidth  - watermarkWidth
+//   maxY = videoHeight - watermarkHeight
+//   sehingga: leftPx = x * maxX ; x = (maxX==0) ? 0 : leftPx/maxX
+// BACKEND pakai rumus yang sama: overlay_x = (main_w-overlay_w)*x_pct.
+// UKURAN pakai VISIBLE bbox PNG (bukan canvas) — transparent padding diabaikan,
+// supaya maxScale, boundary drag/resize, dan posisi konsisten.
 const _wm = { mode: null, startX: 0, startY: 0, origLeft: 0, origTop: 0,
               origW: 0, origH: 0, scale: 0.30, opacity: 0.8 };
-
-// Helper: set lebar watermark secara eksplisit + hitung tinggi dari rasio natural.
-// Menggantikan pola lama img.style.height='auto' yang bikin clamp Y gagal (NaN).
-function _wmApplyWidth(img, widthPx) {
-  img.style.width = widthPx + 'px';
-  const ratio = (img.naturalWidth && img.naturalHeight) ? (img.naturalHeight / img.naturalWidth) : 1;
-  img.style.height = (widthPx * ratio) + 'px';
-}
 
 function _wmStageAndHandle() {
   const stage = document.getElementById('wm-drag-stage');
@@ -543,20 +540,7 @@ function _wmGetPreviewImg() {
   return document.getElementById('wm-preview-img');
 }
 
-// Rect area gambar preview yang sebenarnya dirender — untuk foto statis,
-// selalu posisi (0,0) di dalam stage, ukuran = clientWidth/Height img itu sendiri.
-function _wmMaxScale(img, handle) {
-  // Batas ukuran watermark harus mempertimbangkan lebar DAN tinggi frame
-  // sekaligus — kalau cuma dibatasi persen lebar tanpa cek tinggi, watermark
-  // rasio kurus-tinggi bisa diminta lebih tinggi dari frame landscape itu
-  // sendiri, hasilnya meluber keluar bawah berapa pun posisinya digeser.
-  const r = _wmRect();
-  const ratio = (handle.naturalWidth && handle.naturalHeight) ? (handle.naturalHeight / handle.naturalWidth) : 1;
-  const _CONFIG_MAX = 0.5; // batas lama (50% lebar video)
-  const maxByHeight = ratio > 0 ? (r.h / ratio) / r.w : _CONFIG_MAX;
-  return Math.max(0.05, Math.min(_CONFIG_MAX, maxByHeight));
-}
-
+// Rect area gambar preview — foto statis selalu {left:0, top:0, w:clientWidth, h:clientHeight}.
 function _wmRect() {
   const img = _wmGetPreviewImg();
   if (!img || !img.clientWidth) {
@@ -566,35 +550,51 @@ function _wmRect() {
   return { left: 0, top: 0, w: img.clientWidth, h: img.clientHeight };
 }
 
+// Rasio watermark = natural img (file sudah di-crop → visible). Gunakan langsung.
+function _wmRatio(handle) {
+  return (handle.naturalWidth && handle.naturalHeight) ? (handle.naturalHeight / handle.naturalWidth) : 1;
+}
+
+// Maks scale supaya TINGGI watermark tidak melebihi frame (pakai visible ratio).
+function _wmMaxScale() {
+  const r = _wmRect();
+  if (!r.w || !r.h) return 0.5;
+  const { handle } = (_wmStageAndHandle() || { handle: null });
+  const ratio = handle ? _wmRatio(handle) : 1;
+  const maxByHeight = ratio > 0 ? (r.h / ratio) / r.w : 0.5;
+  return Math.max(0.05, Math.min(0.5, maxByHeight));
+}
+
+// Lebar CSS handle (px) utk visible lebar = videoW*scale.
+function _wmCanvasWidthForScale(vW) {
+  return vW * _wm.scale;
+}
+
+function _wmApplyWidth(handle, widthPx) {
+  handle.style.width = widthPx + 'px';
+  handle.style.height = (widthPx * _wmRatio(handle)) + 'px';
+}
+
+// leftPx = x * maxX ; maxX = videoW - watermarkW (>0, else 0 → tidak meluber).
+function _wmLeftFromX(r, w) {
+  const maxX = Math.max(0, r.w - w);
+  return r.left + (maxX > 0 ? (_wm.x * maxX) : 0);
+}
+function _wmTopFromY(r, h) {
+  const maxY = Math.max(0, r.h - h);
+  return r.top + (maxY > 0 ? (_wm.y * maxY) : 0);
+}
+
+// Sinkronkan posisi+ukuran handle dari state _wm (init & slider).
 function _wmSyncHandle(handle) {
   const img = _wmGetPreviewImg();
   if (!img || !img.clientWidth) return;
   const r = _wmRect();
-  const oldW = parseFloat(handle.style.width)  || (r.w * _wm.scale);
-  const oldH = parseFloat(handle.style.height) || 0;
-  const oldLeft = r.left + _wm.x * r.w;
-  const oldTop  = r.top  + _wm.y * r.h;
-  const centerX = oldLeft + oldW / 2;
-  const centerY = oldTop  + oldH / 2;
-
-  const newW = r.w * _wm.scale;
-  const ratio = (handle.naturalWidth && handle.naturalHeight) ? (handle.naturalHeight / handle.naturalWidth) : 1;
-  const newH = newW * ratio;
-
-  let newLeft = centerX - newW / 2;
-  let newTop  = centerY - newH / 2;
-  newLeft = Math.max(r.left, Math.min(r.left + r.w - newW, newLeft));
-  newTop  = Math.max(r.top,  Math.min(r.top  + r.h - newH, newTop));
-
-  handle.style.left = newLeft + 'px';
-  handle.style.top  = newTop + 'px';
-  _wmApplyWidth(handle, newW);
-
-  // _wm.x/_wm.y tetap fraksi TOP-LEFT (bukan center) — WAJIB tetap begitu
-  // karena backend/ffmpeg pakai formula (main_w-overlay_w)*x_pct yang
-  // berbasis top-left. Cuma cara HITUNG posisi barunya yang lewat center dulu.
-  _wm.x = r.w > 0 ? (newLeft - r.left) / r.w : 0;
-  _wm.y = r.h > 0 ? (newTop  - r.top)  / r.h : 0;
+  const w = _wmCanvasWidthForScale(r.w);
+  const h = w * _wmRatio(handle);
+  handle.style.left = _wmLeftFromX(r, w) + 'px';
+  handle.style.top  = _wmTopFromY(r, h) + 'px';
+  _wmApplyWidth(handle, w);
 }
 
 function _wmSetHiddenInputs() {
@@ -627,8 +627,6 @@ function initWatermarkTab(clipId) {
       })
       .catch(() => { /* pakai default; stage tetap utuh */ });
   };
-  // Ikuti pola tab Crop: kalau gambar sudah ter-load (cached), jalankan
-  // langsung; kalau belum, pasang listener 'load' lalu jalankan setelahnya.
   if (img && img.complete && img.naturalWidth > 0) {
     doInit();
   } else if (img) {
@@ -638,10 +636,9 @@ function initWatermarkTab(clipId) {
 
 function wmScaleChange(input) {
   let v = parseFloat(input.value);
-  const img = _wmGetPreviewImg();
   const { handle } = (_wmStageAndHandle() || { handle: null });
-  if (img && handle) {
-    const maxScale = _wmMaxScale(img, handle);
+  if (handle) {
+    const maxScale = _wmMaxScale();
     if (v > maxScale) {
       v = maxScale;
       input.value = v.toFixed(2); // sinkronkan posisi slider, bukan cuma nilai internal
@@ -700,23 +697,24 @@ function _wmOnPointerMove(e) {
   } else if (_wm.mode === 'resize') {
     const dx = cx - _wm.startX;
     const dy = cy - _wm.startY;
-    let w = _wm.origW + Math.hypot(dx, dy) * (dx >= 0 ? 1 : -1);
+    const r = _wmRect();
     const vW = img && img.clientWidth ? img.clientWidth : stage.offsetWidth;
-    const maxScale = _wmMaxScale(img, handle);
-    w = Math.max(vW * 0.05, Math.min(vW * maxScale, w));
-    _wm.scale = w / vW;
-
-    const ratio = (handle.naturalWidth && handle.naturalHeight) ? (handle.naturalHeight / handle.naturalWidth) : 1;
-    const newH = w * ratio;
+    const ratio = _wmRatio(handle);
+    const maxScale = _wmMaxScale();
+    // Lebar baru (visible, = canvas krn file sudah crop). scale = w/vW.
+    let w = _wm.origW + Math.hypot(dx, dy) * (dx >= 0 ? 1 : -1);
+    _wm.scale = Math.max(0.05, Math.min(maxScale, w / vW));
+    const canvasW = vW * _wm.scale;
+    const canvasH = canvasW * ratio;
+    // center-anchor: center watermark tetap stabil saat resize
     const centerX = _wm.origLeft + _wm.origW / 2;
     const centerY = _wm.origTop  + _wm.origH / 2;
-    const r = _wmRect();
-    let newLeft = Math.max(r.left, Math.min(r.left + r.w - w,    centerX - w / 2));
-    let newTop  = Math.max(r.top,  Math.min(r.top  + r.h - newH, centerY - newH / 2));
+    let newLeft = Math.max(r.left, Math.min(r.left + r.w - canvasW, centerX - canvasW / 2));
+    let newTop  = Math.max(r.top,  Math.min(r.top  + r.h - canvasH, centerY - canvasH / 2));
 
     handle.style.left = newLeft + 'px';
     handle.style.top  = newTop  + 'px';
-    _wmApplyWidth(handle, w);
+    _wmApplyWidth(handle, canvasW);
     const sc = document.getElementById('wm-scale');
     if (sc) sc.value = _wm.scale.toFixed(2);
   }
@@ -729,8 +727,13 @@ function _wmOnPointerUp() {
     const r = _wmRect();
     const left = parseFloat(handle.style.left) || 0;
     const top  = parseFloat(handle.style.top)  || 0;
-    _wm.x = r.w > 0 ? Math.max(0, Math.min(1, left / r.w)) : 0;
-    _wm.y = r.h > 0 ? Math.max(0, Math.min(1, top  / r.h)) : 0;
+    const canvasW = parseFloat(handle.style.width)  || 0;
+    const canvasH = parseFloat(handle.style.height) || 0;
+    const maxX = r.w - canvasW;
+    const maxY = r.h - canvasH;
+    // normalized-top-left: x = left/maxX ; kalau maxX<=0 → 0
+    _wm.x = maxX > 0 ? Math.max(0, Math.min(1, (left - r.left) / maxX)) : 0;
+    _wm.y = maxY > 0 ? Math.max(0, Math.min(1, (top  - r.top)  / maxY)) : 0;
   }
   _wmSetHiddenInputs();
   _wm.mode = null;
