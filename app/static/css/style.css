@@ -6,3 +6,13 @@ body {
 .table .btn {
   white-space: nowrap;
 }
+
+/* HTMX loading indicator - disembunyikan secara default, tampil saat request berjalan */
+.htmx-indicator {
+  display: none !important;
+}
+.htmx-request .htmx-indicator,
+.htmx-request.htmx-indicator {
+  display: inline-block !important;
+}
+

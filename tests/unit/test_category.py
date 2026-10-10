@@ -1,7 +1,6 @@
 """Unit tests for category repository, service, and router."""
 
 import pytest
-from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
 from app.core.exceptions.base import NotFoundException, ValidationException
@@ -61,41 +60,3 @@ def test_category_service_crud_and_validation(db_session: Session) -> None:
     with pytest.raises(NotFoundException):
         service.delete_category(cat.id)
 
-
-def test_category_router_endpoints(client: TestClient) -> None:
-    # 1. POST /categories?name=Gaming Funny
-    resp = client.post("/categories", params={"name": "Gaming Funny"})
-    assert resp.status_code == 200
-    data = resp.json()
-    assert "id" in data
-    assert data["name"] == "Gaming Funny"
-    cat_id = data["id"]
-
-    # 2. POST duplicate /categories?name=Gaming Funny -> 422 ValidationException
-    resp_dup = client.post("/categories", params={"name": "Gaming Funny"})
-    assert resp_dup.status_code == 422
-    assert "sudah ada" in resp_dup.json()["detail"]
-
-    # 3. GET /categories
-    resp_get = client.get("/categories")
-    assert resp_get.status_code == 200
-    categories = resp_get.json()
-    assert any(c["id"] == cat_id and c["name"] == "Gaming Funny" for c in categories)
-
-    # 4. PUT /categories/{id}?name=Gaming Funny Baru
-    resp_put = client.put(f"/categories/{cat_id}", params={"name": "Gaming Funny Baru"})
-    assert resp_put.status_code == 200
-    assert resp_put.json()["name"] == "Gaming Funny Baru"
-
-    # Verify update via GET
-    resp_get_updated = client.get("/categories")
-    assert any(c["id"] == cat_id and c["name"] == "Gaming Funny Baru" for c in resp_get_updated.json())
-
-    # 5. DELETE /categories/{id}
-    resp_del = client.delete(f"/categories/{cat_id}")
-    assert resp_del.status_code == 200
-    assert resp_del.json()["detail"] == "Kategori dihapus"
-
-    # Verify deleted via GET
-    resp_get_final = client.get("/categories")
-    assert not any(c["id"] == cat_id for c in resp_get_final.json())

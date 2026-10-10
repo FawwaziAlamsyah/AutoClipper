@@ -67,11 +67,17 @@ class Settings(BaseSettings):
     WHISPER_MODEL: str = "large-v3"
     WHISPER_DEVICE: str = "auto"
 
-    # LLM
+    # LLM (Default: 9Router / OpenAI / Gemini)
     LLM_PROVIDER: str = "openai"
     LLM_MODEL: str = "gpt-4o-mini"
     LLM_API_KEY: str = ""
     LLM_BASE_URL: str = "https://api.openai.com/v1"
+
+    # Google Gemini Configuration
+    GEMINI_API_KEY: str = ""
+    GEMINI_MODEL: str = "gemini-3.8-flash"
+    GEMINI_BASE_URL: str = "https://generativelanguage.googleapis.com/v1beta/openai"
+    GOOGLE_ACCOUNT_EMAIL: str = ""
 
     # Score weights — kiblat urutan scoring (default, user-overridable per job).
     # Prioritas user: gesture(20%) > voice_emotion > face_emotion > hook (4 utama).
@@ -138,6 +144,15 @@ class Settings(BaseSettings):
     USE_AUTO_HOOK: bool = True
     AUTO_HOOK_MIN_CONFIDENCE: float = 0.6   # threshold confidence LLM (0.0–1.0)
     AUTO_HOOK_MIN_WINDOW_SECONDS: float = 20.0  # durasi window minimum agar hook dicoba
+
+    # Hook Caption Font & Styling (TikTok-style bold text, thick outline, keyword highlight, pop-in)
+    HOOK_FONT_STYLE: str = "auto"  # auto | impact | fun | clean
+    HOOK_FONT_SIZE: int = 120
+    HOOK_FONT_MIN_SIZE: int = 84
+    HOOK_TEXT_OUTLINE: int = 9
+    HOOK_HIGHLIGHT_COLOR: str = "#FFE600"
+    HOOK_POP_ANIMATION: bool = True
+    AUTO_HOOK_FONTS_DIR: str = "data/assets/fonts"
 
 
 @lru_cache

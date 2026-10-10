@@ -67,18 +67,255 @@
         </div>
       </div>
 
-      <div>
+      <!-- LLM & Auto Hook Model Selection -->
+      <div class="mb-4">
+        <label class="form-label fw-semibold">{{ t("settings.llmTitle") }}</label>
+        <p class="text-muted small">{{ t("settings.llmDesc") }}</p>
+
+        <div class="d-flex flex-column gap-3 mb-3">
+          <!-- Option: 9Router -->
+          <div class="card p-3 border {% if llm_config.active_provider == '9router' %}border-primary shadow-sm{% else %}border-secondary-subtle{% endif %}"
+               id="card-provider-9router">
+            <div class="d-flex align-items-center justify-content-between mb-2"
+                 role="button"
+                 onclick="selectProvider('9router')"
+                 style="cursor: pointer;">
+              <div class="form-check mb-0">
+                <input class="form-check-input" type="radio" name="llm_provider" value="9router" id="provider-9router"
+                       {% if llm_config.active_provider == '9router' %}checked{% endif %}
+                       onchange="updateProviderDisplay()">
+                <label class="form-check-label fw-semibold" for="provider-9router" style="cursor: pointer;">
+                  {{ t("settings.provider9router") }}
+                </label>
+              </div>
+              <span id="badge-9router" class="badge {% if llm_config.active_provider == '9router' %}bg-primary{% else %}bg-secondary-subtle text-secondary{% endif %}">
+                {% if llm_config.active_provider == '9router' %}✓ Aktif Digunakan{% else %}Klik untuk Pilih{% endif %}
+              </span>
+            </div>
+
+            <div id="fields-9router" class="mt-2 ps-4">
+              <div class="row g-2">
+                <div class="col-md-6">
+                  <label class="form-label small text-muted">{{ t("settings.router9ModelLabel") }}</label>
+                  <input type="text" name="router9_model" class="form-control form-control-sm"
+                         value="{{ llm_config['9router'].model }}" placeholder="DABOJI">
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label small text-muted">{{ t("settings.router9UrlLabel") }}</label>
+                  <input type="text" name="router9_base_url" class="form-control form-control-sm"
+                         value="{{ llm_config['9router'].base_url }}" placeholder="http://localhost:20128/v1">
+                </div>
+                <div class="col-12">
+                  <label class="form-label small text-muted">{{ t("settings.router9ApiKeyLabel") }}</label>
+                  <div class="input-group input-group-sm">
+                    <input type="password" id="input-9router-key" name="router9_api_key" class="form-control"
+                           value="{{ llm_config['9router'].api_key }}" placeholder="Tempel API Key di sini (opsional)">
+                    <button class="btn btn-outline-secondary" type="button"
+                            onclick="toggleVisibility('input-9router-key', this)"
+                            title="Tampilkan / Sembunyikan API Key">👁</button>
+                  </div>
+                  <div class="form-text small">
+                    Proxy lokal untuk routing multi-provider dengan fallback otomatis. Pastikan service <code>9router</code> aktif.
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Option: Google Gemini -->
+          <div class="card p-3 border {% if llm_config.active_provider == 'gemini' %}border-primary shadow-sm{% else %}border-secondary-subtle{% endif %}"
+               id="card-provider-gemini">
+            <div class="d-flex align-items-center justify-content-between mb-2"
+                 role="button"
+                 onclick="selectProvider('gemini')"
+                 style="cursor: pointer;">
+              <div class="form-check mb-0">
+                <input class="form-check-input" type="radio" name="llm_provider" value="gemini" id="provider-gemini"
+                       {% if llm_config.active_provider == 'gemini' %}checked{% endif %}
+                       onchange="updateProviderDisplay()">
+                <label class="form-check-label fw-semibold" for="provider-gemini" style="cursor: pointer;">
+                  {{ t("settings.providerGemini") }}
+                </label>
+              </div>
+              <span id="badge-gemini" class="badge {% if llm_config.active_provider == 'gemini' %}bg-primary{% else %}bg-secondary-subtle text-secondary{% endif %}">
+                {% if llm_config.active_provider == 'gemini' %}✓ Aktif Digunakan{% else %}Klik untuk Pilih{% endif %}
+              </span>
+            </div>
+
+            <div id="fields-gemini" class="mt-2 ps-4">
+              <div class="row g-2">
+                <div class="col-md-6">
+                  <label class="form-label small text-muted">{{ t("settings.geminiModelLabel") }}</label>
+                  <select name="gemini_model" class="form-select form-select-sm">
+                    {% for m in gemini_models %}
+                    <option value="{{ m }}" {% if llm_config.gemini.model == m %}selected{% endif %}>
+                      {{ m }}{% if m == 'gemini-flash-latest' %} (Rekomendasi - Paling Cepat & Stabil - Bebas 503){% elif m == 'gemini-3.5-flash' %} (Stabil){% elif m == 'gemini-3.1-flash-lite' %} (Hemat & Cepat){% elif m == 'gemini-3.8-flash' %} (Preview - Sering Demand Tinggi/503){% elif m == 'gemini-3.7-flash' %} (Preview){% endif %}
+                    </option>
+                    {% endfor %}
+                  </select>
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label small text-muted">Akun Google Terhubung</label>
+                  <input type="text" class="form-control form-control-sm bg-body-secondary text-body"
+                         value="{{ user_google_account }}" readonly disabled>
+                </div>
+                <div class="col-12">
+                  <label class="form-label small text-muted fw-semibold">{{ t("settings.geminiApiKeyLabel") }}</label>
+                  <div class="input-group input-group-sm">
+                    <input type="password" id="input-gemini-key" name="gemini_api_key" class="form-control"
+                           value="{{ llm_config.gemini.api_key }}" placeholder="Tempel Gemini API Key di sini">
+                    <button class="btn btn-outline-secondary" type="button"
+                            onclick="toggleVisibility('input-gemini-key', this)"
+                            title="Tampilkan / Sembunyikan API Key">👁</button>
+                  </div>
+                  <div class="form-text small mt-1">
+                    {{ t("settings.geminiApiKeyHelp") }}
+                    <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener" class="text-decoration-none fw-semibold">
+                      Buat API Key di Google AI Studio &rarr;
+                    </a>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tombol Test Koneksi -->
+        <div class="d-flex align-items-center gap-2">
+          <button type="button" class="btn btn-outline-primary btn-sm"
+                  id="btn-test-llm"
+                  onclick="runTestConnection()">
+            ⚡ {{ t("settings.testConnection") }} (<span id="test-target-name">{% if llm_config.active_provider == 'gemini' %}Google Gemini{% else %}9Router{% endif %}</span>)
+          </button>
+          <span id="test-llm-spinner" class="spinner-border spinner-border-sm text-primary" style="display: none;" role="status"></span>
+        </div>
+        <div id="test-llm-result" class="mt-2"></div>
+      </div>
+
+      <div class="mt-2">
         <button type="submit" class="btn btn-primary">{{ t("settings.save") }}</button>
       </div>
     </form>
   </div>
 </div>
+
+<script>
+function toggleVisibility(inputId, btn) {
+  const el = document.getElementById(inputId);
+  if (!el) return;
+  if (el.type === 'password') {
+    el.type = 'text';
+    btn.textContent = '🔒';
+  } else {
+    el.type = 'password';
+    btn.textContent = '👁';
+  }
+}
+
+function selectProvider(provider) {
+  const radio = document.getElementById('provider-' + provider);
+  if (radio) {
+    radio.checked = true;
+    updateProviderDisplay();
+  }
+}
+
+function updateProviderDisplay() {
+  const isGemini = document.getElementById('provider-gemini') && document.getElementById('provider-gemini').checked;
+  const cardGemini = document.getElementById('card-provider-gemini');
+  const card9Router = document.getElementById('card-provider-9router');
+  const badgeGemini = document.getElementById('badge-gemini');
+  const badge9Router = document.getElementById('badge-9router');
+  const targetName = document.getElementById('test-target-name');
+
+  if (isGemini) {
+    if (cardGemini) {
+      cardGemini.classList.add('border-primary', 'shadow-sm');
+      cardGemini.classList.remove('border-secondary-subtle');
+    }
+    if (card9Router) {
+      card9Router.classList.remove('border-primary', 'shadow-sm');
+      card9Router.classList.add('border-secondary-subtle');
+    }
+    if (badgeGemini) {
+      badgeGemini.className = 'badge bg-primary';
+      badgeGemini.textContent = '✓ Aktif Digunakan';
+    }
+    if (badge9Router) {
+      badge9Router.className = 'badge bg-secondary-subtle text-secondary';
+      badge9Router.textContent = 'Klik untuk Pilih';
+    }
+    if (targetName) targetName.textContent = 'Google Gemini';
+  } else {
+    if (card9Router) {
+      card9Router.classList.add('border-primary', 'shadow-sm');
+      card9Router.classList.remove('border-secondary-subtle');
+    }
+    if (cardGemini) {
+      cardGemini.classList.remove('border-primary', 'shadow-sm');
+      cardGemini.classList.add('border-secondary-subtle');
+    }
+    if (badge9Router) {
+      badge9Router.className = 'badge bg-primary';
+      badge9Router.textContent = '✓ Aktif Digunakan';
+    }
+    if (badgeGemini) {
+      badgeGemini.className = 'badge bg-secondary-subtle text-secondary';
+      badgeGemini.textContent = 'Klik untuk Pilih';
+    }
+    if (targetName) targetName.textContent = '9Router';
+  }
+}
+
+async function runTestConnection() {
+  const btn = document.getElementById('btn-test-llm');
+  const spinner = document.getElementById('test-llm-spinner');
+  const resultDiv = document.getElementById('test-llm-result');
+  const form = btn ? btn.closest('form') : document.querySelector('form');
+
+  if (spinner) spinner.style.display = 'inline-block';
+  if (btn) btn.disabled = true;
+  if (resultDiv) {
+    resultDiv.innerHTML = '<div class="alert alert-info py-2 px-3 small mt-2 mb-0"><strong>⏳</strong> Menguji koneksi ke model... Mohon tunggu beberapa detik.</div>';
+  }
+
+  try {
+    const formData = new FormData(form);
+    const resp = await fetch('/settings/test-llm', {
+      method: 'POST',
+      body: formData,
+    });
+    const html = await resp.text();
+    if (resultDiv) resultDiv.innerHTML = html;
+  } catch (err) {
+    if (resultDiv) {
+      resultDiv.innerHTML = `<div class="alert alert-danger py-2 px-3 small mt-2 mb-0"><strong>✗</strong> Gagal menguji koneksi: ${err.message}</div>`;
+    }
+  } finally {
+    if (spinner) spinner.style.display = 'none';
+    if (btn) btn.disabled = false;
+  }
+}
+
+function confirmSave() {
+  return true;
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', updateProviderDisplay);
+} else {
+  updateProviderDisplay();
+}
+</script>
 {% endblock %}
 
 {% block scripts %}
 <script>
-function confirmSave() {
-  return true; // submit langsung; halaman ter-render ulang dengan preferensi baru
+// Redundant fallback listener
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', updateProviderDisplay);
+} else {
+  updateProviderDisplay();
 }
 </script>
 {% endblock %}

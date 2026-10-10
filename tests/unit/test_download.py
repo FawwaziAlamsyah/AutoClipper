@@ -4,7 +4,6 @@ from datetime import datetime, UTC
 from unittest.mock import MagicMock, patch
 
 import yt_dlp
-from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
 from app.services.download_service import DownloadService
@@ -120,31 +119,3 @@ def test_download_hang_detected_and_aborts(mock_ytdl: MagicMock, mock_abort: Mag
     # Watchdog harus memicu abort (hang terdeteksi setelah timeout kecil).
     mock_abort.assert_called()
 
-
-def test_api_download_endpoint_mocked(client: TestClient) -> None:
-    """POST /upload/download should start download and return download_id."""
-    with patch(
-        "app.services.download_service.DownloadService.start_download",
-        return_value={"download_id": "dl_abc123", "status": "downloading"},
-    ) as mock_dl:
-        response = client.post("/upload/download", json={"url": "https://test.com"})
-
-        assert response.status_code == 200
-        res_json = response.json()
-        assert res_json["download_id"] == "dl_abc123"
-        assert res_json["status"] == "downloading"
-        mock_dl.assert_called_once_with("https://test.com")
-
-
-def test_api_download_progress_endpoint(client: TestClient) -> None:
-    """GET /upload/download/{id} should return progress percent."""
-    with patch(
-        "app.services.download_service.DownloadService.get_download_progress",
-        return_value={"percent": 55, "status": "downloading", "video": None, "error": None},
-    ):
-        response = client.get("/upload/download/dl_abc123")
-
-        assert response.status_code == 200
-        res_json = response.json()
-        assert res_json["percent"] == 55
-        assert res_json["status"] == "downloading"

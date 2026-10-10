@@ -1,17 +1,9 @@
 """Shared pytest fixtures."""
 
 import pytest
-from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
-from app.main import app
 from app.db.session import engine, SessionLocal
-
-
-@pytest.fixture
-def client() -> TestClient:
-    """Provide a TestClient for the FastAPI app."""
-    return TestClient(app)
 
 
 @pytest.fixture

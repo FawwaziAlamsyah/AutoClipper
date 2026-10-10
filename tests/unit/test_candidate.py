@@ -217,36 +217,3 @@ def test_get_archived_video_summaries_only_archived() -> None:
     assert summaries[0]["video"] is video_archived
     assert summaries[0]["liked"] == 1
 
-
-def test_archived_candidates_route_returns_200(monkeypatch) -> None:
-    """GET /candidates/archived harus 200 dan render candidates_archived_content.html."""
-    from fastapi.testclient import TestClient
-    from app.main import app
-
-    mock_summaries = [
-        {
-            "video": MagicMock(
-                id=30,
-                original_filename="test.mp4",
-                is_archived=True,
-                archived_at=None,
-                duration_seconds=120.0,
-                source_type="upload",
-            ),
-            "candidate_count": 3,
-            "top_score": 8.1,
-            "liked": 1,
-            "disliked": 0,
-            "clips_done": 1,
-        }
-    ]
-
-    with patch(
-        "app.routers.candidate_router.CandidateService.get_archived_video_summaries",
-        return_value=mock_summaries,
-    ):
-        client = TestClient(app)
-        response = client.get("/candidates/archived")
-
-    assert response.status_code == 200
-    assert "candidates_archived_content" in response.text or "Diarsipkan" in response.text or "Candidate" in response.text

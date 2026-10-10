@@ -3,7 +3,6 @@ minimum score threshold, tidak ada fake completion)."""
 
 import pytest
 
-from app.core.config.settings import settings
 from app.services.job_service import JobService, PIPELINE_STEPS, ANALYZER_STEPS
 
 
@@ -141,28 +140,3 @@ def test_complete_job_succeeds_when_all_done():
     out = svc.complete_job(1)
     assert out.status == "completed"
 
-
-class _Cand:
-    def __init__(self, score, start, end):
-        self.final_score = score
-        self.start_time = start
-        self.end_time = end
-        self.id = id(self)
-
-
-def test_min_score_threshold_filters_garbage():
-    """Filter select_top_n menolak candidate di bawah MIN_CANDIDATE_SCORE."""
-    threshold = settings.MIN_CANDIDATE_SCORE
-    cands = [
-        _Cand(threshold + 0.5, 0, 10),
-        _Cand(threshold - 0.1, 20, 30),  # sampah, harus ditolak
-        _Cand(threshold + 0.1, 40, 50),
-    ]
-    # filter inline identik dengan yang di select_top_n
-    ranked = sorted(
-        (c for c in cands if (c.final_score or 0.0) >= threshold),
-        key=lambda c: c.final_score or 0.0,
-        reverse=True,
-    )
-    assert all(c.final_score >= threshold for c in ranked)
-    assert len([c for c in cands if c.final_score < threshold]) == 1

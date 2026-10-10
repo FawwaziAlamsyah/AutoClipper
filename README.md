@@ -1,5 +1,7 @@
 # AI Auto Clipper
 
+<!-- agy --dangerously-skip-permissions -->
+
 Tool lokal AI untuk mengekstrak klip viral dari video panjang (YouTube, podcast, interview). Pipeline: upload/download → transcribe (Whisper) → analisis multi-analyzer → scoring → pilih candidate → render clip + subtitle + **Auto Hook** (cold-open teaser).
 
 **Stack:** Python 3.14 · FastAPI · PostgreSQL · FFmpeg · Faster-Whisper · OpenAI-compatible LLM
@@ -44,7 +46,10 @@ alembic upgrade head
 
 # 5. Jalankan
 uvicorn app.main:app --reload
+# or
+.venv\Scripts\python -m uvicorn app.main:app --reload
 ```
+
 
 Buka **http://127.0.0.1:8000**
 

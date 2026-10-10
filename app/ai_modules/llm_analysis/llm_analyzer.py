@@ -27,9 +27,12 @@ class LLMAnalyzer(AnalyzerInterface):
 
     def __init__(self) -> None:
         """Validate and prepare client."""
-        self.model = settings.LLM_MODEL
-        self.api_key = settings.LLM_API_KEY
-        self.base_url = settings.LLM_BASE_URL.rstrip("/")
+        from app.core.config.llm_config import get_active_llm
+        cfg = get_active_llm()
+        self.model = cfg.get("model") or settings.LLM_MODEL
+        self.api_key = cfg.get("api_key") or settings.LLM_API_KEY
+        self.base_url = (cfg.get("base_url") or settings.LLM_BASE_URL).rstrip("/")
+        self.provider = cfg.get("provider", "9router")
 
         if not self.api_key:
             logger.warning("LLM API key not configured. Using mock analysis.")

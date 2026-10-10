@@ -26,36 +26,13 @@ from sqlalchemy.orm import Session
 from app.ai_modules.hook_analysis.hook_moment_finder import HookMoment
 from app.core.config.settings import settings
 from app.repositories.clip_repository import ClipRepository
+from app.services.caption_style_service import CaptionStyleService
 from app.services.ffmpeg_service import FFmpegService
 
 logger = logging.getLogger(__name__)
 
 _SFX_PATH = Path("data/assets/sfx/whoosh.mp3")
 _SFX_WARNED = False   # log warning SFX sekali saja per process
-# Font hook (prioritas: Bold yang tegas & profesional). Format path memakai
-# gaya drawtext: backslash di-escape dan ":" drive di-escape (C\:/...).
-_FONTFILE = "C\\:/Windows/Fonts/arial.ttf"
-_SAFE_FONTS = [
-    "C\\:/Windows/Fonts/arialbd.ttf",
-    "C\\:/Windows/Fonts/Candarab.ttf",
-    "C\\:/Windows/Fonts/trebucbd.ttf",
-    "C\\:/Windows/Fonts/arial.ttf",
-]
-_FONTFILE_RESOLVED: str | None = None
-
-
-def _resolve_font() -> str:
-    """Pilih font pertama yang ada di sistem (dijamin ada), cache per process."""
-    global _FONTFILE_RESOLVED
-    if _FONTFILE_RESOLVED is None:
-        for path in _SAFE_FONTS:
-            real = path.replace("\\:", ":")  # C\:/... → C:/...
-            if Path(real).exists():
-                _FONTFILE_RESOLVED = path
-                break
-        if _FONTFILE_RESOLVED is None:
-            _FONTFILE_RESOLVED = _FONTFILE
-    return _FONTFILE_RESOLVED
 
 
 class HookComposerService:
@@ -216,6 +193,9 @@ class HookComposerService:
             self._apply_caption(
                 str(teaser_zoomed), str(teaser_caption),
                 hook_moment.hook_caption, teaser_duration,
+                reaction_type=hook_moment.hook_type,
+                aspect_ratio=aspect_ratio,
+                tmp_dir=tmp,
             )
 
             # Step 4 — SFX whoosh (best-effort, bisa skip). Letaknya di POTONGAN
@@ -300,48 +280,88 @@ class HookComposerService:
         output: str,
         caption: str,
         duration: float,
+        reaction_type: str | None = None,
+        aspect_ratio: str = "9:16",
+        safe_box: dict | tuple | None = None,
+        tmp_dir: Path | None = None,
     ) -> None:
-        """Bakar caption overlay ke teaser — gaya profesional: uppercase,
-        font Bold, box lembut, shadow halus.
+        """Bakar caption overlay ke teaser via ASS (libass) atau fallback drawtext bundel."""
+        width, height = self._parse_aspect_ratio(aspect_ratio)
+        work_dir = tmp_dir or settings.TEMP_DIR
+        work_dir.mkdir(parents=True, exist_ok=True)
 
-        Ukuran font adaptif: caption panjang mengecil supaya tidak overflow.
-        """
-        # Escape identik dengan burn_subtitle: backslash dulu, colon, apostrophe → U+2019
-        safe_text = (
-            caption.strip().upper()
-            .replace("\\", "\\\\")
-            .replace(":", "\\:")
-            .replace("'", "\u2019")
-        )
-        base_size = settings.AUTO_HOOK_CAPTION_FONT_SIZE if hasattr(settings, "AUTO_HOOK_CAPTION_FONT_SIZE") else 64
-        if len(safe_text) > 34:
-            font_size = int(base_size * 0.7)
-        elif len(safe_text) > 18:
-            font_size = int(base_size * 0.85)
-        else:
-            font_size = int(base_size)
+        ass_file = work_dir / "hook_caption.ass"
+        fallback_txt = work_dir / "fallback_caption.txt"
 
-        fontfile = _resolve_font()
-        vf = (
-            f"drawtext=fontfile='{fontfile}':text='{safe_text}':"
-            f"fontcolor=white:fontsize={font_size}:"
-            f"line_spacing=10:"
-            f"x=(w-text_w)/2:y=h*0.18:"
-            f"box=1:boxcolor=black@0.5:boxborderw=22:"
-            f"shadowcolor=black@0.35:shadowx=0:shadowy=6:"
-            f"enable='between(t,0,{duration:.3f})'"
-        )
-        cmd = [
-            self.ffmpeg.ffmpeg_path, "-y",
-            "-i", source,
-            "-vf", vf,
-            "-c:v", "libx264", "-crf", "18", "-preset", "fast",
-            "-g", "60", "-keyint_min", "60", "-sc_threshold", "0",
-            "-c:a", "copy",
-            "-movflags", "+faststart",
-            output,
-        ]
-        self._run(cmd, "apply_caption")
+        # 1. Jalur Utama: Render ASS (libass)
+        try:
+            ass_content = CaptionStyleService.build_ass(
+                caption=caption,
+                reaction_type=reaction_type,
+                duration=duration,
+                width=width,
+                height=height,
+                safe_box=safe_box,
+            )
+            ass_file.write_text(ass_content, encoding="utf-8")
+
+            try:
+                rel_ass = ass_file.relative_to(settings.BASE_DIR).as_posix()
+            except ValueError:
+                rel_ass = ass_file.as_posix()
+
+            fontsdir = Path(getattr(settings, "AUTO_HOOK_FONTS_DIR", "data/assets/fonts")).as_posix()
+            vf = f"subtitles={rel_ass}:fontsdir={fontsdir}"
+
+            cmd = [
+                self.ffmpeg.ffmpeg_path, "-y",
+                "-i", source,
+                "-vf", vf,
+                "-c:v", "libx264", "-crf", "18", "-preset", "fast",
+                "-g", "60", "-keyint_min", "60", "-sc_threshold", "0",
+                "-c:a", "copy",
+                "-movflags", "+faststart",
+                output,
+            ]
+            self._run(cmd, "apply_caption_ass", cwd=settings.BASE_DIR)
+            return
+        except Exception as e:
+            logger.warning(
+                "HookComposer: ASS subtitle gagal (%s), beralih ke fallback drawtext bundel",
+                e,
+            )
+
+        # 2. Fallback: Drawtext dengan font bundel Anton-Regular
+        try:
+            fallback_text = CaptionStyleService.build_fallback_text(caption, width=width)
+            fallback_txt.write_text(fallback_text, encoding="utf-8")
+
+            try:
+                rel_txt = fallback_txt.relative_to(settings.BASE_DIR).as_posix()
+            except ValueError:
+                rel_txt = fallback_txt.as_posix()
+
+            fontfile = "data/assets/fonts/Anton-Regular.ttf"
+            vf = (
+                f"drawtext=fontfile='{fontfile}':textfile='{rel_txt}':"
+                f"fontcolor=white:fontsize=110:"
+                f"borderw=8:bordercolor=black:"
+                f"x=(w-text_w)/2:y=h*0.35"
+            )
+            cmd = [
+                self.ffmpeg.ffmpeg_path, "-y",
+                "-i", source,
+                "-vf", vf,
+                "-c:v", "libx264", "-crf", "18", "-preset", "fast",
+                "-g", "60", "-keyint_min", "60", "-sc_threshold", "0",
+                "-c:a", "copy",
+                "-movflags", "+faststart",
+                output,
+            ]
+            self._run(cmd, "apply_caption_fallback", cwd=settings.BASE_DIR)
+        except Exception as e:
+            logger.error("HookComposer: Fallback drawtext juga gagal: %s", e)
+            raise
 
     def _apply_sfx(self, source: str, output: str, teaser_duration: float) -> None:
         """Mix SFX whoosh tepat di potongan (akhir teaser → masuk klip utuh).
@@ -465,7 +485,7 @@ class HookComposerService:
 
     # ── Utilities ─────────────────────────────────────────────────────────────
 
-    def _run(self, cmd: list[str], step: str) -> None:
+    def _run(self, cmd: list[str], step: str, cwd: str | Path | None = None) -> None:
         """Jalankan FFmpeg command, raise RuntimeError kalau gagal."""
         result = subprocess.run(
             cmd,
@@ -474,6 +494,7 @@ class HookComposerService:
             encoding="utf-8",
             errors="replace",
             timeout=300,
+            cwd=str(cwd) if cwd else None,
         )
         if result.returncode != 0:
             raise RuntimeError(

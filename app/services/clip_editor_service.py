@@ -67,13 +67,12 @@ class ClipEditorService:
         safe_text = text.replace("\\", "\\\\").replace(":", "\\:").replace("'", "\\'")
         # Konversi hex color (#ffffff) ke format FFmpeg (0xFFFFFF) kalau perlu
         ffmpeg_color = color.replace("#", "0x") if color.startswith("#") else color
-        # Windows: drawtext butuh fontfile explicit, tidak bisa resolve font system otomatis
-        # Escape backslash path jadi forward slash untuk FFmpeg filter string
-        fontfile = "C\\:/Windows/Fonts/arial.ttf"
+        # Pakai font bundel (Anton-Regular) agar portable Windows/Linux
+        fontfile = "data/assets/fonts/Anton-Regular.ttf"
 
         vf = (
             f"drawtext=fontfile='{fontfile}':text='{safe_text}':fontcolor={ffmpeg_color}:fontsize={font_size}:"
-            f"x=(w-text_w)/2:y={y_expr}"
+            f"x=(w-text_w)/2:y={y_expr}:borderw=6:bordercolor=black"
         )
 
         # Tulis ke temp dulu karena source bisa == output_path saat sudah ada edit sebelumnya

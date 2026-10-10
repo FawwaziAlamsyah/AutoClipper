@@ -352,9 +352,6 @@ def test_call_llm_strips_sse_done_trailing() -> None:
     mock_response.headers = {}
     mock_response.text = payload_body
 
-    with patch.object(finder, "_call_llm", return_value=None):
-        pass
-
     # Panggil _call_llm langsung dengan client di-mock
     with patch.object(finder.client, "post", return_value=mock_response):
         content = finder._call_llm("prompt dummy")

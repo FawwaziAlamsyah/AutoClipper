@@ -84,12 +84,15 @@ class HookMomentFinder:
     """
 
     def __init__(self) -> None:
-        self.api_key = settings.LLM_API_KEY
-        self.model = settings.LLM_MODEL
-        self.base_url = settings.LLM_BASE_URL.rstrip("/")
+        from app.core.config.llm_config import get_active_llm
+        cfg = get_active_llm()
+        self.api_key = cfg.get("api_key") or settings.LLM_API_KEY
+        self.model = cfg.get("model") or settings.LLM_MODEL
+        self.base_url = (cfg.get("base_url") or settings.LLM_BASE_URL).rstrip("/")
+        self.provider = cfg.get("provider", "9router")
         self.client = httpx.Client(
-            # 9Router auto-fallback cari limit provider gratis → bisa lama.
-            # JANGAN kasih timeout pendek; biarkan sampai selesai (normal >30s).
+            # 9Router auto-fallback / provider gratis → bisa butuh waktu.
+            # JANGAN kasih timeout pendek; biarkan sampai selesai.
             timeout=None,
             headers={
                 "Authorization": f"Bearer {self.api_key}",
@@ -274,8 +277,21 @@ Balas HANYA dengan JSON valid (tidak ada teks lain):
             ],
             "temperature": 0.2,
         }
-        response = self.client.post(f"{self.base_url}/chat/completions", json=payload)
-        response.raise_for_status()
+        try:
+            response = self.client.post(f"{self.base_url}/chat/completions", json=payload)
+            response.raise_for_status()
+        except httpx.HTTPStatusError as e:
+            # Jika 404 Not Found atau 503 Service Unavailable pada model tertentu, fallback ke gemini-flash-latest
+            if self.provider == "gemini" and self.model != "gemini-flash-latest" and e.response.status_code in (404, 503):
+                logger.info(
+                    "Model '%s' mengalami HTTP %d, fallback otomatis ke 'gemini-flash-latest'",
+                    self.model, e.response.status_code,
+                )
+                payload["model"] = "gemini-flash-latest"
+                response = self.client.post(f"{self.base_url}/chat/completions", json=payload)
+                response.raise_for_status()
+            else:
+                raise
 
         # Simpan info rate limit dari header (best-effort) untuk ditampilkan di UI
         _update_llm_status(response.headers)

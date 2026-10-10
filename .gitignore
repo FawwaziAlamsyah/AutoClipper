@@ -20,6 +20,7 @@ data/temp/*
 data/models/*
 # Cookies export — rahasia, jangan pernah ke git
 data/cookies.txt
+data/llm_config.json
 
 # Runtime artifacts watermark & score blend — jangan commit (generated)
 # (watermark.png & sfx adalah asset default, tetap di-track)

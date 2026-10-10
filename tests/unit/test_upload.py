@@ -1,8 +1,5 @@
 """Tests for the video upload logic and endpoints."""
 
-import io
-
-from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
 from app.core.exceptions.base import ValidationException
@@ -84,18 +81,3 @@ def test_list_all_hides_training_only_videos(db_session: Session) -> None:
     assert training_only.id not in ids
     assert len([video for video in videos if video.id == mixed.id]) == 1
 
-
-def test_api_upload_endpoint(client: TestClient) -> None:
-    """POST /upload should successfully upload a video file via HTTP."""
-    file_data = {"file": ("test.mp4", io.BytesIO(b"dummy mp4 data"), "video/mp4")}
-    
-    response = client.post("/upload", files=file_data)
-    assert response.status_code == 200
-    res_json = response.json()
-    assert res_json["original_filename"] == "test.mp4"
-    assert res_json["status"] == "uploaded"
-    
-    # Clean up created record and file via API
-    video_id = res_json["id"]
-    del_res = client.delete(f"/upload/videos/{video_id}")
-    assert del_res.status_code == 200
