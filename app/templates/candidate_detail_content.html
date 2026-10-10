@@ -92,6 +92,57 @@
     </button>
     <div id="tiktok-publish-status" class="mt-2"></div>
   </div>
+
+  <div class="mt-3 p-3 border rounded shadow-sm bg-body" id="instagramPublishCard">
+    <div class="d-flex justify-content-between align-items-center mb-2">
+      <h6 class="mb-0 fw-bold">Instagram Reels</h6>
+      <div id="ig-published-badge-container">
+        {% if clip.instagram_published %}
+        <span class="badge bg-danger" title="{{ t('instagram.badge_title') }}">{{ t("instagram.publishedBadge") }}</span>
+        {% endif %}
+      </div>
+    </div>
+    {% if clip.instagram_published %}
+    <div class="alert alert-warning py-1 px-2 small mb-2" id="ig-repost-alert">
+      ⚠ {{ t("instagram.repostWarning") }}
+    </div>
+    {% endif %}
+
+    <div class="mb-2">
+      <label for="igCaption" class="form-label small text-muted mb-1">Caption & Hashtags</label>
+      <textarea id="igCaption" class="form-control form-control-sm" rows="3" maxlength="2200" placeholder="{{ t('instagram.captionPlaceholder') }}"></textarea>
+      <div class="d-flex justify-content-between small text-muted mt-1" style="font-size: 0.75rem;">
+        <span id="ig-char-count">0 / 2200 {{ t("instagram.charCount") }}</span>
+        <span id="ig-tag-count">0 / 30 {{ t("instagram.hashtagCount") }}</span>
+      </div>
+    </div>
+
+    <div class="mb-2">
+      <label for="igFitMode" class="form-label small text-muted mb-1">{{ t("instagram.fit_label") }}</label>
+      <select id="igFitMode" class="form-select form-select-sm">
+        <option value="pad" selected>{{ t("instagram.fit_pad") }}</option>
+        <option value="blur">{{ t("instagram.fit_blur") }}</option>
+        <option value="off">{{ t("instagram.fit_off") }}</option>
+      </select>
+      <small id="ig-fit-note" class="text-muted" style="font-size: 0.72rem; display: block; margin-top: 2px;">
+        {{ t("instagram.fit_note") }}
+      </small>
+    </div>
+
+    <div class="form-check form-switch mb-2">
+      <input class="form-check-input" type="checkbox" id="igShareToFeed" checked>
+      <label class="form-check-label small" for="igShareToFeed">{{ t("instagram.shareToFeed") }}</label>
+    </div>
+
+    <div class="d-flex flex-column gap-1">
+      <button class="btn btn-danger btn-sm" id="instagramPublishBtn" onclick="publishToInstagram({{ clip.id }})" {% if clip.instagram_published %}data-repost="1"{% endif %}>
+        {{ t("instagram.publishBtn") }}
+      </button>
+      <small id="ig-token-status-hint" class="text-muted" style="font-size: 0.75rem;"></small>
+    </div>
+
+    <div id="instagram-publish-status" class="mt-2"></div>
+  </div>
   {% endif %}
 </div>
 
@@ -998,6 +1049,195 @@ async function pollTikTokStatus(localId, btn, statusEl) {
   statusEl.innerHTML = renderTikTokBar(data.status, data.progress || 0);
   setTimeout(() => pollTikTokStatus(localId, btn, statusEl), 2000);
 }
+
+// ── Instagram Reels Publisher JS ─────────────────────────────────────────────
+
+function esc(str) {
+  const d = document.createElement('div');
+  d.textContent = str == null ? '' : str;
+  return d.innerHTML;
+}
+
+function renderInstagramBar(status, progress) {
+  const pct = Math.max(0, Math.min(100, progress || 0));
+  const barClass = (status === 'failed') ? 'bg-danger'
+    : (status === 'unknown') ? 'bg-warning text-dark'
+    : (status === 'published' || status === 'complete') ? 'bg-success' : 'bg-primary';
+  const label = (status === 'preparing') ? '{{ t("instagram.statusPreparing") }}'
+    : (status === 'uploading') ? '{{ t("instagram.statusUploading") }}'
+    : (status === 'processing') ? '{{ t("instagram.statusProcessing") }}'
+    : (status === 'published' || status === 'complete') ? '{{ t("instagram.statusPublished") }}'
+    : (status === 'unknown') ? '{{ t("instagram.statusUnknown") }}'
+    : '{{ t("instagram.statusFailed") }}';
+  return `<div class="progress" style="height:18px;">
+      <div class="progress-bar ${barClass} progress-bar-striped progress-bar-animated" style="width:${pct}%;">${pct}%</div>
+    </div>
+    <small class="text-muted">${esc(label)}</small>`;
+}
+
+async function pollInstagramStatus(localId, btn, statusEl) {
+  try {
+    const res = await fetch(`/instagram/publish/${localId}/status`);
+    const data = await res.json();
+
+    if (data.status === 'published' || data.status === 'complete') {
+      statusEl.innerHTML = renderInstagramBar('published', 100);
+      if (data.permalink) {
+        statusEl.innerHTML += `<div class="mt-2"><a href="${esc(data.permalink)}" target="_blank" rel="noopener" class="btn btn-sm btn-outline-danger py-1 px-2" style="font-size:0.8rem;">📸 {{ t("instagram.viewOnInstagram") }} →</a></div>`;
+      }
+      btn.disabled = true;
+      btn.textContent = '{{ t("instagram.publishedBadge") }}';
+      btn.dataset.repost = '1';
+
+      const badgeContainer = document.getElementById('ig-published-badge-container');
+      if (badgeContainer && !badgeContainer.querySelector('.badge')) {
+        badgeContainer.innerHTML = '<span class="badge bg-danger">{{ t("instagram.publishedBadge") }}</span>';
+      }
+      return;
+    }
+
+    if (data.status === 'unknown') {
+      statusEl.innerHTML = renderInstagramBar('unknown', data.progress || 95)
+        + `<div class="alert alert-warning py-1 px-2 small mt-2">⚠ {{ t("instagram.statusUnknown") }}${data.error ? ' (' + esc(data.error) + ')' : ''}</div>`;
+      btn.disabled = true;
+      return;
+    }
+
+    if (data.status === 'failed') {
+      statusEl.innerHTML = renderInstagramBar('failed', data.progress || 0)
+        + `<div class="alert alert-danger py-1 px-2 small mt-2">Gagal: ${esc(data.error || 'Terjadi kesalahan')}</div>`;
+      btn.disabled = false;
+      return;
+    }
+
+    statusEl.innerHTML = renderInstagramBar(data.status, data.progress || 10);
+    setTimeout(() => pollInstagramStatus(localId, btn, statusEl), 2000);
+  } catch (e) {
+    statusEl.innerHTML = `<div class="alert alert-danger py-1 px-2 small mt-2">Gagal memeriksa status: ${esc(e.message)}</div>`;
+    btn.disabled = false;
+  }
+}
+
+async function publishToInstagram(clipId) {
+  const btn = document.getElementById('instagramPublishBtn');
+  const statusEl = document.getElementById('instagram-publish-status');
+  if (!btn || !statusEl) return;
+
+  const caption = document.getElementById('igCaption')?.value || '';
+  const shareToFeed = document.getElementById('igShareToFeed')?.checked ?? true;
+  const fitMode = document.getElementById('igFitMode')?.value || 'pad';
+  const isRepost = btn.dataset.repost === '1';
+
+  btn.disabled = true;
+  statusEl.innerHTML = '<div class="spinner-border spinner-border-sm text-danger me-1"></div><small class="text-muted">Memeriksa preflight...</small>';
+
+  try {
+    const preflightRes = await fetch(`/instagram/preflight/${clipId}?caption=${encodeURIComponent(caption)}&fit_mode=${encodeURIComponent(fitMode)}`);
+    const report = await preflightRes.json();
+    if (!report.ok) {
+      statusEl.innerHTML = `<div class="alert alert-danger py-1 px-2 small mb-0"><strong>Tidak dapat mengirim:</strong><ul class="mb-0 ps-3">${report.errors.map(e => '<li>' + esc(e) + '</li>').join('')}</ul></div>`;
+      btn.disabled = false;
+      return;
+    }
+
+    let confirmPrompt = '{{ t("instagram.confirmPrompt") }}';
+    if (report.warnings && report.warnings.length > 0) {
+      confirmPrompt += '\n\nPeringatan:\n' + report.warnings.map(w => '• ' + w).join('\n');
+    }
+    if (isRepost) {
+      confirmPrompt += '\n\n' + '{{ t("instagram.confirmRepostPrompt") }}';
+    }
+
+    if (!confirm(confirmPrompt)) {
+      statusEl.innerHTML = '';
+      btn.disabled = false;
+      return;
+    }
+
+    statusEl.innerHTML = renderInstagramBar('uploading', 10);
+    const publishRes = await fetch(`/instagram/publish/${clipId}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        caption: caption,
+        share_to_feed: shareToFeed,
+        confirm_repost: isRepost,
+        fit_mode: fitMode,
+      }),
+    });
+
+    if (!publishRes.ok) {
+      const errData = await publishRes.json().catch(() => ({}));
+      const errMsg = errData.detail || errData.message || 'Terjadi kesalahan saat memulai publish.';
+      statusEl.innerHTML = `<div class="alert alert-danger py-1 px-2 small mt-2">Gagal: ${esc(errMsg)}</div>`;
+      btn.disabled = false;
+      return;
+    }
+
+    const { local_id } = await publishRes.json();
+    pollInstagramStatus(local_id, btn, statusEl);
+
+  } catch (err) {
+    statusEl.innerHTML = `<div class="alert alert-danger py-1 px-2 small mt-2">Koneksi gagal: ${esc(err.message)}</div>`;
+    btn.disabled = false;
+  }
+}
+
+async function checkInstagramTokenStatus() {
+  const btn = document.getElementById('instagramPublishBtn');
+  const hint = document.getElementById('ig-token-status-hint');
+  if (!btn) return;
+  try {
+    const res = await fetch('/instagram/status');
+    if (!res.ok) return;
+    const data = await res.json();
+    if (data.status !== 'active') {
+      btn.disabled = true;
+      if (hint) {
+        if (data.status === 'needs_reconnect') {
+          hint.textContent = '⚠ {{ t("instagram.needsReconnect") }}';
+          hint.className = 'text-danger small';
+        } else if (data.status === 'not_configured') {
+          hint.textContent = '{{ t("instagram.notConfigured") }}';
+          hint.className = 'text-muted small';
+        } else {
+          hint.textContent = '⚠ {{ t("instagram.tokenNotActive") }} (' + data.status + ')';
+          hint.className = 'text-warning small';
+        }
+      }
+    } else {
+      if (hint) {
+        hint.textContent = '✓ {{ t("instagram.connected") }} (' + data.days_left + ' hari)';
+        hint.className = 'text-success small';
+      }
+    }
+  } catch (e) {}
+}
+
+function initInstagramCaptionCounter() {
+  const textarea = document.getElementById('igCaption');
+  const charEl = document.getElementById('ig-char-count');
+  const tagEl = document.getElementById('ig-tag-count');
+  if (!textarea || !charEl || !tagEl) return;
+
+  function update() {
+    const val = textarea.value || '';
+    const chars = val.length;
+    const tags = (val.match(/#\S+/g) || []).length;
+
+    charEl.textContent = `${chars} / 2200 {{ t("instagram.charCount") }}`;
+    charEl.className = chars > 2200 ? 'text-danger fw-bold' : 'text-muted';
+
+    tagEl.textContent = `${tags} / 30 {{ t("instagram.hashtagCount") }}`;
+    tagEl.className = tags > 30 ? 'text-danger fw-bold' : 'text-muted';
+  }
+
+  textarea.addEventListener('input', update);
+  update();
+}
+
+checkInstagramTokenStatus();
+initInstagramCaptionCounter();
 
 function _startGenerateProgress(btn) {
   btn.disabled = true;

@@ -37,6 +37,9 @@ from app.routers import training_router
 from app.routers import storage_router
 from app.routers import tiktok_router
 from app.routers import llm_router
+from app.routers import token_router
+from app.routers import instagram_router
+from app.services.token_manager.setup import build_default_manager
 
 setup_logging()
 
@@ -66,6 +69,32 @@ app.include_router(training_router.router)
 app.include_router(storage_router.router)
 app.include_router(tiktok_router.router)
 app.include_router(llm_router.router)
+app.include_router(token_router.router)
+app.include_router(instagram_router.router)
+
+
+@app.on_event("startup")
+def run_token_checks() -> None:
+    """Sync dan refresh token registered providers saat startup (non-blocking)."""
+    try:
+        manager = build_default_manager()
+        manager.run_startup_checks(SessionLocal)
+    except Exception as e:
+        logger.exception("Gagal menjalankan startup token checks: %s", e)
+
+
+@app.on_event("startup")
+def cleanup_stale_instagram_posts() -> None:
+    """Tandai post Instagram yang menggantung sebagai failed saat server restart."""
+    db = SessionLocal()
+    try:
+        from app.services.instagram_post_service import InstagramPostService
+        service = InstagramPostService(db)
+        service.mark_stale_failed()
+    except Exception as e:
+        logger.exception("Gagal menjalankan cleanup_stale_instagram_posts: %s", e)
+    finally:
+        db.close()
 
 
 @app.on_event("startup")

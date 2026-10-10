@@ -28,7 +28,9 @@ class ClipModel(Base, TimestampMixin):
     edited_file_path: Mapped[str | None] = mapped_column(String(1024))
     hook_applied: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")
     hook_skip_reason: Mapped[str | None] = mapped_column(Text, nullable=True)  # llm_unavailable|low_confidence|window_too_short|moment_too_close_to_start|render_failed
+    instagram_published: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")
 
     candidate: Mapped["CandidateModel | None"] = relationship(back_populates="clips")
     video: Mapped["VideoModel"] = relationship(back_populates="clips")
     subtitles: Mapped[list["SubtitleModel"]] = relationship(back_populates="clip")
+    instagram_posts: Mapped[list["InstagramPostModel"]] = relationship(back_populates="clip")

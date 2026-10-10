@@ -119,3 +119,13 @@ def get_tiktok_account_repo(db: Session = Depends(get_db)) -> TikTokAccountRepos
 
 def get_tiktok_upload_service(db: Session = Depends(get_db)) -> TikTokUploadService:
     return TikTokUploadService(db)
+
+
+def get_instagram_publish_service(db: Session = Depends(get_db)):
+    from app.services.instagram_publish_service import InstagramPublishService
+    return InstagramPublishService(db)
+
+
+def get_instagram_post_service(db: Session = Depends(get_db)):
+    from app.services.instagram_post_service import InstagramPostService
+    return InstagramPostService(db)

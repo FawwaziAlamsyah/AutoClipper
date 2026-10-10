@@ -10,6 +10,7 @@ import logging.handlers
 from pathlib import Path
 
 from app.core.config.settings import settings
+from app.core.logging.masking import SecretMaskingFilter
 
 _LOG_FORMAT = "%(asctime)s | %(levelname)-8s | %(name)s | %(message)s"
 
@@ -23,6 +24,7 @@ def setup_logging() -> None:
     log_dir.mkdir(parents=True, exist_ok=True)
 
     formatter = logging.Formatter(_LOG_FORMAT)
+    masking_filter = SecretMaskingFilter()
 
     root_logger = logging.getLogger()
     root_logger.setLevel(settings.LOG_LEVEL)
@@ -33,6 +35,7 @@ def setup_logging() -> None:
     console_handler = logging.StreamHandler()
     console_handler.setLevel(logging.DEBUG)
     console_handler.setFormatter(formatter)
+    console_handler.addFilter(masking_filter)
     root_logger.addHandler(console_handler)
 
     # error.log — hanya error, agar ada jejak di disk.
@@ -41,8 +44,14 @@ def setup_logging() -> None:
     )
     error_handler.setLevel(logging.ERROR)
     error_handler.setFormatter(formatter)
+    error_handler.addFilter(masking_filter)
     root_logger.addHandler(error_handler)
 
     # Matikan uvicorn access log (polling UI menyebabkan spam GET /jobs/xxx setiap detik).
     # Log error uvicorn tetap jalan — hanya access log per-request yang dimatikan.
     logging.getLogger("uvicorn.access").setLevel(logging.WARNING)
+
+    # Turunkan level logger HTTP client agar tidak membocorkan query params / URL token di level INFO
+    logging.getLogger("httpx").setLevel(logging.WARNING)
+    logging.getLogger("httpcore").setLevel(logging.WARNING)
+

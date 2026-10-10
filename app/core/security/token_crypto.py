@@ -6,12 +6,13 @@ from app.core.config.settings import settings
 
 
 def _get_fernet() -> Fernet:
-    if not settings.TIKTOK_TOKEN_ENCRYPTION_KEY:
+    key = settings.TOKEN_ENCRYPTION_KEY or settings.TIKTOK_TOKEN_ENCRYPTION_KEY
+    if not key:
         raise ValueError(
-            "TIKTOK_TOKEN_ENCRYPTION_KEY belum di-set di .env — generate dulu "
-            "(lihat tiktok01.md) sebelum connect akun TikTok."
+            "TOKEN_ENCRYPTION_KEY (atau TIKTOK_TOKEN_ENCRYPTION_KEY) belum di-set di .env — "
+            "generate key dulu dengan Fernet sebelum menggunakan fitur token terenkripsi."
         )
-    return Fernet(settings.TIKTOK_TOKEN_ENCRYPTION_KEY.encode())
+    return Fernet(key.encode())
 
 
 def encrypt_token(plain_token: str) -> str:

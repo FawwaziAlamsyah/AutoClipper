@@ -12,3 +12,10 @@ class ClipRepository(PostgresRepository[ClipModel]):
     def get_by_video(self, video_id: int) -> list[ClipModel]:
         """Get all clips for a video."""
         return list(self.db.query(ClipModel).filter(ClipModel.video_id == video_id).all())
+
+    def save(self, clip: ClipModel) -> ClipModel:
+        """Simpan perubahan clip ke database."""
+        self.db.add(clip)
+        self.db.commit()
+        self.db.refresh(clip)
+        return clip

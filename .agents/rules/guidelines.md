@@ -10,3 +10,8 @@
 - **Never Hardcode Secrets**: JANGAN PERNAH menaruh API key, access token, secret key, email pribadi, password, atau credential sensitif langsung di dalam class, fungsi, script, template, atau file kode repository ini karena repository akan di-push ke public GitHub.
 - **Always Use `.env`**: Semua API key (Google Gemini, OpenAI, 9Router, TikTok API, dll.) dan akun pribadi WAJIB dibaca dari environment variable (`.env`) melalui `settings` / `os.getenv`.
 - **Ignore Local Credential Artifacts**: File konfigurasi runtime lokal yang berpotensi menyimpan key (seperti `data/llm_config.json`, `.env`, `data/cookies.txt`) WAJIB terdaftar di `.gitignore` dan tidak boleh di-commit ke Git.
+
+## UI/UX & Frontend Standards (Anti-Slop Auto-Enforcement)
+- **Automatic Anti-Slop (Mode: During)**: Setiap kali membuat atau mengubah tampilan UI/UX, styling/CSS, layout responsif, komponen frontend, atau teks/copywriting, terapkan aturan filter **anti-slop** secara otomatis (`during` mode).
+- **Zero Confirmation Needed**: Jangan meminta konfirmasi mode (1/2) kepada user; langsung terapkan standar anti-slop (hindari AI slop seperti generic blue-purple gradient, floating card berlebih, em dash (`—`), fake claims/statistics, tombol non-fungsional, dan pastikan layout mobile & kontras WCAG sempurna).
+

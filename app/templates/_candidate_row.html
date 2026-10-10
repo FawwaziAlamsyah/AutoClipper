@@ -28,6 +28,9 @@
         {% if candidate.tiktok_uploaded %}
         <span class="badge bg-info text-dark" title="Klip sudah dikirim ke inbox TikTok">TikTok ✓</span>
         {% endif %}
+        {% if candidate.instagram_published %}
+        <span class="badge bg-danger" title="{{ t('instagram.badge_title') }}">Instagram ✓</span>
+        {% endif %}
       </p>
       <div class="d-flex flex-wrap gap-1 mb-2" id="like-status-{{ candidate.id }}">
         {% include "_rating_control.html" %}

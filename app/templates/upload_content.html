@@ -1,6 +1,9 @@
 <div class="d-flex justify-content-between align-items-center mb-3">
   <div></div>
-  <div id="tiktok-connect-status"></div>
+  <div class="d-flex align-items-center gap-2">
+    <div id="tiktok-connect-status"></div>
+    <div id="instagram-connect-status"></div>
+  </div>
 </div>
 <div class="row g-4 justify-content-center">
   <!-- Card Upload File -->
@@ -236,6 +239,29 @@ function initUploadPage() {
     } catch (e) {}
   }
   checkTikTokConnection();
+
+  async function checkInstagramStatus() {
+    const el = document.getElementById('instagram-connect-status');
+    if (!el) return;
+    try {
+      const res = await fetch('/instagram/status');
+      if (!res.ok) return;
+      const data = await res.json();
+      if (data.status === 'active') {
+        const days = data.days_left != null ? data.days_left : '?';
+        if (data.days_left != null && data.days_left <= 7) {
+          el.innerHTML = `<span class="badge bg-warning text-dark" title="${esc(data.username || '')}">⚠ Instagram (token habis dalam ${esc(days)} hari)</span>`;
+        } else {
+          el.innerHTML = `<span class="badge bg-success" title="${esc(data.username || '')}">✓ Instagram terhubung (${esc(days)} hari)</span>`;
+        }
+      } else if (data.status === 'needs_reconnect') {
+        el.innerHTML = `<span class="badge bg-danger" title="${esc(data.last_error || '')}">⚠ Instagram perlu reconnect</span> <small class="text-danger ms-1" style="font-size:0.75rem;">Generate token baru di dashboard Meta, perbarui IG_ACCESS_TOKEN di .env, lalu restart aplikasi.</small>`;
+      } else if (data.status === 'not_configured') {
+        el.innerHTML = `<small class="text-muted" style="font-size:0.8rem;">Instagram belum dikonfigurasi (isi IG_* di .env)</small>`;
+      }
+    } catch (e) {}
+  }
+  checkInstagramStatus();
 
   function esc(str) { const d = document.createElement('div'); d.textContent = str == null ? '' : str; return d.innerHTML; }
   function formatDuration(sec) { if (sec == null) return '-'; return `${Math.floor(sec/60)}m ${Math.round(sec%60)}s`; }

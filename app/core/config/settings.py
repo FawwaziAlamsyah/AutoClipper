@@ -5,8 +5,10 @@ hardcode path/parameter di module lain.
 """
 
 from functools import lru_cache
+import logging
 from pathlib import Path
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -137,6 +139,40 @@ class Settings(BaseSettings):
     TIKTOK_CLIENT_SECRET: str = ""
     TIKTOK_REDIRECT_URI: str = "http://localhost:8000/tiktok/oauth/callback"
     TIKTOK_TOKEN_ENCRYPTION_KEY: str = ""  # generate sekali, simpan di .env (lihat instruksi di bawah)
+    TOKEN_ENCRYPTION_KEY: str = ""  # kunci enkripsi generik untuk OAuth tokens (Instagram, TikTok, dll)
+
+    # Instagram API with Instagram Login
+    IG_USER_ID: str = ""                  # ID akun Instagram Professional (angka)
+    IG_ACCESS_TOKEN: str = ""             # token long-lived dari dashboard Meta (seed awal)
+    IG_TOKEN_ISSUED_AT: str = ""          # opsional, "YYYY-MM-DD" atau ISO datetime (UTC) kapan token di-generate
+    IG_GRAPH_BASE_URL: str = "https://graph.instagram.com"
+    IG_GRAPH_VERSION: str = ""            # kosong = tanpa prefix versi; isi mis. "v23.0" bila dokumentasi mensyaratkan
+    IG_TOKEN_REFRESH_BEFORE_DAYS: int = 5
+    IG_TOKEN_MIN_AGE_HOURS: int = 24
+    IG_TOKEN_LIFETIME_DAYS: int = 60      # dipakai hanya untuk estimasi expires_at saat seed
+    IG_MIN_REEL_SECONDS: float = 3.0
+    IG_MAX_REEL_SECONDS: float = 90.0      # batas Reels via API
+    IG_MAX_FILE_MB: int = 0                # 0 = jangan blokir; isi bila dokumentasi resmi menyebut batas
+    IG_CAPTION_MAX_CHARS: int = 2200
+    IG_CAPTION_MAX_HASHTAGS: int = 30
+    IG_PROCESS_POLL_SECONDS: float = 3.0
+    IG_PROCESS_TIMEOUT_SECONDS: int = 420
+
+    # Instagram 9:16 Video Prep (Auto Reframe)
+    IG_FIT_MODE: str = "pad"      # "pad" (bilah hitam) | "blur" (latar blur) | "off" (kirim apa adanya)
+    IG_TARGET_WIDTH: int = 1080
+    IG_TARGET_HEIGHT: int = 1920
+    IG_FIT_CRF: int = 20
+    IG_FIT_PRESET: str = "veryfast"
+    IG_FIT_TIMEOUT_SECONDS: int = 900
+
+    @field_validator("IG_FIT_MODE", mode="after")
+    @classmethod
+    def validate_ig_fit_mode(cls, v: str) -> str:
+        if v not in ("pad", "blur", "off"):
+            logging.getLogger(__name__).warning("Nilai IG_FIT_MODE '%s' tidak valid, fallback ke 'pad'", v)
+            return "pad"
+        return v
 
     # Auto Hook Engine — cold-open reorder + zoom-punch + LLM caption.
     # Memerlukan LLM_API_KEY dikonfigurasi; kalau kosong → hook di-skip otomatis.

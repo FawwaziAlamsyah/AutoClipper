@@ -85,9 +85,11 @@ def generate_clip_htmx(
     import os
     clip_filename = None
     tiktok_uploaded = False
+    instagram_published = False
     if candidate_clip and candidate_clip.file_path:
         clip_filename = os.path.basename(candidate_clip.file_path)
         tiktok_uploaded = bool(candidate_clip.tiktok_uploaded)
+        instagram_published = bool(getattr(candidate_clip, "instagram_published", False))
 
     candidate_dict = {
         "id": candidate_obj.id,
@@ -101,6 +103,7 @@ def generate_clip_htmx(
         "clip_filename": clip_filename,
         "clip_show_path": (candidate_clip.edited_file_path or candidate_clip.file_path).replace("\\", "/") if (candidate_clip and candidate_clip.file_path) else None,
         "tiktok_uploaded": tiktok_uploaded,
+        "instagram_published": instagram_published,
     }
     
     return templates.TemplateResponse(

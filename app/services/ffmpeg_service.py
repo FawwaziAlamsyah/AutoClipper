@@ -65,6 +65,23 @@ class FFmpegService:
                         num, den = map(int, r_frame_rate.split("/"))
                         if den != 0:
                             metadata["fps"] = round(num / den, 2)
+
+                    # Deteksi rotasi dari tags atau side_data
+                    rotation = 0
+                    if "tags" in stream and "rotate" in stream["tags"]:
+                        try:
+                            rotation = int(float(stream["tags"]["rotate"]))
+                        except (ValueError, TypeError):
+                            rotation = 0
+                    elif "side_data_list" in stream:
+                        for sd in stream["side_data_list"]:
+                            if "rotation" in sd:
+                                try:
+                                    rotation = int(float(sd["rotation"]))
+                                    break
+                                except (ValueError, TypeError):
+                                    pass
+                    metadata["rotation"] = rotation
                     break
 
             logger.info("Extracted metadata for %s: %s", video_path, metadata)

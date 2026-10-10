@@ -15,6 +15,8 @@ from app.models.cache_entry_model import CacheEntryModel
 from app.models.training_run_model import TrainingRunModel
 from app.models.category_model import CategoryModel
 from app.models.tiktok_account_model import TikTokAccountModel
+from app.models.oauth_token_model import OAuthTokenModel
+from app.models.instagram_post_model import InstagramPostModel
 
 __all__ = [
     "VideoModel",
@@ -30,5 +32,9 @@ __all__ = [
     "HistoryModel",
     "CacheEntryModel",
     "TrainingRunModel",
+    "CategoryModel",
     "TikTokAccountModel",
+    "OAuthTokenModel",
+    "InstagramPostModel",
 ]
+

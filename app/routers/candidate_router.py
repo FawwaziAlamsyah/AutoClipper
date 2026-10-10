@@ -86,11 +86,13 @@ def candidates_by_video(
         clip_filename = None
         clip_show_path = None
         tiktok_uploaded = False
+        instagram_published = False
         if clip and clip.file_path:
             import os
             clip_filename = os.path.basename(clip.file_path)
             clip_show_path = (clip.edited_file_path or clip.file_path).replace("\\", "/")
             tiktok_uploaded = bool(clip.tiktok_uploaded)
+            instagram_published = bool(getattr(clip, "instagram_published", False))
         candidate_rows.append({
             "id": c.id,
             "start_time": int(c.start_time),
@@ -103,6 +105,7 @@ def candidates_by_video(
             "clip_filename": clip_filename,
             "clip_show_path": clip_show_path,
             "tiktok_uploaded": tiktok_uploaded,
+            "instagram_published": instagram_published,
             "category": c.category.name if c.category else None,
             "category_name": c.category.name if c.category else None,
             "video_is_archived": video.is_archived,
