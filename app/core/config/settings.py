@@ -34,7 +34,7 @@ class Settings(BaseSettings):
 
     # Preferences UI (bisa diubah user lewat menu Settings)
     APP_DEFAULT_LANGUAGE: str = "en"  # en | id
-    APP_DEFAULT_THEME: str = "light"  # light | dark
+    APP_DEFAULT_THEME: str = "dark"  # light | dark
 
     # Paths (relatif terhadap root project)
     BASE_DIR: Path = Path(__file__).resolve().parents[3]

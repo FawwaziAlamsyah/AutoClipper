@@ -1,49 +1,52 @@
-<div class="col-md-6 col-lg-4" id="row-{{ candidate.id }}">
-  <div class="card shadow-sm h-100">
-    <div class="position-relative bg-dark rounded-top overflow-hidden" style="aspect-ratio:16/9;">
-      <video class="w-100 h-100" style="object-fit:cover;" controls preload="metadata">
+<div class="col-12 col-md-6 col-xl-4" id="row-{{ candidate.id }}">
+  <div class="card clip-card h-100">
+    <div class="thumb">
+      <video controls preload="metadata">
         {% if candidate.clip_show_path %}
         <source src="/data/outputs/{{ candidate.clip_show_path.split('data/outputs/')[-1] }}?v={{ cachebust(candidate.clip_show_path) }}" type="video/mp4">
         {% else %}
         <source src="/preview/candidates/{{ candidate.id }}/clip" type="video/mp4">
         {% endif %}
       </video>
-      <span class="badge bg-dark position-absolute bottom-0 end-0 m-2">
+      <span class="score">{{ candidate.final_score }}</span>
+      <span class="dur">
         {% set dur = candidate.end_time - candidate.start_time %}
         {{ '%d:%02d'|format((dur // 60)|int, (dur % 60)|int) }}
       </span>
+      <div class="play"><b>▶</b></div>
     </div>
-    <div class="card-body pb-2">
-      <h6 class="mb-1 text-truncate" title="{{ candidate.hook_text or ('Candidate #' ~ candidate.id) }}">
+    <div class="card-body d-flex flex-column">
+      <h6 title="{{ candidate.hook_text or ('Candidate #' ~ candidate.id) }}">
         {{ candidate.hook_text or ('Candidate #' ~ candidate.id) }}
       </h6>
-      <p class="text-muted small mb-2">
-        Score <strong>{{ candidate.final_score }}</strong> ·
-        <span class="badge bg-{{ 'success' if candidate.clip_filename else ('warning text-dark' if candidate.status == 'selected' else 'secondary') }}">
+      <div class="tags mb-2">
+        <span class="tag {{ 'ok' if candidate.clip_filename else ('wait' if candidate.status == 'selected' else '') }}">
           {{ 'clip ready' if candidate.clip_filename else candidate.status }}
         </span>
         {% if candidate.clip_filename %}
-        <span class="badge bg-success" title="Clip sudah di-generate">🎬 Generated</span>
+        <span class="tag ok" title="Clip sudah di-generate">🎬 Generated</span>
         {% endif %}
         {% if candidate.tiktok_uploaded %}
-        <span class="badge bg-info text-dark" title="Klip sudah dikirim ke inbox TikTok">TikTok ✓</span>
+        <span class="tag tt" title="Klip sudah dikirim ke inbox TikTok">TikTok ✓</span>
         {% endif %}
         {% if candidate.instagram_published %}
-        <span class="badge bg-danger" title="{{ t('instagram.badge_title') }}">Instagram ✓</span>
+        <span class="tag ig" title="{{ t('instagram.badge_title') }}">Instagram ✓</span>
         {% endif %}
-      </p>
+      </div>
+
       <div class="d-flex flex-wrap gap-1 mb-2" id="like-status-{{ candidate.id }}">
         {% include "_rating_control.html" %}
       </div>
-    </div>
-    <div class="card-footer bg-transparent border-top-0 pt-0 pb-3 px-3">
-      <div class="d-flex flex-wrap gap-1">
-        <a class="btn btn-sm btn-outline-info"
-           href="/candidates/{{ candidate.id }}"
-           hx-get="/candidates/{{ candidate.id }}"
-           hx-target="#main-content"
-           hx-push-url="true">{{ t("widget.detail") }}</a>
-        <button class="btn btn-sm btn-outline-danger" data-candidate-id="{{ candidate.id }}" onclick="deleteCandidate(this, parseInt(this.dataset.candidateId))">{{ t("widget.delete") }}</button>
+
+      <div class="reveal mt-auto">
+        <div class="d-flex gap-2 align-items-center pt-2 border-top border-secondary-subtle border-opacity-25">
+          <a class="btn btn-sm btn-outline-info flex-grow-1 text-center"
+             href="/candidates/{{ candidate.id }}"
+             hx-get="/candidates/{{ candidate.id }}"
+             hx-target="#main-content"
+             hx-push-url="true">{{ t("widget.detail") }}</a>
+          <button class="btn btn-sm btn-outline-danger" data-candidate-id="{{ candidate.id }}" onclick="deleteCandidate(this, parseInt(this.dataset.candidateId))">{{ t("widget.delete") }}</button>
+        </div>
       </div>
     </div>
   </div>

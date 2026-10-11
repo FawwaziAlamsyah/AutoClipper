@@ -1,12 +1,20 @@
 {% if candidate.label_source == "user_liked" %}
 {% set cat_display = candidate.category_name if candidate.category_name is defined else (candidate.category.name if candidate.category else none) %}
-<span class="badge bg-success">✓ {{ cat_display or 'Kategori' }}</span>
-<button class="btn btn-sm btn-link p-0 text-muted"
-        onclick="doRatingAction({{ candidate.id }}, '/candidates/{{ candidate.id }}/uncategorize', 'POST')">{{ t("rating.cancel") }}</button>
+<div class="d-flex align-items-center gap-2">
+  <span class="badge bg-success bg-opacity-25 text-success border border-success border-opacity-25 d-inline-flex align-items-center gap-1">
+    <i class="bi bi-hand-thumbs-up-fill"></i> {{ cat_display or 'Kategori' }}
+  </span>
+  <button class="btn btn-sm btn-link p-0 text-muted"
+          onclick="doRatingAction({{ candidate.id }}, '/candidates/{{ candidate.id }}/uncategorize', 'POST')">{{ t("rating.cancel") }}</button>
+</div>
 {% elif candidate.label_source == "user_disliked" %}
-<span class="badge bg-danger">👎 Jelek</span>
-<button class="btn btn-sm btn-link p-0 text-muted"
-        onclick="doRatingAction({{ candidate.id }}, '/candidates/{{ candidate.id }}/undislike', 'POST')">{{ t("rating.cancel") }}</button>
+<div class="d-flex align-items-center gap-2">
+  <span class="badge bg-danger bg-opacity-25 text-danger border border-danger border-opacity-25 d-inline-flex align-items-center gap-1">
+    <i class="bi bi-hand-thumbs-down-fill"></i> Jelek
+  </span>
+  <button class="btn btn-sm btn-link p-0 text-muted"
+          onclick="doRatingAction({{ candidate.id }}, '/candidates/{{ candidate.id }}/undislike', 'POST')">{{ t("rating.cancel") }}</button>
+</div>
 {% else %}
 {% if not categories %}
 <div class="d-flex align-items-center gap-2">
@@ -15,16 +23,16 @@
 </div>
 {% else %}
 <div class="d-flex gap-1 align-items-center flex-wrap">
-  <select class="form-select form-select-sm" style="width:auto;" id="category-select-{{ candidate.id }}">
+  <select class="form-select form-select-sm" style="width:auto; max-width:140px; font-size:12px; padding:2px 8px;" id="category-select-{{ candidate.id }}">
     <option value="">{{ t("rating.tagCategory") }}</option>
     {% for cat in categories %}
     <option value="{{ cat.id }}">{{ cat.name }}</option>
     {% endfor %}
   </select>
-  <button type="button" class="btn btn-sm btn-outline-success"
-          onclick="submitCategorize({{ candidate.id }})">✓</button>
-  <button type="button" class="btn btn-sm btn-outline-danger"
-          onclick="doRatingAction({{ candidate.id }}, '/candidates/{{ candidate.id }}/dislike', 'POST')">👎</button>
+  <button type="button" class="btn btn-sm btn-outline-success px-2 py-0"
+          onclick="submitCategorize({{ candidate.id }})" title="Like & Tag"><i class="bi bi-hand-thumbs-up"></i></button>
+  <button type="button" class="btn btn-sm btn-outline-danger px-2 py-0"
+          onclick="doRatingAction({{ candidate.id }}, '/candidates/{{ candidate.id }}/dislike', 'POST')" title="Dislike"><i class="bi bi-hand-thumbs-down"></i></button>
 </div>
 {% endif %}
 {% endif %}

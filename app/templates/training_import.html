@@ -1,19 +1,21 @@
-<div class="card shadow-sm p-4 mb-4">
-  <div class="d-flex justify-content-between align-items-start flex-wrap gap-3">
-    <div>
+<div class="page-head mb-4">
+  <div>
+    <div class="text-muted small mb-2">
       <a href="/training/dashboard"
          hx-get="/training/dashboard"
          hx-target="#main-content" hx-push-url="true"
-         class="btn btn-outline-secondary btn-sm mb-2">← <-back</a>
-      <h3 class="mb-1">{{ t("trainImport.title") }}</h3>
-      <p class="text-muted mb-0">
-        Upload file CSV berisi daftar clip video beserta skor performanya.
-        Setiap baris akan diproses sebagai <code>training_ingest</code> job di background —
-        video di-download/di-analisis lalu dijadikan data training untuk model scoring.
-      </p>
+         class="text-muted text-decoration-none"><i class="bi bi-arrow-left me-1"></i>Kembali ke Training Dashboard</a>
     </div>
+    <h2 class="mb-1">{{ t("trainImport.title") }}</h2>
+    <p class="text-muted mb-0">
+      Upload file CSV berisi daftar clip video beserta skor performanya.
+      Setiap baris akan diproses sebagai <code>training_ingest</code> job di background &mdash;
+      video di-download/di-analisis lalu dijadikan data training untuk model scoring.
+    </p>
+  </div>
+  <div>
     <a href="/training/template.csv" download class="btn btn-outline-secondary btn-sm text-nowrap">
-      ⬇ Download Template CSV
+      <i class="bi bi-download me-1"></i>Download Template CSV
     </a>
   </div>
 </div>
@@ -21,18 +23,21 @@
 <div class="row g-4">
   <!-- Panduan + Form -->
   <div class="col-lg-6">
-    <div class="card shadow-sm p-4 h-100">
+    <div class="panel p-4 h-100">
 
       <!-- Penjelasan Format -->
-      <h5>{{ t("trainImport.formatCsv") }}</h5>
-      <p class="text-muted small mb-2">
+      <div class="d-flex align-items-center gap-2 mb-2">
+        <i class="bi bi-filetype-csv text-danger fs-5"></i>
+        <h5 class="mb-0">{{ t("trainImport.formatCsv") }}</h5>
+      </div>
+      <p class="text-muted small mb-3">
         2 kolom wajib: <code>source</code> dan <code>actual_score</code>.<br>
         Baris header <strong>boleh ada atau tidak</strong> — sistem otomatis detect.
       </p>
 
       <div class="table-responsive mb-3">
-        <table class="table table-sm table-bordered small mb-0">
-          <thead class="table-light">
+        <table class="table table-sm align-middle small mb-0">
+          <thead>
             <tr>
               <th>{{ t("trainImport.columns") }}</th>
               <th>{{ t("trainImport.content") }}</th>
@@ -43,26 +48,26 @@
             <tr>
               <td><code>source</code></td>
               <td>Path file lokal <strong>atau</strong> URL video (YouTube, TikTok, dll)</td>
-              <td class="text-muted">C:\clips\video1.mp4<br>https://youtu.be/abc123</td>
+              <td class="text-muted small">C:\clips\video1.mp4<br>https://youtu.be/abc123</td>
             </tr>
             <tr>
               <td><code>actual_score</code></td>
               <td>Skor performa nyata <strong>0–10</strong> berdasarkan views/likes/engagement</td>
-              <td class="text-muted">8.5 → viral<br>4.0 → biasa<br>1.0 → flop</td>
+              <td class="text-muted small">8.5 → viral<br>4.0 → biasa<br>1.0 → flop</td>
             </tr>
           </tbody>
         </table>
       </div>
 
       <p class="text-muted small mb-1"><strong>{{ t("trainImport.exampleContent") }}</strong></p>
-      <pre class="bg-light p-3 rounded small mb-3">source,actual_score
+      <pre class="p-3 rounded small mb-3" style="background: var(--surface-2); color: var(--text); border: 1px solid var(--line);">source,actual_score
 C:\Users\Anda\Videos\gaming_highlight.mp4,9.2
 C:\Users\Anda\Videos\reaction_clip.mp4,6.5
 https://youtu.be/xxxxxxxxxxx,8.0
 https://www.tiktok.com/@user/video/123,7.5</pre>
 
       <div class="alert alert-info small py-2 mb-3">
-        💡 <strong>{{ t("trainImport.tips") }}</strong> Skor 8–10 = konten yang sangat viral/bagus.
+        <i class="bi bi-lightbulb-fill me-1"></i><strong>{{ t("trainImport.tips") }}</strong> Skor 8–10 = konten yang sangat viral/bagus.
         Skor 4–7 = performa sedang. Skor 0–3 = konten yang tidak perform.
         Semakin banyak data, semakin akurat model scoring-nya.
       </div>
@@ -70,7 +75,7 @@ https://www.tiktok.com/@user/video/123,7.5</pre>
       <!-- Form Upload -->
       <form id="importForm">
         <div class="mb-3">
-          <label class="form-label fw-semibold">{{ t("trainImport.category") }}</label>
+          <label class="form-label fw-semibold text-white">{{ t("trainImport.category") }}</label>
           <select class="form-select" name="category_id" id="categoryId" required>
             <option value="">-- {{ t("trainImport.plsSelectCat") }} --</option>
             {% for cat in categories %}
@@ -79,16 +84,16 @@ https://www.tiktok.com/@user/video/123,7.5</pre>
           </select>
         </div>
         <div class="mb-3">
-          <label class="form-label fw-semibold">{{ t("trainImport.csvFile") }}</label>
+          <label class="form-label fw-semibold text-white">{{ t("trainImport.csvFile") }}</label>
           <input type="file" class="form-control" id="importFile" name="file" accept=".csv,text/csv" required>
-          <div class="form-text">{{ t("trainImport.csvFormat") }}</div>
+          <div class="form-text small text-muted">{{ t("trainImport.csvFormat") }}</div>
         </div>
-        <div class="d-flex gap-2 align-items-center flex-wrap">
+        <div class="d-flex gap-2 align-items-center flex-wrap pt-1">
           <button type="submit" class="btn btn-primary" id="importBtn">
-            ⬆ Upload &amp; Mulai Import
+            <i class="bi bi-upload me-1"></i>Upload &amp; Mulai Import
           </button>
           <a href="/training/template.csv" download class="btn btn-outline-secondary btn-sm">
-            ⬇ Download Template
+            <i class="bi bi-download me-1"></i>Download Template
           </a>
         </div>
       </form>
@@ -99,10 +104,10 @@ https://www.tiktok.com/@user/video/123,7.5</pre>
   <div class="col-lg-6">
     <div id="importProgress">
       <!-- Akan diisi setelah upload CSV -->
-      <div class="card shadow-sm p-4 text-center text-muted" style="border-style:dashed;">
-        <div class="fs-1 mb-2">📊</div>
-        <p class="mb-1">{{ t("trainImport.progressHere") }}</p>
-        <p class="small">{{ t("trainImport.uploadLeft") }}</p>
+      <div class="panel p-5 text-center text-muted" style="border: 1px dashed var(--line); background: var(--surface-2);">
+        <div class="fs-1 mb-2 opacity-75">📊</div>
+        <p class="mb-1 fw-semibold text-white">{{ t("trainImport.progressHere") }}</p>
+        <p class="small text-muted mb-0">{{ t("trainImport.uploadLeft") }}</p>
       </div>
     </div>
   </div>

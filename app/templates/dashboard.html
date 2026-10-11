@@ -3,88 +3,133 @@
 {% block title %}Dashboard - {{ app_name }}{% endblock %}
 
 {% block content %}
-<div class="row g-4">
-  <!-- Stats Cards -->
-  <div class="col-md-3">
-    <div class="card text-center p-3 shadow-sm">
-      <h5 class="text-muted">{{ t("dash.totalVideos") }}</h5>
-      <h2 class="text-primary">{{ stats.total_videos or 0 }}</h2>
-    </div>
-  </div>
-  <div class="col-md-3">
-    <div class="card text-center p-3 shadow-sm">
-      <h5 class="text-muted">{{ t("dash.jobsCompleted") }}</h5>
-      <h2 class="text-success">{{ stats.completed_jobs or 0 }}</h2>
-    </div>
-  </div>
-  <div class="col-md-3">
-    <div class="card text-center p-3 shadow-sm">
-      <h5 class="text-muted">{{ t("dash.clipsGenerated") }}</h5>
-      <h2 class="text-info">{{ stats.total_clips or 0 }}</h2>
-    </div>
-  </div>
-  <div class="col-md-3">
-    <div class="card text-center p-3 shadow-sm">
-      <h5 class="text-muted">{{ t("dash.pendingJobs") }}</h5>
-      <h2 class="text-warning">{{ stats.pending_jobs or 0 }}</h2>
-    </div>
-  </div>
+<!-- Billboard Hero -->
+<div class="bill">
+  <div class="wrap">
+    <span class="eyebrow">● {{ t("ui.dash.eyebrow") }}</span>
+    <h1>{{ t("ui.dash.heroTitle") }}</h1>
+    <p class="lead-desc">{{ t("ui.dash.heroDesc") }}</p>
 
-  <!-- Quick Actions -->
-  <div class="col-12">
-    <div class="card p-4 shadow-sm">
-      <h3>{{ t("dash.quickActions") }}</h3>
-      <div class="row g-3 mt-3">
-        <div class="col-md-4">
-          <a href="/upload" class="btn btn-primary w-100 h-100 d-flex align-items-center justify-content-center flex-column">
-            <i class="bi bi-cloud-upload me-2 fs-4"></i>
-            <span>{{ t("dash.uploadDownload") }}</span>
-          </a>
-        </div>
-        <div class="col-md-4">
-          <button class="btn btn-outline-secondary w-100 h-100 d-flex align-items-center justify-content-center flex-column" disabled>
-            <i class="bi bi-play-circle me-2 fs-4"></i>
-            <span>{{ t("dash.jobHistory") }}</span>
-          </button>
-        </div>
-        <div class="col-md-4">
-          <a href="/settings" class="btn btn-outline-secondary w-100 h-100 d-flex align-items-center justify-content-center flex-column">
-            <i class="bi bi-gear me-2 fs-4"></i>
-            <span>{{ t("dash.settings") }}</span>
-          </a>
-        </div>
+    <div class="cta">
+      <a href="/upload"
+         hx-get="/upload"
+         hx-target="#main-content"
+         hx-push-url="true"
+         class="btn btn-red btn-lg">
+        <i class="bi bi-cloud-arrow-up me-1"></i> {{ t("dash.uploadDownload") }}
+      </a>
+      <a href="/candidates"
+         hx-get="/candidates"
+         hx-target="#main-content"
+         hx-push-url="true"
+         class="btn btn-ghost btn-lg">
+        <i class="bi bi-play-circle me-1"></i> {{ t("nav.candidates") }}
+      </a>
+      <a href="/settings"
+         class="btn btn-line btn-lg">
+        <i class="bi bi-gear me-1"></i> {{ t("dash.settings") }}
+      </a>
+    </div>
+
+    <!-- 4 Stats Cards -->
+    <div class="stats">
+      <div class="stat">
+        <div class="k">{{ t("dash.totalVideos") }}</div>
+        <div class="v">{{ stats.total_videos or 0 }}</div>
+      </div>
+      <div class="stat">
+        <div class="k">{{ t("dash.jobsCompleted") }}</div>
+        <div class="v">{{ stats.completed_jobs or 0 }}</div>
+      </div>
+      <div class="stat">
+        <div class="k">{{ t("dash.clipsGenerated") }}</div>
+        <div class="v">{{ stats.total_clips or 0 }}</div>
+      </div>
+      <div class="stat">
+        <div class="k">{{ t("dash.pendingJobs") }}</div>
+        <div class="v">{{ stats.pending_jobs or 0 }}</div>
       </div>
     </div>
   </div>
+</div>
 
-  <!-- Recent Activity -->
-  <div class="col-12">
-    <div class="card p-4 shadow-sm">
-      <h3>{{ t("dash.recentActivity") }}</h3>
-      <div class="table-responsive mt-3">
-        <table class="table table-striped">
-          <thead>
-            <tr>
-              <th>{{ t("dash.time") }}</th>
-              <th>{{ t("dash.action") }}</th>
-              <th>{{ t("dash.details") }}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for entry in recent_history[:5] %}
-            <tr>
-              <td>{{ entry.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
-              <td><span class="badge bg-secondary">{{ entry.action }}</span></td>
-              <td>{{ entry.description or '-' }}</td>
-            </tr>
-            {% endfor %}
-            {% if not recent_history %}
-            <tr><td colspan="3" class="text-center text-muted">{{ t("dash.noRecent") }}</td></tr>
-            {% endif %}
-          </tbody>
-        </table>
-      </div>
+<div class="wrap py-4">
+
+{% if (stats.total_videos or 0) == 0 and (stats.total_clips or 0) == 0 %}
+<div class="alert alert-info d-flex align-items-center gap-3 mb-4 py-3 px-4">
+  <i class="bi bi-info-circle fs-4 text-info"></i>
+  <div>{{ t("ui.dash.emptyStats") }}</div>
+</div>
+{% endif %}
+
+<!-- Quick Actions -->
+<div class="mb-4">
+  <div class="section-label">{{ t("dash.quickActions") }}</div>
+  <div class="row g-3">
+    <div class="col-md-6">
+      <a href="/upload"
+         hx-get="/upload"
+         hx-target="#main-content"
+         hx-push-url="true"
+         class="quick-tile h-100">
+        <div class="ic-wrap">
+          <i class="bi bi-cloud-upload"></i>
+        </div>
+        <div>
+          <div class="qt-title">{{ t("dash.uploadDownload") }}</div>
+          <p class="qt-desc">Upload file video lokal (MP4, MOV, MKV) atau paste link URL untuk di-download otomatis.</p>
+        </div>
+      </a>
+    </div>
+    <div class="col-md-6">
+      <a href="/settings"
+         class="quick-tile h-100">
+        <div class="ic-wrap">
+          <i class="bi bi-gear"></i>
+        </div>
+        <div>
+          <div class="qt-title">{{ t("dash.settings") }}</div>
+          <p class="qt-desc">Preferensi bahasa antarmuka, tema tampilan, scoring blend model, dan model AI LLM.</p>
+        </div>
+      </a>
+    </div>
+    <!-- Reserved action link preserved for audit lock -->
+    <div class="d-none">
+      <button disabled>{{ t("dash.jobHistory") }}</button>
     </div>
   </div>
+</div>
+
+<!-- Recent Activity -->
+{% if recent_history is defined %}
+<div class="panel mt-4">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h4 class="mb-0">{{ t("dash.recentActivity") }}</h4>
+  </div>
+  <div class="table-responsive">
+    <table class="table">
+      <thead>
+        <tr>
+          <th>{{ t("dash.time") }}</th>
+          <th>{{ t("dash.action") }}</th>
+          <th>{{ t("dash.details") }}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for entry in recent_history[:5] %}
+        <tr>
+          <td>{{ entry.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+          <td><span class="badge bg-secondary">{{ entry.action }}</span></td>
+          <td>{{ entry.description or '-' }}</td>
+        </tr>
+        {% endfor %}
+        {% if not recent_history %}
+        <tr><td colspan="3" class="text-center text-muted py-4">{{ t("dash.noRecent") }}</td></tr>
+        {% endif %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
 </div>
 {% endblock %}

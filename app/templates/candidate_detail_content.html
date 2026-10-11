@@ -1,177 +1,105 @@
-<div class="d-flex align-items-center gap-3 mb-3">
-  <a href="/candidates/video/{{ video_id }}"
-     hx-get="/candidates/video/{{ video_id }}"
-     hx-target="#main-content"
-     hx-push-url="true"
-     class="btn btn-outline-secondary btn-sm">← Back</a>
-</div>
-
-<div class="card shadow-sm p-4 mb-4">
-  <h3>Candidate #{{ candidate.id }}</h3>
-  <div class="d-flex flex-wrap gap-3 mb-2">
-    <span class="badge bg-primary">Video {{ candidate.video_id }}</span>
-    <span class="badge bg-secondary">Job {{ candidate.job_id }}</span>
-    <span class="badge bg-{{ 'success' if candidate.status == 'selected' else ('danger' if candidate.status == 'rejected' else 'info') }}">{{ candidate.status }}</span>
-    <span class="badge bg-dark">Final Score {{ candidate.final_score }}</span>
-    {% if clip and clip.tiktok_uploaded %}
-    <span class="badge bg-info text-dark" title="Klip sudah dikirim ke inbox TikTok">TikTok ✓</span>
-    {% endif %}
-  </div>
-  <p class="text-muted mb-0">Window: {{ candidate.start_time }}s – {{ candidate.end_time }}s</p>
-  {% if candidate.hook_text %}
-  <blockquote class="blockquote mt-2 mb-0">"{{ candidate.hook_text }}"</blockquote>
-  {% endif %}
-</div>
-
-<!-- {{ t("candDetail.scoreBreakdown") }} — full width -->
-<div class="card shadow-sm p-4 mb-4">
-  <h5>{{ t("candDetail.scoreBreakdown") }}</h5>
-  <p class="text-muted">{{ t("candDetail.scoreDesc") }}</p>
-
-  {% if breakdown and breakdown['_meta'] is defined %}
-  {% set meta = breakdown['_meta'] %}
-  <div class="alert alert-info small mb-3">
-    Skor dihitung pakai:
-    <strong>{{ "Model terlatih" if meta.scoring_method == "trained_model" else "Weighted-sum manual" }}</strong>
-    {% if meta.model_predicted_score is not none %}
-      (model: <strong>{{ meta.model_predicted_score }}</strong>,
-       weighted-sum lama: {{ meta.legacy_weighted_sum_score }})
-{% endif %}
-  </div>
-  {% endif %}
-
-  <div class="table-responsive">
-    <table class="table table-striped align-middle">
-      <thead>
-        <tr><th>{{ t("candDetail.analyzer") }}</th><th>{{ t("candDetail.score") }}</th><th>{{ t("candDetail.weight") }}</th><th>{{ t("candDetail.contribution") }}</th><th>{{ t("candDetail.reason") }}</th></tr>
-      </thead>
-      <tbody>
-        {% for name, value in breakdown.items() %}
-        {% if name != '_meta' %}
-        <tr>
-          <td><span class="badge bg-light text-dark fw-normal">{{ name }}</span></td>
-          <td>{{ value.score }}</td>
-          <td>{{ '%d%%'|format((value.weight * 100)|round|int) }}</td>
-          <td>{{ value.contribution }}</td>
-          <td class="text-muted small">{{ value.reason or '-' }}</td>
-        </tr>
-        {% endif %}
-        {% else %}
-        <tr><td colspan="5" class="text-muted text-center">{{ t("candDetail.noBreakdown") }}</td></tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  </div>
-  <a class="btn btn-sm btn-outline-secondary mt-2" target="_blank" href="/preview/candidates/{{ candidate.id }}">{{ t("candDetail.previewJson") }}</a>
-</div>
-
-<!-- Generate Clip + Subtitle -->
-<div class="card shadow-sm p-4 mt-2">
-  <h5>{{ t("candDetail.renderClip") }}</h5>
-
-  {% if clip %}
-  {% set clip_show_path = (clip.edited_file_path or clip.file_path).replace('\\', '/') %}
-  <p class="text-success"><i class="bi bi-check-circle"></i> Clip sudah dibuat:
-    <a target="_blank" href="/data/outputs/{{ clip_show_path.split('data/outputs/')[-1] }}?v={{ cachebust(clip_show_path) }}">{{ t("candDetail.openClip") }}</a>
-  </p>
-  {% else %}
-  <div id="clip-action">
-    <button class="btn btn-primary" id="generateClipBtn" onclick="doGenerateClip(this, {{ candidate.id }})">
-      Generate Clip
-    </button>
-  </div>
-  {% endif %}
-
-  {% if clip %}
-  <div class="mt-3">
-    {% if clip.tiktok_uploaded %}
-    <span class="badge bg-info text-dark mb-2 d-inline-block" title="Klip sudah dikirim ke inbox TikTok">TikTok ✓ Sudah di-upload</span>
-    {% endif %}
-    <button class="btn btn-dark" id="tiktokPublishBtn" onclick="publishToTikTok({{ clip.id }})">
-      📤 Upload ke TikTok (Draft/Private)
-    </button>
-    <div id="tiktok-publish-status" class="mt-2"></div>
-  </div>
-
-  <div class="mt-3 p-3 border rounded shadow-sm bg-body" id="instagramPublishCard">
-    <div class="d-flex justify-content-between align-items-center mb-2">
-      <h6 class="mb-0 fw-bold">Instagram Reels</h6>
-      <div id="ig-published-badge-container">
-        {% if clip.instagram_published %}
-        <span class="badge bg-danger" title="{{ t('instagram.badge_title') }}">{{ t("instagram.publishedBadge") }}</span>
-        {% endif %}
+<div class="mb-4">
+  <div class="panel">
+    <div class="d-flex justify-content-between align-items-start flex-wrap gap-3">
+      <div>
+        <div class="d-flex align-items-center gap-2 mb-2">
+          <h2 class="mb-0 fw-bold">Candidate #{{ candidate.id }}</h2>
+          <span class="badge bg-success fs-6 px-3 py-1 fw-bold">
+            Score {{ candidate.final_score }}
+          </span>
+        </div>
+        <div class="d-flex flex-wrap gap-2 align-items-center mb-2">
+          <span class="badge bg-secondary">Video #{{ candidate.video_id }}</span>
+          <span class="badge bg-dark border border-secondary-subtle">Job #{{ candidate.job_id }}</span>
+          <span class="badge bg-{{ 'success' if candidate.status == 'selected' else ('danger' if candidate.status == 'rejected' else 'info') }}">{{ candidate.status }}</span>
+          <span class="badge bg-primary d-none">Video {{ candidate.video_id }}</span>
+          <span class="badge bg-secondary d-none">Job {{ candidate.job_id }}</span>
+          <span class="badge bg-dark d-none">Final Score {{ candidate.final_score }}</span>
+          {% if clip and clip.tiktok_uploaded %}
+          <span class="badge bg-info text-dark" title="Klip sudah dikirim ke inbox TikTok">TikTok ✓</span>
+          {% endif %}
+          {% if clip and clip.instagram_published %}
+          <span class="badge bg-danger" title="{{ t('instagram.badge_title') }}">{{ t("instagram.publishedBadge") }}</span>
+          {% endif %}
+        </div>
+        <p class="text-muted small mb-0">
+          <i class="bi bi-clock me-1 text-secondary"></i>Window: {{ candidate.start_time }}s – {{ candidate.end_time }}s
+        </p>
+      </div>
+      <div>
+        <a href="/candidates/video/{{ video_id }}"
+           hx-get="/candidates/video/{{ video_id }}"
+           hx-target="#main-content"
+           hx-push-url="true"
+           class="btn btn-outline-secondary btn-sm"><i class="bi bi-arrow-left me-1"></i> Daftar Candidates</a>
       </div>
     </div>
-    {% if clip.instagram_published %}
-    <div class="alert alert-warning py-1 px-2 small mb-2" id="ig-repost-alert">
-      ⚠ {{ t("instagram.repostWarning") }}
+    {% if candidate.hook_text %}
+    <div class="mt-3 pt-3 border-top border-secondary-subtle border-opacity-25">
+      <blockquote class="blockquote mb-0 fs-6 text-white-50 fst-italic">
+        <i class="bi bi-quote fs-5 text-danger opacity-75"></i>"{{ candidate.hook_text }}"
+      </blockquote>
     </div>
     {% endif %}
+  </div>
+</div>
 
-    <div class="mb-2">
-      <label for="igCaption" class="form-label small text-muted mb-1">Caption & Hashtags</label>
-      <textarea id="igCaption" class="form-control form-control-sm" rows="3" maxlength="2200" placeholder="{{ t('instagram.captionPlaceholder') }}"></textarea>
-      <div class="d-flex justify-content-between small text-muted mt-1" style="font-size: 0.75rem;">
-        <span id="ig-char-count">0 / 2200 {{ t("instagram.charCount") }}</span>
-        <span id="ig-tag-count">0 / 30 {{ t("instagram.hashtagCount") }}</span>
+<div class="detail-grid">
+  <!-- Kolom Kiri: Player / Preview & Edit Clip -->
+  <div class="detail-main">
+    {% if not clip %}
+    <div class="panel card shadow-sm p-4">
+      <div class="d-flex align-items-center justify-content-between mb-3">
+        <div class="d-flex align-items-center gap-2">
+          <i class="bi bi-play-circle text-danger fs-5"></i>
+          <h5 class="mb-0">Preview Klip</h5>
+        </div>
+        <span class="badge bg-secondary">Raw Stream</span>
+      </div>
+      <div class="thumb">
+        <video class="w-100 h-100 clip-player-video" controls preload="metadata">
+          <source src="/preview/candidates/{{ candidate.id }}/clip" type="video/mp4">
+        </video>
+      </div>
+      <div class="alert alert-info py-2 px-3 mt-3 mb-0 small">
+        <i class="bi bi-info-circle me-1"></i> Preview klip mentah. Klik <strong>Generate Clip</strong> di panel sebelah kanan untuk membuat file klip dan mengaktifkan fitur edit video.
       </div>
     </div>
-
-    <div class="mb-2">
-      <label for="igFitMode" class="form-label small text-muted mb-1">{{ t("instagram.fit_label") }}</label>
-      <select id="igFitMode" class="form-select form-select-sm">
-        <option value="pad" selected>{{ t("instagram.fit_pad") }}</option>
-        <option value="blur">{{ t("instagram.fit_blur") }}</option>
-        <option value="off">{{ t("instagram.fit_off") }}</option>
-      </select>
-      <small id="ig-fit-note" class="text-muted" style="font-size: 0.72rem; display: block; margin-top: 2px;">
-        {{ t("instagram.fit_note") }}
-      </small>
-    </div>
-
-    <div class="form-check form-switch mb-2">
-      <input class="form-check-input" type="checkbox" id="igShareToFeed" checked>
-      <label class="form-check-label small" for="igShareToFeed">{{ t("instagram.shareToFeed") }}</label>
-    </div>
-
-    <div class="d-flex flex-column gap-1">
-      <button class="btn btn-danger btn-sm" id="instagramPublishBtn" onclick="publishToInstagram({{ clip.id }})" {% if clip.instagram_published %}data-repost="1"{% endif %}>
-        {{ t("instagram.publishBtn") }}
-      </button>
-      <small id="ig-token-status-hint" class="text-muted" style="font-size: 0.75rem;"></small>
-    </div>
-
-    <div id="instagram-publish-status" class="mt-2"></div>
-  </div>
-  {% endif %}
-</div>
+    {% endif %}
 
 {% if clip %}
-<div class="card shadow-sm p-4 mt-3">
-  <h5 class="mb-3">{{ t("candDetail.editClip") }}</h5>
+<div class="card shadow-sm p-4 mt-4">
+  <div class="d-flex align-items-center gap-2 mb-4 pb-2 border-bottom border-secondary-subtle border-opacity-25">
+    <i class="bi bi-sliders text-danger fs-5"></i>
+    <h5 class="mb-0 fw-semibold">{{ t("candDetail.editClip") }}</h5>
+  </div>
 
-  <div id="clip-edit-preview-wrapper">
+  <div id="clip-edit-preview-wrapper" class="mb-4">
     {% include "_clip_edit_preview.html" %}
   </div>
 
-  <ul class="nav nav-tabs mt-3" role="tablist">
-    <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tab-text">{{ t("candDetail.text") }}</button></li>
-    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-trim">{{ t("candDetail.crop") }}</button></li>
-    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-crop-frame" onclick="initCropTab({{ clip.id }})">{{ t("candDetail.cropFrame") }}</button></li>
-    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-sound">{{ t("candDetail.sound") }}</button></li>
-    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-watermark" onclick="initWatermarkTab({{ clip.id }})">{{ t("candDetail.watermark") }}</button></li>
-    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-hook">🪝 {{ t("candDetail.hookTab") }}</button></li>
-  </ul>
+  <div class="editor-tabs-sticky">
+    <ul class="nav nav-tabs" role="tablist">
+      <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tab-text"><i class="bi bi-fonts me-1"></i>{{ t("candDetail.text") }}</button></li>
+      <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-trim"><i class="bi bi-scissors me-1"></i>{{ t("candDetail.crop") }}</button></li>
+      <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-crop-frame" onclick="initCropTab({{ clip.id }})"><i class="bi bi-aspect-ratio me-1"></i>{{ t("candDetail.cropFrame") }}</button></li>
+      <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-sound"><i class="bi bi-volume-up me-1"></i>{{ t("candDetail.sound") }}</button></li>
+      <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-watermark" onclick="initWatermarkTab({{ clip.id }})"><i class="bi bi-image me-1"></i>{{ t("candDetail.watermark") }}</button></li>
+      <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-hook">🪝 {{ t("candDetail.hookTab") }}</button></li>
+    </ul>
+  </div>
 
   <div class="tab-content border border-top-0 p-3">
     <!-- Tab Text -->
-    <div class="tab-pane fade show active" id="tab-text">
+    <div class="tab-pane fade show active p-2" id="tab-text">
+      <div class="section-label mb-2">{{ t("candDetail.text") }} Overlay</div>
       <form onsubmit="return submitEditForm(event, '/clips/{{ clip.id }}/edit/text')">
-        <div class="mb-2">
+        <div class="mb-3">
           <input type="text" name="text" class="form-control" placeholder="Teks overlay..." required>
         </div>
-        <div class="row g-2 mb-2">
+        <div class="row g-2 mb-3">
           <div class="col">
+            <label class="form-label small text-muted">Posisi</label>
             <select name="position" class="form-select form-select-sm">
               <option value="top">{{ t("candDetail.top") }}</option>
               <option value="middle">{{ t("candDetail.middle") }}</option>
@@ -179,36 +107,40 @@
             </select>
           </div>
           <div class="col">
+            <label class="form-label small text-muted">Font Size</label>
             <input type="number" name="font_size" class="form-control form-control-sm" value="48" min="12" max="120">
           </div>
           <div class="col">
-            <input type="color" name="color" class="form-control form-control-sm form-control-color" value="#ffffff">
+            <label class="form-label small text-muted">Warna</label>
+            <input type="color" name="color" class="form-control form-control-sm form-control-color w-100" value="#ffffff">
           </div>
         </div>
-        <button type="submit" class="btn btn-sm btn-primary">{{ t("candDetail.addText") }}</button>
+        <button type="submit" class="btn btn-sm btn-primary"><i class="bi bi-plus-circle me-1"></i>{{ t("candDetail.addText") }}</button>
       </form>
     </div>
 
     <!-- Tab Trim -->
-    <div class="tab-pane fade" id="tab-trim">
-      <p class="text-muted small">{{ t("candDetail.trimDesc") }}</p>
+    <div class="tab-pane fade p-2" id="tab-trim">
+      <div class="section-label mb-2">{{ t("candDetail.crop") }} (Timeline Trim)</div>
+      <p class="text-muted small mb-3">{{ t("candDetail.trimDesc") }}</p>
       <form onsubmit="return submitEditForm(event, '/clips/{{ clip.id }}/edit/crop')">
-        <div class="row g-2 mb-2">
+        <div class="row g-3 mb-3">
           <div class="col">
-            <label class="form-label small">{{ t("candDetail.startSec") }}</label>
+            <label class="form-label small text-muted">{{ t("candDetail.startSec") }}</label>
             <input type="number" name="start_time" class="form-control form-control-sm" value="0" min="0" step="0.1">
           </div>
           <div class="col">
-            <label class="form-label small">{{ t("candDetail.endSec") }}</label>
+            <label class="form-label small text-muted">{{ t("candDetail.endSec") }}</label>
             <input type="number" name="end_time" class="form-control form-control-sm" value="30" min="0" step="0.1">
           </div>
         </div>
-        <button type="submit" class="btn btn-sm btn-primary">{{ t("candDetail.applyTrim") }}</button>
+        <button type="submit" class="btn btn-sm btn-primary"><i class="bi bi-scissors me-1"></i>{{ t("candDetail.applyTrim") }}</button>
       </form>
     </div>
 
     <!-- Tab Crop Frame (spatial crop) -->
-    <div class="tab-pane fade" id="tab-crop-frame">
+    <div class="tab-pane fade p-2" id="tab-crop-frame">
+      <div class="section-label mb-2">{{ t("candDetail.cropFrame") }} (Spatial Frame)</div>
       <p class="text-muted small mb-3">{{ t("candDetail.cropFrameDesc") }}</p>
 
       <!-- Preset rasio -->
@@ -221,48 +153,41 @@
       </div>
 
       <!-- Area preview: ruler + thumbnail + crop box overlay -->
-      <div id="crop-preview-area" class="position-relative d-inline-block" style="max-width:100%;">
+      <div id="crop-preview-area" class="position-relative d-inline-block">
         <!-- Ruler atas (sumbu X) -->
-        <div id="crop-ruler-x" style="height:18px;margin-left:20px;position:relative;background:#f8f9fa;border:1px solid #dee2e6;border-bottom:none;font-size:10px;color:#6c757d;overflow:hidden;">
-          <span style="position:absolute;left:0%;">0%</span>
-          <span style="position:absolute;left:25%;transform:translateX(-50%)">25%</span>
-          <span style="position:absolute;left:50%;transform:translateX(-50%)">50%</span>
-          <span style="position:absolute;left:75%;transform:translateX(-50%)">75%</span>
-          <span style="position:absolute;right:0;">100%</span>
+        <div id="crop-ruler-x">
+          <span class="crop-ruler-tick tick-0">0%</span>
+          <span class="crop-ruler-tick tick-25">25%</span>
+          <span class="crop-ruler-tick tick-50">50%</span>
+          <span class="crop-ruler-tick tick-75">75%</span>
+          <span class="crop-ruler-tick tick-100">100%</span>
         </div>
         <div class="d-flex">
           <!-- Ruler kiri (sumbu Y) -->
-          <div id="crop-ruler-y" style="width:20px;position:relative;background:#f8f9fa;border:1px solid #dee2e6;border-right:none;font-size:10px;color:#6c757d;writing-mode:vertical-rl;text-orientation:mixed;overflow:hidden;">
-            <span style="position:absolute;top:0;">0%</span>
-            <span style="position:absolute;top:25%;transform:translateY(-50%)">25%</span>
-            <span style="position:absolute;top:50%;transform:translateY(-50%)">50%</span>
-            <span style="position:absolute;top:75%;transform:translateY(-50%)">75%</span>
-            <span style="position:absolute;bottom:0;">100%</span>
+          <div id="crop-ruler-y">
+            <span class="crop-ruler-tick tick-0">0%</span>
+            <span class="crop-ruler-tick tick-25">25%</span>
+            <span class="crop-ruler-tick tick-50">50%</span>
+            <span class="crop-ruler-tick tick-75">75%</span>
+            <span class="crop-ruler-tick tick-100">100%</span>
           </div>
           <!-- Wrapper thumbnail + crop box -->
-          <div id="crop-thumb-wrapper" class="position-relative" style="border:1px solid #dee2e6;overflow:hidden;cursor:crosshair;user-select:none;min-height:225px;">
-            <img id="crop-thumb-img" src="" alt="thumbnail" style="display:none;max-width:100%;width:100%;height:auto;">
+          <div id="crop-thumb-wrapper" class="position-relative">
+            <img id="crop-thumb-img" src="" alt="thumbnail" style="display:none;">
             <div id="crop-thumb-loading" class="d-flex align-items-center justify-content-center bg-secondary text-white position-absolute top-0 start-0 w-100 h-100">
               <span>{{ t("candDetail.cropFrameLoadingThumb") }}</span>
             </div>
             <!-- Crop box overlay -->
-            <div id="crop-box" style="
-              display:none;
-              position:absolute;
-              border:2px solid #0d6efd;
-              box-shadow:0 0 0 9999px rgba(0,0,0,0.35);
-              cursor:move;
-              box-sizing:border-box;
-            ">
+            <div id="crop-box" style="display:none;">
               <!-- 8 resize handle: sudut + tengah tepi -->
-              <div class="crop-handle" data-dir="nw" style="position:absolute;width:10px;height:10px;background:#0d6efd;top:-5px;left:-5px;cursor:nw-resize;"></div>
-              <div class="crop-handle" data-dir="n"  style="position:absolute;width:10px;height:10px;background:#0d6efd;top:-5px;left:50%;margin-left:-5px;cursor:n-resize;"></div>
-              <div class="crop-handle" data-dir="ne" style="position:absolute;width:10px;height:10px;background:#0d6efd;top:-5px;right:-5px;cursor:ne-resize;"></div>
-              <div class="crop-handle" data-dir="e"  style="position:absolute;width:10px;height:10px;background:#0d6efd;top:50%;margin-top:-5px;right:-5px;cursor:e-resize;"></div>
-              <div class="crop-handle" data-dir="se" style="position:absolute;width:10px;height:10px;background:#0d6efd;bottom:-5px;right:-5px;cursor:se-resize;"></div>
-              <div class="crop-handle" data-dir="s"  style="position:absolute;width:10px;height:10px;background:#0d6efd;bottom:-5px;left:50%;margin-left:-5px;cursor:s-resize;"></div>
-              <div class="crop-handle" data-dir="sw" style="position:absolute;width:10px;height:10px;background:#0d6efd;bottom:-5px;left:-5px;cursor:sw-resize;"></div>
-              <div class="crop-handle" data-dir="w"  style="position:absolute;width:10px;height:10px;background:#0d6efd;top:50%;margin-top:-5px;left:-5px;cursor:w-resize;"></div>
+              <div class="crop-handle" data-dir="nw"></div>
+              <div class="crop-handle" data-dir="n"></div>
+              <div class="crop-handle" data-dir="ne"></div>
+              <div class="crop-handle" data-dir="e"></div>
+              <div class="crop-handle" data-dir="se"></div>
+              <div class="crop-handle" data-dir="s"></div>
+              <div class="crop-handle" data-dir="sw"></div>
+              <div class="crop-handle" data-dir="w"></div>
             </div>
           </div>
         </div>
@@ -271,23 +196,23 @@
       <!-- Readout angka real-time -->
       <div class="mt-3 row g-2" id="crop-readout">
         <div class="col-6 col-md-3">
-          <label class="form-label small">{{ t("candDetail.cropFrameX") }}</label>
+          <label class="form-label small text-muted">{{ t("candDetail.cropFrameX") }}</label>
           <input type="number" id="crop-input-x" class="form-control form-control-sm" value="0" min="0" oninput="onCropInputChange()">
         </div>
         <div class="col-6 col-md-3">
-          <label class="form-label small">{{ t("candDetail.cropFrameY") }}</label>
+          <label class="form-label small text-muted">{{ t("candDetail.cropFrameY") }}</label>
           <input type="number" id="crop-input-y" class="form-control form-control-sm" value="0" min="0" oninput="onCropInputChange()">
         </div>
         <div class="col-6 col-md-3">
-          <label class="form-label small">{{ t("candDetail.cropFrameW") }}</label>
+          <label class="form-label small text-muted">{{ t("candDetail.cropFrameW") }}</label>
           <input type="number" id="crop-input-w" class="form-control form-control-sm" value="0" min="1" oninput="onCropInputChange()">
         </div>
         <div class="col-6 col-md-3">
-          <label class="form-label small">{{ t("candDetail.cropFrameH") }}</label>
+          <label class="form-label small text-muted">{{ t("candDetail.cropFrameH") }}</label>
           <input type="number" id="crop-input-h" class="form-control form-control-sm" value="0" min="1" oninput="onCropInputChange()">
         </div>
       </div>
-      <p class="text-muted small mt-1">{{ t("candDetail.cropFrameNote") }}</p>
+      <p class="text-muted small mt-2">{{ t("candDetail.cropFrameNote") }}</p>
 
       <!-- Tombol apply -->
       <form id="crop-frame-form" onsubmit="return submitCropFrame(event, {{ clip.id }})">
@@ -295,123 +220,118 @@
         <input type="hidden" name="y" id="crop-form-y">
         <input type="hidden" name="width"  id="crop-form-w">
         <input type="hidden" name="height" id="crop-form-h">
-        <button type="submit" class="btn btn-sm btn-primary mt-2" id="crop-apply-btn">{{ t("candDetail.cropFrameApply") }}</button>
+        <button type="submit" class="btn btn-sm btn-primary mt-2" id="crop-apply-btn"><i class="bi bi-aspect-ratio me-1"></i>{{ t("candDetail.cropFrameApply") }}</button>
       </form>
     </div>
 
     <!-- Tab Sound -->
-    <div class="tab-pane fade" id="tab-sound">
+    <div class="tab-pane fade p-2" id="tab-sound">
       <!-- Edit Volume Saja -->
-      <div class="mb-3 pb-3 border-bottom">
-        <p class="small fw-semibold mb-2">{{ t("candDetail.volumeTitle") }}</p>
+      <div class="mb-4 pb-3 border-bottom border-secondary-subtle border-opacity-25">
+        <div class="section-label mb-2">{{ t("candDetail.volumeTitle") }}</div>
         <form onsubmit="return submitEditForm(event, '/clips/{{ clip.id }}/edit/volume')">
-          <div class="row g-2 align-items-center mb-2">
+          <div class="row g-2 align-items-center mb-3">
             <div class="col">
-              <label class="form-label small">{{ t("candDetail.volume") }}</label>
+              <label class="form-label small text-muted">{{ t("candDetail.volume") }}</label>
               <input type="range" name="video_volume" class="form-range" min="0" max="2" step="0.1" value="1"
                 oninput="this.nextElementSibling.textContent = parseFloat(this.value).toFixed(1)">
               <small class="text-muted">1.0</small>
             </div>
           </div>
-          <button type="submit" class="btn btn-sm btn-outline-primary">{{ t("candDetail.applyVolume") }}</button>
+          <button type="submit" class="btn btn-sm btn-outline-primary"><i class="bi bi-volume-up me-1"></i>{{ t("candDetail.applyVolume") }}</button>
         </form>
       </div>
-      <!-- {{ t("candDetail.addAudio") }} -->
-      <p class="small fw-semibold mb-2">{{ t("candDetail.addAudio") }}</p>
+      <!-- Add Audio -->
+      <div class="section-label mb-2">{{ t("candDetail.addAudio") }}</div>
       <form onsubmit="return submitEditFormFile(event, '/clips/{{ clip.id }}/edit/sound')" enctype="multipart/form-data">
-        <div class="mb-2">
-          <label class="form-label small">{{ t("candDetail.audioFile") }}</label>
+        <div class="mb-3">
+          <label class="form-label small text-muted">{{ t("candDetail.audioFile") }}</label>
           <input type="file" name="audio_file" accept="audio/*" class="form-control form-control-sm" required>
         </div>
-        <div class="row g-2 mb-2">
-          <div class="col">
-            <label class="form-label small">{{ t("candDetail.audioStart") }}</label>
+        <div class="row g-2 mb-3">
+          <div class="col-sm-6">
+            <label class="form-label small text-muted">{{ t("candDetail.audioStart") }}</label>
             <input type="number" name="audio_start" class="form-control form-control-sm" value="0" min="0" step="0.1">
           </div>
         </div>
-        <div class="row g-2 mb-2">
-          <div class="col">
-            <label class="form-label small">{{ t("candDetail.volOrig") }}</label>
+        <div class="row g-3 mb-3">
+          <div class="col-md-4">
+            <label class="form-label small text-muted">{{ t("candDetail.volOrig") }}</label>
             <input type="range" name="video_volume" class="form-range" min="0" max="2" step="0.1" value="1"
               oninput="this.nextElementSibling.textContent = parseFloat(this.value).toFixed(1)">
             <small class="text-muted">1.0</small>
           </div>
-          <div class="col">
-            <label class="form-label small">{{ t("candDetail.volOrigDuring") }}</label>
+          <div class="col-md-4">
+            <label class="form-label small text-muted">{{ t("candDetail.volOrigDuring") }}</label>
             <input type="range" name="duck_volume" class="form-range" min="0" max="2" step="0.1" value="0.3"
               oninput="this.nextElementSibling.textContent = parseFloat(this.value).toFixed(1)">
             <small class="text-muted">0.3</small>
           </div>
-          <div class="col">
-            <label class="form-label small">{{ t("candDetail.volExtra") }}</label>
+          <div class="col-md-4">
+            <label class="form-label small text-muted">{{ t("candDetail.volExtra") }}</label>
             <input type="range" name="audio_volume" class="form-range" min="0" max="2" step="0.1" value="1"
               oninput="this.nextElementSibling.textContent = parseFloat(this.value).toFixed(1)">
             <small class="text-muted">1.0</small>
           </div>
         </div>
-        <button type="submit" class="btn btn-sm btn-primary">{{ t("candDetail.addAudio") }}</button>
+        <button type="submit" class="btn btn-sm btn-primary"><i class="bi bi-music-note-beamed me-1"></i>{{ t("candDetail.addAudio") }}</button>
       </form>
     </div>
 
     <!-- Tab Watermark -->
-    <div class="tab-pane fade" id="tab-watermark">
-      <div class="mb-3 pb-3 border-bottom">
-        <p class="small fw-semibold mb-1">{{ t("candDetail.uploadWatermark") }}</p>
-        <p class="text-muted small">{{ t("candDetail.uploadWatermarkDesc") }}</p>
+    <div class="tab-pane fade p-2" id="tab-watermark">
+      <div class="mb-4 pb-3 border-bottom border-secondary-subtle border-opacity-25">
+        <div class="section-label mb-1">{{ t("candDetail.uploadWatermark") }}</div>
+        <p class="text-muted small mb-2">{{ t("candDetail.uploadWatermarkDesc") }}</p>
         <div class="d-flex gap-2 align-items-center">
           <input type="file" id="wm-file" accept=".png,image/png" class="form-control form-control-sm w-auto">
-          <button type="button" class="btn btn-sm btn-outline-dark" onclick="uploadWatermark(this)">Upload</button>
+          <button type="button" class="btn btn-sm btn-outline-light" onclick="uploadWatermark(this)"><i class="bi bi-upload me-1"></i>Upload</button>
         </div>
-        <small id="wm-upload-status" class="text-muted"></small>
+        <small id="wm-upload-status" class="text-muted mt-1 d-block"></small>
       </div>
-      <p class="text-muted small">{{ t("candDetail.watermarkDesc") }}</p>
-      <p class="text-muted small mb-2">{{ t("candDetail.watermarkDragHint") }}</p>
 
-      <!-- Drag stage: preview video + watermark overlay draggable.
-           "Wrapper baru khusus tab watermark" (video source sama dengan
-           preview, bukan re-render FFmpeg — lihat prompt). -->
-      <div id="wm-drag-stage" class="position-relative d-inline-block mb-2" style="max-width:100%;">
+      <div class="section-label mb-1">{{ t("candDetail.watermark") }} Position & Scaling</div>
+      <p class="text-muted small mb-1">{{ t("candDetail.watermarkDesc") }}</p>
+      <p class="text-muted small mb-3">{{ t("candDetail.watermarkDragHint") }}</p>
+
+      <!-- Drag stage -->
+      <div id="wm-drag-stage" class="position-relative d-inline-block mb-3">
         <img id="wm-preview-img" class="w-100 rounded" alt="preview clip"
-             src="/clips/{{ clip.id }}/thumbnail?v={{ ts|default(0) }}"
-             style="max-height:420px;width:100%;height:auto;display:block;">
+             src="/clips/{{ clip.id }}/thumbnail?v={{ ts|default(0) }}">
         <img id="wm-drag-handle" src="/data/assets/watermark_visible.png?v={{ ts|default(0) }}"
-             alt="watermark"
-             style="position:absolute; cursor:move; touch-action:none; z-index:5;
-                    pointer-events:auto; display:none; user-select:none;">
-        <div id="wm-resize-handle"
-             style="position:absolute; width:14px; height:14px; border-radius:50%;
-                    background:#fff; border:2px solid #0d6efd; cursor:nwse-resize;
-                    z-index:6; pointer-events:auto; display:none;"></div>
+             alt="watermark" style="display:none;">
+        <div id="wm-resize-handle" style="display:none;"></div>
       </div>
 
       <form onsubmit="return submitEditForm(event, '/clips/{{ clip.id }}/edit/watermark')">
         <input type="hidden" name="x_pct" id="wm-x-pct">
         <input type="hidden" name="y_pct" id="wm-y-pct">
-        <div class="row g-2 mb-2">
-          <div class="col">
-            <label class="form-label small">{{ t("candDetail.watermarkSize") }}</label>
+        <div class="row g-3 mb-3">
+          <div class="col-sm-6">
+            <label class="form-label small text-muted">{{ t("candDetail.watermarkSize") }}</label>
             <input type="range" name="scale" id="wm-scale" class="form-range" min="0.05" max="0.5" step="0.01" value="0.3"
               oninput="wmScaleChange(this)">
             <small class="text-muted">30%</small>
           </div>
-          <div class="col">
-            <label class="form-label small">{{ t("candDetail.watermarkOpacity") }}</label>
+          <div class="col-sm-6">
+            <label class="form-label small text-muted">{{ t("candDetail.watermarkOpacity") }}</label>
             <input type="range" name="opacity" id="wm-opacity" class="form-range" min="0.1" max="1" step="0.05" value="0.8"
               oninput="this.nextElementSibling.textContent = (parseFloat(this.value)*100).toFixed(0) + '%'">
             <small class="text-muted">80%</small>
           </div>
         </div>
-        <button type="submit" class="btn btn-sm btn-primary">{{ t("candDetail.applyWatermark") }}</button>
+        <button type="submit" class="btn btn-sm btn-primary"><i class="bi bi-check-lg me-1"></i>{{ t("candDetail.applyWatermark") }}</button>
       </form>
     </div>
 
     <!-- Tab Hook -->
-    <div class="tab-pane fade" id="tab-hook">
+    <div class="tab-pane fade p-2" id="tab-hook">
+      <div class="section-label mb-2">AI Hook Moment</div>
       <div id="hook-llm-status" class="mb-3">
         <small class="text-muted">{{ t("candDetail.hookLlmLoading") }}</small>
       </div>
       {% if candidate.hook_moment_start is not none %}
-        <div class="mb-2">
+        <div class="mb-3 d-flex flex-wrap gap-1 align-items-center">
           <span class="badge bg-primary">{{ candidate.hook_type or 'hook' }}</span>
           {% if candidate.hook_confidence %}
           <span class="badge bg-secondary ms-1">
@@ -424,15 +344,14 @@
           <span class="badge bg-warning text-dark ms-1">{{ t("candDetail.hookSkipped") }}: {{ clip.hook_skip_reason }}</span>
           {% endif %}
         </div>
-        <div class="mb-2">
-          <label class="form-label small fw-semibold mb-1">{{ t("candDetail.hookCaption") }}</label>
+        <div class="mb-3">
+          <label class="form-label small fw-semibold mb-1 text-muted">{{ t("candDetail.hookCaption") }}</label>
           <div class="input-group input-group-sm">
             <textarea
               id="hook-caption-input-{{ candidate.id }}"
-              class="form-control form-control-sm"
+              class="form-control form-control-sm hook-caption-input"
               rows="2"
               maxlength="120"
-              style="resize:vertical;"
               placeholder="Teks caption overlay hook..."
             >{{ candidate.hook_caption or '' }}</textarea>
             <button
@@ -444,10 +363,10 @@
             </button>
           </div>
           <div id="hook-caption-status-{{ candidate.id }}" class="mt-1"></div>
-          <small class="text-muted">Setelah simpan, klik <strong>Generate Ulang Hook</strong> untuk re-render video dengan teks baru.</small>
+          <small class="text-muted d-block mt-1">Setelah simpan, klik <strong>Generate Ulang Hook</strong> untuk re-render video dengan teks baru.</small>
         </div>
         <p class="text-muted small mb-0">
-          {{ t("candDetail.hookMoment") }}:
+          <i class="bi bi-clock me-1"></i>{{ t("candDetail.hookMoment") }}:
           {{ '%.1f'|format(candidate.hook_moment_start) }}s
           – {{ '%.1f'|format(candidate.hook_moment_end) }}s
         </p>
@@ -502,42 +421,148 @@
   </button>
 </div>
 {% endif %}
-
-{% if clip %}
-<div class="card shadow-sm p-4 mt-3">
-  <h5>{{ t("candDetail.subtitle") }}</h5>
-  <div class="row g-2 align-items-end">
-    <div class="col-auto">
-      <label class="form-label">{{ t("candDetail.format") }}</label>
-      <select class="form-select" id="subFormat">
-        <option value="srt">{{ t("candDetail.srt") }}</option>
-        <option value="vtt">{{ t("candDetail.vtt") }}</option>
-      </select>
-    </div>
-    <div class="col-auto">
-      <label class="form-label">Style</label>
-      <select class="form-select" id="subStyle">
-        <option value="minimal">{{ t("candDetail.minimal") }}</option>
-        <option value="tiktok">{{ t("candDetail.tiktok") }}</option>
-        <option value="youtube">{{ t("candDetail.youtube") }}</option>
-      </select>
-    </div>
-    <div class="col-auto">
-      <label class="form-label">{{ t("candDetail.langLabel") }}</label>
-      <select class="form-select" id="subLanguage">
-        <option value="id">Indonesia</option>
-        <option value="en">English</option>
-      </select>
-    </div>
-    <div class="col-auto">
-      <button class="btn btn-dark" onclick="generateSubtitle(this, {{ clip.id }})">
-        {{ t("candDetail.genSub") }}
-      </button>
-    </div>
   </div>
-  <div id="subtitleResult" class="mt-3"></div>
+
+  <!-- Kolom Kanan: Render Clip & Subtitle -->
+  <aside class="detail-side">
+    <div class="panel card shadow-sm p-4">
+      <div class="d-flex align-items-center gap-2 mb-1">
+        <i class="bi bi-film text-danger fs-5"></i>
+        <h5 class="mb-0">{{ t("candDetail.renderClip") }}</h5>
+      </div>
+      <p class="text-muted small mb-3">Buat atau kelola file klip video dari kandidat ini.</p>
+
+      {% if clip %}
+      {% set clip_show_path = (clip.edited_file_path or clip.file_path).replace('\\', '/') %}
+      <div class="alert alert-success d-flex align-items-center justify-content-between p-3 mb-0">
+        <div class="d-flex align-items-center gap-2">
+          <i class="bi bi-check-circle-fill text-success fs-5"></i>
+          <div>
+            <div class="fw-semibold text-white">Clip sudah dibuat</div>
+            <div class="text-white-50 text-xsmall">{{ clip_show_path.split('/')[-1] }}</div>
+          </div>
+        </div>
+        <a target="_blank" href="/data/outputs/{{ clip_show_path.split('data/outputs/')[-1] }}?v={{ cachebust(clip_show_path) }}" class="btn btn-sm btn-outline-success">
+          <i class="bi bi-box-arrow-up-right me-1"></i>{{ t("candDetail.openClip") }}
+        </a>
+      </div>
+      {% else %}
+      <div id="clip-action">
+        <button class="btn btn-primary w-100 py-2 fw-semibold" id="generateClipBtn" onclick="doGenerateClip(this, {{ candidate.id }})">
+          <i class="bi bi-play-circle-fill me-2"></i>Generate Clip
+        </button>
+      </div>
+      {% endif %}
+
+      {% if clip %}
+      <div class="mt-4 pt-3 border-top border-secondary-subtle border-opacity-25">
+        <div class="section-label mb-2"><i class="bi bi-tiktok me-1"></i>TikTok Publisher</div>
+        {% if clip.tiktok_uploaded %}
+        <span class="badge bg-info text-dark mb-2 d-inline-block" title="Klip sudah dikirim ke inbox TikTok">TikTok ✓ Sudah di-upload</span>
+        {% endif %}
+        <button class="btn btn-light text-dark fw-semibold w-100 d-flex align-items-center justify-content-center gap-2" id="tiktokPublishBtn" onclick="publishToTikTok({{ clip.id }})">
+          <i class="bi bi-tiktok"></i> Upload ke TikTok (Draft/Private)
+        </button>
+        <div id="tiktok-publish-status" class="mt-2"></div>
+      </div>
+
+      <div class="mt-3 p-3 border rounded shadow-sm" id="instagramPublishCard">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <div class="d-flex align-items-center gap-2">
+            <i class="bi bi-instagram text-danger"></i>
+            <h6 class="mb-0 fw-bold">Instagram Reels</h6>
+          </div>
+          <div id="ig-published-badge-container">
+            {% if clip.instagram_published %}
+            <span class="badge bg-danger" title="{{ t('instagram.badge_title') }}">{{ t("instagram.publishedBadge") }}</span>
+            {% endif %}
+          </div>
+        </div>
+        {% if clip.instagram_published %}
+        <div class="alert alert-warning py-1 px-2 small mb-2" id="ig-repost-alert">
+          ⚠ {{ t("instagram.repostWarning") }}
+        </div>
+        {% endif %}
+
+        <div class="mb-2">
+          <label for="igCaption" class="form-label small text-muted mb-1">Caption & Hashtags</label>
+          <textarea id="igCaption" class="form-control form-control-sm" rows="3" maxlength="2200" placeholder="{{ t('instagram.captionPlaceholder') }}"></textarea>
+          <div class="d-flex justify-content-between small text-muted mt-1 text-xsmall">
+            <span id="ig-char-count">0 / 2200 {{ t("instagram.charCount") }}</span>
+            <span id="ig-tag-count">0 / 30 {{ t("instagram.hashtagCount") }}</span>
+          </div>
+        </div>
+
+        <div class="mb-2">
+          <label for="igFitMode" class="form-label small text-muted mb-1">{{ t("instagram.fit_label") }}</label>
+          <select id="igFitMode" class="form-select form-select-sm">
+            <option value="pad" selected>{{ t("instagram.fit_pad") }}</option>
+            <option value="blur">{{ t("instagram.fit_blur") }}</option>
+            <option value="off">{{ t("instagram.fit_off") }}</option>
+          </select>
+          <small id="ig-fit-note" class="text-muted ig-fit-note">
+            {{ t("instagram.fit_note") }}
+          </small>
+        </div>
+
+        <div class="form-check form-switch mb-3">
+          <input class="form-check-input" type="checkbox" id="igShareToFeed" checked>
+          <label class="form-check-label small" for="igShareToFeed">{{ t("instagram.shareToFeed") }}</label>
+        </div>
+
+        <div class="d-flex flex-column gap-1">
+          <button class="btn btn-instagram btn-sm w-100 py-2" id="instagramPublishBtn" onclick="publishToInstagram({{ clip.id }})" {% if clip.instagram_published %}data-repost="1"{% endif %}>
+            <i class="bi bi-send-fill me-1"></i>{{ t("instagram.publishBtn") }}
+          </button>
+          <small id="ig-token-status-hint" class="text-muted text-xsmall"></small>
+        </div>
+
+        <div id="instagram-publish-status" class="mt-2"></div>
+      </div>
+      {% endif %}
+    </div>
+
+    {% if clip %}
+    <div class="panel card shadow-sm p-4 mt-3">
+      <div class="d-flex align-items-center gap-2 mb-1">
+        <i class="bi bi-chat-square-text text-danger fs-5"></i>
+        <h5 class="mb-0">{{ t("candDetail.subtitle") }}</h5>
+      </div>
+      <p class="text-muted small mb-3">Generate dan pasang subtitle otomatis pada klip.</p>
+      <div class="row g-2 align-items-end">
+        <div class="col-6 col-sm-auto">
+          <label class="form-label small text-muted">{{ t("candDetail.format") }}</label>
+          <select class="form-select form-select-sm" id="subFormat">
+            <option value="srt">{{ t("candDetail.srt") }}</option>
+            <option value="vtt">{{ t("candDetail.vtt") }}</option>
+          </select>
+        </div>
+        <div class="col-6 col-sm-auto">
+          <label class="form-label small text-muted">Style</label>
+          <select class="form-select form-select-sm" id="subStyle">
+            <option value="minimal">{{ t("candDetail.minimal") }}</option>
+            <option value="tiktok">{{ t("candDetail.tiktok") }}</option>
+            <option value="youtube">{{ t("candDetail.youtube") }}</option>
+          </select>
+        </div>
+        <div class="col-12 col-sm-auto">
+          <label class="form-label small text-muted">{{ t("candDetail.langLabel") }}</label>
+          <select class="form-select form-select-sm" id="subLanguage">
+            <option value="id">Indonesia</option>
+            <option value="en">English</option>
+          </select>
+        </div>
+        <div class="col-12 col-sm-auto">
+          <button class="btn btn-primary btn-sm w-100" onclick="generateSubtitle(this, {{ clip.id }})">
+            <i class="bi bi-magic me-1"></i>{{ t("candDetail.genSub") }}
+          </button>
+        </div>
+      </div>
+      <div id="subtitleResult" class="mt-3"></div>
+    </div>
+    {% endif %}
+  </aside>
 </div>
-{% endif %}
 
 <script>
 async function submitEditForm(event, url) {

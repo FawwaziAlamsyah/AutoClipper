@@ -56,6 +56,13 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "settings.testConnection": "Test Model Connection",
 
         # Dashboard
+        "ui.dash.eyebrow": "Auto Clipper",
+        "ui.dash.heroTitle": "Turn long videos into viral clips.",
+        "ui.dash.heroDesc": "Upload or download videos, let the AI pipeline select the best moments, and share to TikTok and Instagram in one click.",
+        "ui.dash.uploadCta": "Upload / Download Video",
+        "ui.dash.settingsCta": "Settings",
+        "ui.dash.candidatesCta": "View Candidates",
+        "ui.dash.emptyStats": "No video data available yet. Start by uploading or downloading your first video.",
         "dash.totalVideos": "Total Videos",
         "dash.jobsCompleted": "Jobs Completed",
         "dash.clipsGenerated": "Clips Generated",
@@ -72,6 +79,12 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "dash.statusError": "Halaman dashboard gagal dimuat.",
 
         # Upload
+        "ui.upload.dropzoneTitle": "Drag & drop video here",
+        "ui.upload.dropzoneDesc": "or click to browse from computer",
+        "ui.upload.urlTabDesc": "Auto download from YouTube, TikTok, etc.",
+        "ui.upload.connectTitle": "Account Integrations",
+        "ui.job.stepperTitle": "Pipeline Steps",
+        "ui.job.liveProgress": "Live Processing",
         "upload.title": "Upload / Download Video",
         "upload.uploadTab": "Upload File Video",
         "upload.uploadDesc": "Pilih file video lokal dari komputer Anda.",
@@ -132,6 +145,12 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "upload.categoryTrained": "✓ Kategori ini sudah dilatih — akan pakai model terlatih.",
 
         # Candidates list
+        "ui.cand.videoTitle": "Your Videos",
+        "ui.cand.videoSubtitle": "Select a video to browse generated viral candidates.",
+        "ui.cand.viewCandidates": "View Candidates",
+        "ui.cand.allVideos": "All Videos",
+        "ui.cand.noCandidates": "No candidates generated yet for this video.",
+        "ui.cand.backToVideos": "Back to videos",
         "cand.title": "Candidate Clips",
         "cand.empty": "Belum ada candidates.",
         "cand.click": "Klik",
@@ -144,15 +163,6 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "cand.archived_empty": "Belum ada video yang diarsipkan.",
 
         # Candidate detail / edit
-        "candDetail.scoreBreakdown": "Score Breakdown",
-        "candDetail.scoreDesc": "Kontribusi tiap analyzer ke final score (bobot × skor).",
-        "candDetail.analyzer": "Analyzer",
-        "candDetail.score": "Score",
-        "candDetail.weight": "Bobot",
-        "candDetail.contribution": "Kontribusi",
-        "candDetail.reason": "Alasan",
-        "candDetail.noBreakdown": "Belum ada breakdown score.",
-        "candDetail.previewJson": "Preview JSON",
         "candDetail.renderClip": "Edit Video",
         "candDetail.openClip": "Open Clip",
         "candDetail.editClip": "Edit Clip (Opsional, Sebelum Upload)",
@@ -384,6 +394,27 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
     },
     # Indonesia. Missing key fallback ke en (lihat make_translator).
     "id": {
+        # Dashboard
+        "ui.dash.eyebrow": "Auto Clipper",
+        "ui.dash.heroTitle": "Ubah video panjang jadi klip yang viral.",
+        "ui.dash.heroDesc": "Upload atau unduh video, biarkan pipeline AI memilih momen terbaik, lalu kirim ke TikTok dan Instagram dalam satu klik.",
+        "ui.dash.uploadCta": "Upload / Download Video",
+        "ui.dash.settingsCta": "Pengaturan",
+        "ui.dash.candidatesCta": "Lihat Candidates",
+        "ui.dash.emptyStats": "Belum ada data video. Mulai dengan mengunggah atau mengunduh video pertama Anda.",
+        "ui.upload.dropzoneTitle": "Tarik video ke sini",
+        "ui.upload.dropzoneDesc": "atau klik untuk memilih file dari komputer",
+        "ui.upload.urlTabDesc": "Unduh otomatis dari link YouTube, TikTok, dll.",
+        "ui.upload.connectTitle": "Status Integrasi Akun",
+        "ui.job.stepperTitle": "Langkah Pipeline",
+        "ui.job.liveProgress": "Proses Berjalan",
+        "ui.cand.videoTitle": "Video Anda",
+        "ui.cand.videoSubtitle": "Pilih video untuk melihat candidates klip yang dihasilkan.",
+        "ui.cand.viewCandidates": "Lihat Candidates",
+        "ui.cand.allVideos": "Semua Video",
+        "ui.cand.noCandidates": "Belum ada candidates untuk video ini.",
+        "ui.cand.backToVideos": "Kembali ke daftar video",
+
         # Instagram Publishing & Status
         "instagram.publishBtn": "📸 Kirim ke Instagram (Reels)",
         "instagram.publishedBadge": "Instagram ✓ Sudah dipublish",

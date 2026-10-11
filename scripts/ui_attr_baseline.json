@@ -1,0 +1,1235 @@
+{
+  "_active_jobs_widget.html": {
+    "ids": [
+      "global-widgets"
+    ],
+    "names": [],
+    "fors": [],
+    "hx_attrs": [
+      "hx-get:/jobs/{{ job.id }}/ui",
+      "hx-push-url:true",
+      "hx-target:#main-content"
+    ],
+    "on_attrs": [],
+    "data_attrs": [],
+    "urls": [
+      "href:/jobs/{{ job.id }}/ui"
+    ],
+    "jinja_tags": [],
+    "t_keys": [
+      "widget.viewDetails"
+    ],
+    "script_hashes": []
+  },
+  "_candidate_row.html": {
+    "ids": [
+      "like-status-{{ candidate.id }}",
+      "row-{{ candidate.id }}",
+      "{{ candidate.id }}"
+    ],
+    "names": [],
+    "fors": [],
+    "hx_attrs": [
+      "hx-get:/candidates/{{ candidate.id }}",
+      "hx-push-url:true",
+      "hx-target:#main-content"
+    ],
+    "on_attrs": [
+      "onclick:deleteCandidate(this, parseInt(this.dataset.candidateId))"
+    ],
+    "data_attrs": [
+      "data-candidate-id:{{ candidate.id }}"
+    ],
+    "urls": [
+      "href:/candidates/{{ candidate.id }}",
+      "src:/data/outputs/{{ candidate.clip_show_path.split(",
+      "src:/preview/candidates/{{ candidate.id }}/clip"
+    ],
+    "jinja_tags": [
+      "{% include \"_rating_control.html\" %}"
+    ],
+    "t_keys": [
+      "instagram.badge_title",
+      "widget.delete",
+      "widget.detail"
+    ],
+    "script_hashes": []
+  },
+  "_clip_edit_preview.html": {
+    "ids": [
+      "clip-edit-preview"
+    ],
+    "names": [],
+    "fors": [],
+    "hx_attrs": [],
+    "on_attrs": [],
+    "data_attrs": [],
+    "urls": [
+      "src:/data/outputs/{{ preview_path }}?v={{ cachebust(raw_path) }}"
+    ],
+    "jinja_tags": [],
+    "t_keys": [
+      "widget.edited"
+    ],
+    "script_hashes": []
+  },
+  "_clip_result.html": {
+    "ids": [
+      "subtitleResult"
+    ],
+    "names": [
+      "format",
+      "language",
+      "style"
+    ],
+    "fors": [],
+    "hx_attrs": [
+      "hx-post:/subtitle/clips/{{ clip.id }}",
+      "hx-swap:innerHTML",
+      "hx-target:#subtitleResult"
+    ],
+    "on_attrs": [],
+    "data_attrs": [],
+    "urls": [
+      "href:/data/outputs/{{ show_url }}?v={{ cachebust(show) }}"
+    ],
+    "jinja_tags": [],
+    "t_keys": [
+      "candDetail.format",
+      "candDetail.genSub",
+      "candDetail.langLabel",
+      "candDetail.minimal",
+      "candDetail.srt",
+      "candDetail.style",
+      "candDetail.subtitle",
+      "candDetail.tiktok",
+      "candDetail.vtt",
+      "candDetail.youtube",
+      "upload.english",
+      "upload.indonesia",
+      "widget.openClip"
+    ],
+    "script_hashes": []
+  },
+  "_import_progress.html": {
+    "ids": [
+      "{{ import_id }}"
+    ],
+    "names": [],
+    "fors": [],
+    "hx_attrs": [],
+    "on_attrs": [],
+    "data_attrs": [
+      "data-import-id:{{ import_id }}",
+      "data-status:{{ status }}"
+    ],
+    "urls": [
+      "href:/candidates"
+    ],
+    "jinja_tags": [],
+    "t_keys": [
+      "import.candidatesPage",
+      "import.done",
+      "import.failed",
+      "import.finished",
+      "import.progressTitle",
+      "import.queued",
+      "import.running",
+      "import.total"
+    ],
+    "script_hashes": []
+  },
+  "_job_progress_fragment.html": {
+    "ids": [],
+    "names": [],
+    "fors": [],
+    "hx_attrs": [],
+    "on_attrs": [],
+    "data_attrs": [],
+    "urls": [],
+    "jinja_tags": [],
+    "t_keys": [],
+    "script_hashes": []
+  },
+  "_rating_control.html": {
+    "ids": [
+      "category-select-{{ candidate.id }}"
+    ],
+    "names": [],
+    "fors": [],
+    "hx_attrs": [
+      "hx-get:/training",
+      "hx-push-url:/?page=training",
+      "hx-target:#content-area"
+    ],
+    "on_attrs": [
+      "onclick:doRatingAction({{ candidate.id }},",
+      "onclick:submitCategorize({{ candidate.id }})"
+    ],
+    "data_attrs": [],
+    "urls": [
+      "href:/?page=training"
+    ],
+    "jinja_tags": [],
+    "t_keys": [
+      "rating.cancel",
+      "rating.goToTraining",
+      "rating.noCategoryHint",
+      "rating.tagCategory"
+    ],
+    "script_hashes": []
+  },
+  "_subtitle_form.html": {
+    "ids": [
+      "subtitleResult"
+    ],
+    "names": [
+      "format",
+      "language",
+      "style"
+    ],
+    "fors": [],
+    "hx_attrs": [
+      "hx-post:/subtitle/clips/{{ clip_id }}",
+      "hx-swap:innerHTML",
+      "hx-target:#subtitleResult"
+    ],
+    "on_attrs": [],
+    "data_attrs": [],
+    "urls": [],
+    "jinja_tags": [],
+    "t_keys": [
+      "candDetail.format",
+      "candDetail.genSub",
+      "candDetail.langLabel",
+      "candDetail.minimal",
+      "candDetail.srt",
+      "candDetail.style",
+      "candDetail.subtitle",
+      "candDetail.tiktok",
+      "candDetail.vtt",
+      "candDetail.youtube",
+      "upload.english",
+      "upload.indonesia"
+    ],
+    "script_hashes": []
+  },
+  "_subtitle_result.html": {
+    "ids": [],
+    "names": [],
+    "fors": [],
+    "hx_attrs": [],
+    "on_attrs": [],
+    "data_attrs": [],
+    "urls": [
+      "href:/data/outputs/{{ file_path.split("
+    ],
+    "jinja_tags": [],
+    "t_keys": [],
+    "script_hashes": []
+  },
+  "_train_result.html": {
+    "ids": [],
+    "names": [],
+    "fors": [],
+    "hx_attrs": [],
+    "on_attrs": [],
+    "data_attrs": [],
+    "urls": [],
+    "jinja_tags": [],
+    "t_keys": [
+      "train.samples",
+      "train.valMAE",
+      "train.valR2"
+    ],
+    "script_hashes": []
+  },
+  "_upload_status.html": {
+    "ids": [],
+    "names": [],
+    "fors": [],
+    "hx_attrs": [
+      "hx-get:/upload",
+      "hx-push-url:true",
+      "hx-target:#main-content"
+    ],
+    "on_attrs": [],
+    "data_attrs": [],
+    "urls": [
+      "href:/upload"
+    ],
+    "jinja_tags": [],
+    "t_keys": [
+      "widget.uploadStatus"
+    ],
+    "script_hashes": []
+  },
+  "base.html": {
+    "ids": [
+      "global-widgets",
+      "i18n",
+      "main-content",
+      "navbarNav"
+    ],
+    "names": [
+      "viewport"
+    ],
+    "fors": [],
+    "hx_attrs": [
+      "hx-get:/",
+      "hx-get:/candidates",
+      "hx-get:/jobs/active/status-widget",
+      "hx-get:/storage/dashboard",
+      "hx-get:/training/dashboard",
+      "hx-get:/upload",
+      "hx-push-url:true",
+      "hx-swap:outerHTML",
+      "hx-target:#main-content",
+      "hx-trigger:load, every 3s"
+    ],
+    "on_attrs": [],
+    "data_attrs": [
+      "data-bs-target:#navbarNav",
+      "data-bs-theme:{{ theme }}",
+      "data-bs-toggle:collapse"
+    ],
+    "urls": [
+      "href:/",
+      "href:/candidates",
+      "href:/privacy-policy",
+      "href:/static/css/style.css",
+      "href:/storage/dashboard",
+      "href:/terms-of-service",
+      "href:/training/dashboard",
+      "href:/upload"
+    ],
+    "jinja_tags": [
+      "{% block content %}",
+      "{% block scripts %}",
+      "{% block title %}",
+      "{% include _content_partial %}"
+    ],
+    "t_keys": [
+      "nav.candidates",
+      "nav.dashboard",
+      "nav.footerLegal",
+      "nav.footerTerms",
+      "nav.storage",
+      "nav.training",
+      "nav.upload"
+    ],
+    "script_hashes": [
+      "46dcc08e42d40d8c396dfc34d1abef2001e839433850d8804cdad2bb35e1bf3a",
+      "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    ]
+  },
+  "candidate_detail_content.html": {
+    "ids": [
+      "clip-action",
+      "clip-edit-preview-wrapper",
+      "crop-apply-btn",
+      "crop-box",
+      "crop-form-h",
+      "crop-form-w",
+      "crop-form-x",
+      "crop-form-y",
+      "crop-frame-form",
+      "crop-input-h",
+      "crop-input-w",
+      "crop-input-x",
+      "crop-input-y",
+      "crop-preview-area",
+      "crop-readout",
+      "crop-ruler-x",
+      "crop-ruler-y",
+      "crop-thumb-img",
+      "crop-thumb-loading",
+      "crop-thumb-wrapper",
+      "edit-progress-inner",
+      "edit-progress-label",
+      "generate-progress-inner",
+      "generate-progress-label",
+      "generateClipBtn",
+      "hook-caption-input-{{ candidate.id }}",
+      "hook-caption-status-{{ candidate.id }}",
+      "hook-llm-status",
+      "ig-char-count",
+      "ig-fit-note",
+      "ig-published-badge-container",
+      "ig-repost-alert",
+      "ig-tag-count",
+      "ig-token-status-hint",
+      "igCaption",
+      "igFitMode",
+      "igShareToFeed",
+      "instagram-publish-status",
+      "instagramPublishBtn",
+      "instagramPublishCard",
+      "subFormat",
+      "subLanguage",
+      "subStyle",
+      "subtitleResult",
+      "tab-crop-frame",
+      "tab-hook",
+      "tab-sound",
+      "tab-text",
+      "tab-trim",
+      "tab-watermark",
+      "tiktok-publish-status",
+      "tiktokPublishBtn",
+      "wm-drag-handle",
+      "wm-drag-stage",
+      "wm-file",
+      "wm-opacity",
+      "wm-preview-img",
+      "wm-resize-handle",
+      "wm-scale",
+      "wm-upload-status",
+      "wm-x-pct",
+      "wm-y-pct"
+    ],
+    "names": [
+      "audio_file",
+      "audio_start",
+      "audio_volume",
+      "color",
+      "duck_volume",
+      "end_time",
+      "font_size",
+      "height",
+      "opacity",
+      "position",
+      "scale",
+      "start_time",
+      "text",
+      "video_volume",
+      "width",
+      "x",
+      "x_pct",
+      "y",
+      "y_pct"
+    ],
+    "fors": [
+      "igCaption",
+      "igFitMode",
+      "igShareToFeed"
+    ],
+    "hx_attrs": [
+      "hx-get:/candidates/video/{{ video_id }}",
+      "hx-push-url:true",
+      "hx-target:#main-content"
+    ],
+    "on_attrs": [
+      "onclick:doGenerateClip(this, {{ candidate.id }})",
+      "onclick:generateSubtitle(this, {{ clip.id }})",
+      "onclick:initCropTab({{ clip.id }})",
+      "onclick:initWatermarkTab({{ clip.id }})",
+      "onclick:publishToInstagram({{ clip.id }})",
+      "onclick:publishToTikTok({{ clip.id }})",
+      "onclick:regenerateHook(this, {{ clip.id }})",
+      "onclick:resetClipEdit({{ clip.id }})",
+      "onclick:retryHookSearch(this, {{ clip.id }})",
+      "onclick:saveHookCaption(this, {{ candidate.id }})",
+      "onclick:setCropPreset(",
+      "onclick:uploadWatermark(this)",
+      "oninput:onCropInputChange()",
+      "oninput:this.nextElementSibling.textContent = (parseFloat(this.value)*100).toFixed(0) +",
+      "oninput:this.nextElementSibling.textContent = parseFloat(this.value).toFixed(1)",
+      "oninput:wmScaleChange(this)",
+      "onsubmit:return submitCropFrame(event, {{ clip.id }})",
+      "onsubmit:return submitEditForm(event,",
+      "onsubmit:return submitEditFormFile(event,"
+    ],
+    "data_attrs": [
+      "data-bs-target:#tab-crop-frame",
+      "data-bs-target:#tab-hook",
+      "data-bs-target:#tab-sound",
+      "data-bs-target:#tab-text",
+      "data-bs-target:#tab-trim",
+      "data-bs-target:#tab-watermark",
+      "data-bs-toggle:tab",
+      "data-dir:e",
+      "data-dir:n",
+      "data-dir:ne",
+      "data-dir:nw",
+      "data-dir:s",
+      "data-dir:se",
+      "data-dir:sw",
+      "data-dir:w",
+      "data-repost:1"
+    ],
+    "urls": [
+      "href:/candidates/video/{{ video_id }}",
+      "href:/data/outputs/{{ clip_show_path.split(",
+      "href:/preview/candidates/{{ candidate.id }}",
+      "src:/clips/{{ clip.id }}/thumbnail?v={{ ts|default(0) }}",
+      "src:/data/assets/watermark_visible.png?v={{ ts|default(0) }}"
+    ],
+    "jinja_tags": [
+      "{% include \"_clip_edit_preview.html\" %}"
+    ],
+    "t_keys": [
+      "candDetail.addAudio",
+      "candDetail.addText",
+      "candDetail.analyzer",
+      "candDetail.applyTrim",
+      "candDetail.applyVolume",
+      "candDetail.applyWatermark",
+      "candDetail.audioFile",
+      "candDetail.audioStart",
+      "candDetail.bottom",
+      "candDetail.contribution",
+      "candDetail.crop",
+      "candDetail.cropFrame",
+      "candDetail.cropFrameApply",
+      "candDetail.cropFrameDesc",
+      "candDetail.cropFrameH",
+      "candDetail.cropFrameLoadingThumb",
+      "candDetail.cropFrameNote",
+      "candDetail.cropFramePreset",
+      "candDetail.cropFramePreset11",
+      "candDetail.cropFramePreset169",
+      "candDetail.cropFramePreset916",
+      "candDetail.cropFramePresetFree",
+      "candDetail.cropFrameW",
+      "candDetail.cropFrameX",
+      "candDetail.cropFrameY",
+      "candDetail.editClip",
+      "candDetail.endSec",
+      "candDetail.error",
+      "candDetail.format",
+      "candDetail.genSub",
+      "candDetail.hookApplied",
+      "candDetail.hookCaption",
+      "candDetail.hookConfidence",
+      "candDetail.hookLlmLoading",
+      "candDetail.hookMoment",
+      "candDetail.hookNotFound",
+      "candDetail.hookSkipped",
+      "candDetail.hookTab",
+      "candDetail.langLabel",
+      "candDetail.middle",
+      "candDetail.minimal",
+      "candDetail.noBreakdown",
+      "candDetail.openClip",
+      "candDetail.previewJson",
+      "candDetail.processing",
+      "candDetail.reason",
+      "candDetail.renderClip",
+      "candDetail.retryHook",
+      "candDetail.score",
+      "candDetail.scoreBreakdown",
+      "candDetail.scoreDesc",
+      "candDetail.sound",
+      "candDetail.srt",
+      "candDetail.startSec",
+      "candDetail.subtitle",
+      "candDetail.text",
+      "candDetail.tiktok",
+      "candDetail.top",
+      "candDetail.trimDesc",
+      "candDetail.uploadWatermark",
+      "candDetail.uploadWatermarkDesc",
+      "candDetail.volExtra",
+      "candDetail.volOrig",
+      "candDetail.volOrigDuring",
+      "candDetail.volume",
+      "candDetail.volumeTitle",
+      "candDetail.vtt",
+      "candDetail.watermark",
+      "candDetail.watermarkDesc",
+      "candDetail.watermarkDragHint",
+      "candDetail.watermarkOpacity",
+      "candDetail.watermarkSize",
+      "candDetail.watermarkUploadFail",
+      "candDetail.watermarkUploaded",
+      "candDetail.weight",
+      "candDetail.youtube",
+      "instagram.badge_title",
+      "instagram.captionPlaceholder",
+      "instagram.charCount",
+      "instagram.confirmPrompt",
+      "instagram.confirmRepostPrompt",
+      "instagram.connected",
+      "instagram.fit_blur",
+      "instagram.fit_label",
+      "instagram.fit_note",
+      "instagram.fit_off",
+      "instagram.fit_pad",
+      "instagram.hashtagCount",
+      "instagram.needsReconnect",
+      "instagram.notConfigured",
+      "instagram.publishBtn",
+      "instagram.publishedBadge",
+      "instagram.repostWarning",
+      "instagram.shareToFeed",
+      "instagram.statusFailed",
+      "instagram.statusPreparing",
+      "instagram.statusProcessing",
+      "instagram.statusPublished",
+      "instagram.statusUnknown",
+      "instagram.statusUploading",
+      "instagram.tokenNotActive",
+      "instagram.viewOnInstagram"
+    ],
+    "script_hashes": [
+      "d5956ebdd44358ea135f10bea65c0c998e6252bc1db994a1d3e07380a6bfad96"
+    ]
+  },
+  "candidates_archived_content.html": {
+    "ids": [],
+    "names": [],
+    "fors": [],
+    "hx_attrs": [
+      "hx-get:/candidates",
+      "hx-get:/candidates/video/{{ s.video.id }}",
+      "hx-push-url:true",
+      "hx-target:#main-content"
+    ],
+    "on_attrs": [],
+    "data_attrs": [],
+    "urls": [
+      "href:/candidates",
+      "href:/candidates/video/{{ s.video.id }}"
+    ],
+    "jinja_tags": [],
+    "t_keys": [
+      "cand.archived_empty",
+      "cand.archived_subtitle",
+      "cand.archived_title",
+      "cand.back_to_active"
+    ],
+    "script_hashes": []
+  },
+  "candidates_content.html": {
+    "ids": [],
+    "names": [],
+    "fors": [],
+    "hx_attrs": [
+      "hx-get:/candidates/archived",
+      "hx-get:/candidates/video/{{ s.video.id }}",
+      "hx-get:/upload",
+      "hx-push-url:true",
+      "hx-target:#main-content"
+    ],
+    "on_attrs": [],
+    "data_attrs": [],
+    "urls": [
+      "href:/candidates/archived",
+      "href:/candidates/video/{{ s.video.id }}",
+      "href:/upload"
+    ],
+    "jinja_tags": [],
+    "t_keys": [
+      "cand.click",
+      "cand.empty",
+      "cand.process",
+      "cand.title",
+      "cand.upload",
+      "cand.view_archive"
+    ],
+    "script_hashes": []
+  },
+  "candidates_video_content.html": {
+    "ids": [],
+    "names": [],
+    "fors": [],
+    "hx_attrs": [
+      "hx-get:/candidates",
+      "hx-push-url:true",
+      "hx-target:#main-content"
+    ],
+    "on_attrs": [],
+    "data_attrs": [],
+    "urls": [
+      "href:/candidates"
+    ],
+    "jinja_tags": [
+      "{% include \"_candidate_row.html\" %}"
+    ],
+    "t_keys": [],
+    "script_hashes": [
+      "4ef08fae084fd98a4f3b9d0ad4b62d34bc972a24adbe880592a900b463423a9c"
+    ]
+  },
+  "dashboard.html": {
+    "ids": [],
+    "names": [],
+    "fors": [],
+    "hx_attrs": [],
+    "on_attrs": [],
+    "data_attrs": [],
+    "urls": [
+      "href:/settings",
+      "href:/upload"
+    ],
+    "jinja_tags": [
+      "{% block content %}",
+      "{% block title %}",
+      "{% extends \"base.html\" %}"
+    ],
+    "t_keys": [
+      "dash.action",
+      "dash.clipsGenerated",
+      "dash.details",
+      "dash.jobHistory",
+      "dash.jobsCompleted",
+      "dash.noRecent",
+      "dash.pendingJobs",
+      "dash.quickActions",
+      "dash.recentActivity",
+      "dash.settings",
+      "dash.time",
+      "dash.totalVideos",
+      "dash.uploadDownload"
+    ],
+    "script_hashes": []
+  },
+  "dashboard_content.html": {
+    "ids": [],
+    "names": [],
+    "fors": [],
+    "hx_attrs": [
+      "hx-get:/upload",
+      "hx-push-url:true",
+      "hx-target:#main-content"
+    ],
+    "on_attrs": [],
+    "data_attrs": [],
+    "urls": [
+      "href:/settings",
+      "href:/upload"
+    ],
+    "jinja_tags": [],
+    "t_keys": [
+      "dash.clipsGenerated",
+      "dash.jobsCompleted",
+      "dash.pendingJobs",
+      "dash.quickActions",
+      "dash.settings",
+      "dash.totalVideos",
+      "dash.uploadDownload"
+    ],
+    "script_hashes": []
+  },
+  "history.html": {
+    "ids": [],
+    "names": [],
+    "fors": [],
+    "hx_attrs": [],
+    "on_attrs": [],
+    "data_attrs": [],
+    "urls": [],
+    "jinja_tags": [
+      "{% block content %}",
+      "{% block title %}",
+      "{% extends \"base.html\" %}"
+    ],
+    "t_keys": [
+      "hist.action",
+      "hist.date",
+      "hist.desc",
+      "hist.empty",
+      "hist.jobId",
+      "hist.subtitle",
+      "hist.title",
+      "hist.videoId"
+    ],
+    "script_hashes": []
+  },
+  "history_content.html": {
+    "ids": [],
+    "names": [],
+    "fors": [],
+    "hx_attrs": [],
+    "on_attrs": [],
+    "data_attrs": [],
+    "urls": [],
+    "jinja_tags": [],
+    "t_keys": [
+      "hist.action",
+      "hist.date",
+      "hist.desc",
+      "hist.empty",
+      "hist.jobId",
+      "hist.subtitle",
+      "hist.title",
+      "hist.videoId"
+    ],
+    "script_hashes": []
+  },
+  "job_detail_content.html": {
+    "ids": [
+      "job-progress-detail"
+    ],
+    "names": [],
+    "fors": [],
+    "hx_attrs": [
+      "hx-get:/history",
+      "hx-get:/jobs/{{ status.job_id }}/status-fragment",
+      "hx-push-url:true",
+      "hx-swap:innerHTML",
+      "hx-target:#main-content",
+      "hx-trigger:{% if status.status in ("
+    ],
+    "on_attrs": [
+      "onclick:cancelJob(this, {{ status.job_id }})"
+    ],
+    "data_attrs": [],
+    "urls": [
+      "href:/history"
+    ],
+    "jinja_tags": [],
+    "t_keys": [
+      "job.cancel",
+      "job.duration",
+      "job.end",
+      "job.error",
+      "job.noSteps",
+      "job.start",
+      "job.status",
+      "job.step",
+      "job.steps"
+    ],
+    "script_hashes": [
+      "3715e95ec6f2a5de98870fb901dc684eaeffcb37907093a410154b0aa382e982"
+    ]
+  },
+  "privacy_policy.html": {
+    "ids": [],
+    "names": [],
+    "fors": [],
+    "hx_attrs": [],
+    "on_attrs": [],
+    "data_attrs": [],
+    "urls": [
+      "href:mailto:{{ contact_email }}"
+    ],
+    "jinja_tags": [
+      "{% block content %}",
+      "{% block title %}",
+      "{% extends \"base.html\" %}"
+    ],
+    "t_keys": [],
+    "script_hashes": []
+  },
+  "settings.html": {
+    "ids": [
+      "badge-9router",
+      "badge-gemini",
+      "btn-test-llm",
+      "card-provider-9router",
+      "card-provider-gemini",
+      "fields-9router",
+      "fields-gemini",
+      "input-9router-key",
+      "input-gemini-key",
+      "lang-en",
+      "lang-id",
+      "provider-9router",
+      "provider-gemini",
+      "test-llm-result",
+      "test-llm-spinner",
+      "test-target-name",
+      "theme-dark",
+      "theme-light"
+    ],
+    "names": [
+      "fallback_weight",
+      "gemini_api_key",
+      "gemini_model",
+      "lang",
+      "llm_provider",
+      "router9_api_key",
+      "router9_base_url",
+      "router9_model",
+      "theme",
+      "trained_weight"
+    ],
+    "fors": [
+      "lang-en",
+      "lang-id",
+      "provider-9router",
+      "provider-gemini",
+      "theme-dark",
+      "theme-light"
+    ],
+    "hx_attrs": [],
+    "on_attrs": [
+      "onchange:updateProviderDisplay()",
+      "onclick:runTestConnection()",
+      "onclick:selectProvider(",
+      "onclick:toggleVisibility(",
+      "oninput:this.nextElementSibling.textContent = (parseFloat(this.value)*100).toFixed(0) +",
+      "onsubmit:return confirmSave()"
+    ],
+    "data_attrs": [],
+    "urls": [
+      "action:/settings/save"
+    ],
+    "jinja_tags": [
+      "{% block content %}",
+      "{% block scripts %}",
+      "{% block title %}",
+      "{% extends \"base.html\" %}"
+    ],
+    "t_keys": [
+      "nav.dark",
+      "nav.light",
+      "nav.settings",
+      "settings.english",
+      "settings.fallbackWeightLabel",
+      "settings.geminiApiKeyHelp",
+      "settings.geminiApiKeyLabel",
+      "settings.geminiModelLabel",
+      "settings.indonesian",
+      "settings.language",
+      "settings.languageDesc",
+      "settings.llmDesc",
+      "settings.llmTitle",
+      "settings.provider9router",
+      "settings.providerGemini",
+      "settings.router9ApiKeyLabel",
+      "settings.router9ModelLabel",
+      "settings.router9UrlLabel",
+      "settings.save",
+      "settings.subtitle",
+      "settings.testConnection",
+      "settings.theme",
+      "settings.themeDesc",
+      "settings.trainedCategoryDesc",
+      "settings.trainedCategoryTitle",
+      "settings.trainedWeightLabel"
+    ],
+    "script_hashes": [
+      "035ef138909d48eade0b01dfc8f9a3adbb932d3b2666580d6c68c0a51ab2ea9c",
+      "2c1fa77798512df0928f4b686b8d1abf4cd63e18f860dc62a104c33b38058b55"
+    ]
+  },
+  "storage_dashboard_content.html": {
+    "ids": [
+      "storage-row-{{ row.video.id }}"
+    ],
+    "names": [],
+    "fors": [],
+    "hx_attrs": [],
+    "on_attrs": [
+      "onclick:archiveVideo(this, {{ row.video.id }})"
+    ],
+    "data_attrs": [],
+    "urls": [],
+    "jinja_tags": [],
+    "t_keys": [
+      "storage.allRendered",
+      "storage.cache",
+      "storage.desc",
+      "storage.empty",
+      "storage.filename",
+      "storage.models",
+      "storage.notRendered",
+      "storage.outputs",
+      "storage.size",
+      "storage.title",
+      "storage.uploads"
+    ],
+    "script_hashes": [
+      "761e75c4664df7e7ab7b438fe4510eda08fbca880377d217ca0513d66e8b7571"
+    ]
+  },
+  "terms_of_service.html": {
+    "ids": [],
+    "names": [],
+    "fors": [],
+    "hx_attrs": [],
+    "on_attrs": [],
+    "data_attrs": [],
+    "urls": [
+      "href:mailto:{{ contact_email }}"
+    ],
+    "jinja_tags": [
+      "{% block content %}",
+      "{% block title %}",
+      "{% extends \"base.html\" %}"
+    ],
+    "t_keys": [],
+    "script_hashes": []
+  },
+  "training_dashboard_content.html": {
+    "ids": [
+      "newCategoryName",
+      "trainBtn",
+      "trainResult"
+    ],
+    "names": [],
+    "fors": [],
+    "hx_attrs": [
+      "hx-get:/training",
+      "hx-get:/training/dashboard?category_id={{ cat.id }}",
+      "hx-push-url:true",
+      "hx-target:#main-content"
+    ],
+    "on_attrs": [
+      "onclick:activateRun(this, {{ run.id }})",
+      "onclick:createCategory()",
+      "onclick:deleteCategory({{ selected_category_id }})",
+      "onclick:renameCategory({{ selected_category_id }})",
+      "onclick:trainModel(this)"
+    ],
+    "data_attrs": [],
+    "urls": [
+      "href:/training",
+      "href:/training/dashboard?category_id={{ cat.id }}"
+    ],
+    "jinja_tags": [],
+    "t_keys": [
+      "train.activate",
+      "train.activeModel",
+      "train.bulkImport",
+      "train.dataTitle",
+      "train.date",
+      "train.desc",
+      "train.error",
+      "train.feature",
+      "train.fromCategory",
+      "train.history",
+      "train.historyDesc",
+      "train.importance",
+      "train.noHistory",
+      "train.noModel",
+      "train.notEnough",
+      "train.samples",
+      "train.sorted",
+      "train.source",
+      "train.title",
+      "train.trainBtn",
+      "train.valMAE",
+      "train.valR2",
+      "train.viewsLikes",
+      "train.visual"
+    ],
+    "script_hashes": [
+      "e5f8890bbca12ae8a00c02ae4a4a9798c6edfb33dc9490ed5578a308abba99fe"
+    ]
+  },
+  "training_import.html": {
+    "ids": [
+      "categoryId",
+      "importBtn",
+      "importFile",
+      "importForm",
+      "importProgress"
+    ],
+    "names": [
+      "category_id",
+      "file"
+    ],
+    "fors": [],
+    "hx_attrs": [
+      "hx-get:/training/dashboard",
+      "hx-push-url:true",
+      "hx-target:#main-content"
+    ],
+    "on_attrs": [],
+    "data_attrs": [],
+    "urls": [
+      "href:/training/dashboard",
+      "href:/training/template.csv"
+    ],
+    "jinja_tags": [],
+    "t_keys": [
+      "trainImport.category",
+      "trainImport.columns",
+      "trainImport.content",
+      "trainImport.csvFile",
+      "trainImport.csvFormat",
+      "trainImport.example",
+      "trainImport.exampleContent",
+      "trainImport.formatCsv",
+      "trainImport.plsSelectCat",
+      "trainImport.plsSelectCategory",
+      "trainImport.processing",
+      "trainImport.progressHere",
+      "trainImport.restoring",
+      "trainImport.tips",
+      "trainImport.title",
+      "trainImport.uploadLeft"
+    ],
+    "script_hashes": [
+      "fabba8c36f7a9b1f676cd3ab8d6ef80edd4c5eb2e17311c59bd12bb89eee1abe"
+    ]
+  },
+  "upload.html": {
+    "ids": [
+      "${v.id}",
+      "downloadBtn",
+      "downloadError",
+      "downloadPct",
+      "downloadProgressBar",
+      "downloadSpinner",
+      "downloadSuccess",
+      "empty-row",
+      "pl-clip-style",
+      "pl-content-type",
+      "pl-keywords",
+      "pl-language",
+      "pl-max-duration",
+      "pl-min-duration",
+      "pl-num-clips",
+      "pl-skip-keywords",
+      "uploadBtn",
+      "uploadError",
+      "uploadProgressBar",
+      "uploadProgressContainer",
+      "uploadSuccess",
+      "video-row-${v.id}",
+      "video-row-{{ video.id }}",
+      "videoFile",
+      "videoTableBody",
+      "videoUrl",
+      "{{ rj.job_id }}",
+      "{{ video.id }}"
+    ],
+    "names": [],
+    "fors": [
+      "videoFile",
+      "videoUrl"
+    ],
+    "hx_attrs": [],
+    "on_attrs": [],
+    "data_attrs": [
+      "data-job-id:{{ rj.job_id }}",
+      "data-uploading:1",
+      "data-video-id:${v.id}",
+      "data-video-id:{{ video.id }}"
+    ],
+    "urls": [],
+    "jinja_tags": [
+      "{% block content %}",
+      "{% block title %}",
+      "{% extends \"base.html\" %}"
+    ],
+    "t_keys": [],
+    "script_hashes": [
+      "c66059201a17a6f6a8a471267be5158b62f5928dbe50e91c767b813b5ca2be3e"
+    ]
+  },
+  "upload_content.html": {
+    "ids": [
+      "${v.id}",
+      "category-status-msg",
+      "downloadBtn",
+      "downloadError",
+      "downloadPct",
+      "downloadProgressBar",
+      "downloadSpinner",
+      "downloadSuccess",
+      "empty-row",
+      "instagram-connect-status",
+      "localUploadForm",
+      "no-category-alert",
+      "num-clips-msg",
+      "pl-category-id",
+      "pl-keywords",
+      "pl-language",
+      "pl-max-duration",
+      "pl-num-clips",
+      "pl-skip-keywords",
+      "tiktok-connect-status",
+      "uploadBtn",
+      "uploadError",
+      "uploadProgressBar",
+      "uploadProgressContainer",
+      "uploadSuccess",
+      "video-row-${v.id}",
+      "video-row-{{ video.id }}",
+      "videoFile",
+      "videoTableBody",
+      "videoUrl",
+      "{{ rj.job_id }}",
+      "{{ video.id }}"
+    ],
+    "names": [
+      "file"
+    ],
+    "fors": [
+      "videoFile",
+      "videoUrl"
+    ],
+    "hx_attrs": [
+      "hx-get:/training",
+      "hx-push-url:/?page=training",
+      "hx-target:#content-area"
+    ],
+    "on_attrs": [],
+    "data_attrs": [
+      "data-job-id:{{ rj.job_id }}",
+      "data-uploading:1",
+      "data-video-id:${v.id}",
+      "data-video-id:{{ video.id }}"
+    ],
+    "urls": [
+      "href:/?page=training",
+      "href:/tiktok/oauth/login"
+    ],
+    "jinja_tags": [],
+    "t_keys": [
+      "upload.action",
+      "upload.autoDetect",
+      "upload.cancel",
+      "upload.categoryNotTrained",
+      "upload.categoryTrained",
+      "upload.clipStyle",
+      "upload.dontClose",
+      "upload.downloadBtn",
+      "upload.downloadTab",
+      "upload.downloading",
+      "upload.duration",
+      "upload.english",
+      "upload.fileName",
+      "upload.goToTraining",
+      "upload.indonesia",
+      "upload.jsCancel",
+      "upload.jsCancelFail",
+      "upload.jsConn",
+      "upload.jsDownloading",
+      "upload.jsFailDelete",
+      "upload.jsFailDownload",
+      "upload.jsFailProcess",
+      "upload.jsFailStart",
+      "upload.jsFailUpload",
+      "upload.jsNeedCategory",
+      "upload.jsNeedFile",
+      "upload.jsNeedNumClips",
+      "upload.jsReProcess",
+      "upload.jsStarting",
+      "upload.jsSystemError",
+      "upload.jsTimeout",
+      "upload.jsUrlEmpty",
+      "upload.keywordBoost",
+      "upload.langLabel",
+      "upload.maxDuration",
+      "upload.maxSize",
+      "upload.noCategoryWarning",
+      "upload.noVideo",
+      "upload.numClips",
+      "upload.pipeline",
+      "upload.pipelineDesc",
+      "upload.selectCategory",
+      "upload.skipKeywords",
+      "upload.status",
+      "upload.type",
+      "upload.uploadBtn",
+      "upload.uploadDesc",
+      "upload.uploadTab",
+      "upload.uploading",
+      "upload.urlDesc",
+      "upload.urlLabel",
+      "upload.urlNote",
+      "upload.videoTable"
+    ],
+    "script_hashes": [
+      "35fba5dc4d1b97ec2e9b4acaf164259db1b8fe7f3e96bbc5901417efb7f62c2d"
+    ]
+  }
+}

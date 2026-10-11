@@ -3,13 +3,16 @@
 {% block title %}Terms of Service - {{ app_name }}{% endblock %}
 
 {% block content %}
-<div class="row justify-content-center">
-  <div class="col-lg-9">
-    <h1 class="mb-1">Terms of Service</h1>
-    <p class="text-muted">Last Updated: {{ last_updated }}</p>
-    <hr>
+<div class="legal-container">
+  <div class="page-head mb-4">
+    <div>
+      <h1 class="mb-1">Terms of Service</h1>
+      <p class="text-muted mb-0">Last Updated: {{ last_updated }}</p>
+    </div>
+  </div>
 
-    <h2 class="fs-4 mt-4">About Daboclip</h2>
+  <div class="panel p-4 p-md-5">
+    <h2 class="mt-0">About Daboclip</h2>
     <p>
       {{ app_name }} (Daboclip) adalah aplikasi <strong>personal-use</strong>
       video processing tool. Aplikasi disediakan untuk penggunaan
@@ -17,10 +20,10 @@
       tidak melayani pengguna umum secara komersial.
     </p>
 
-    <h2 class="fs-4 mt-4">Tanggung Jawab Pengguna</h2>
+    <h2>Tanggung Jawab Pengguna</h2>
     <p>Dengan menggunakan aplikasi ini, Anda bertanggung jawab untuk:</p>
     <ul>
-      <li>Video yang diproses dan/atau di-upload — termasuk memastikan Anda
+      <li>Video yang diproses dan/atau di-upload &mdash; termasuk memastikan Anda
         <strong>memiliki hak atau izin</strong> untuk menggunakan konten yang
         diproses.</li>
       <li>Mematuhi aturan platform pihak ketiga yang Anda gunakan, seperti
@@ -29,7 +32,7 @@
         melanggar hak orang lain.</li>
     </ul>
 
-    <h2 class="fs-4 mt-4">Hasil AI dan Analisis</h2>
+    <h2>Hasil AI dan Analisis</h2>
     <p>
       Aplikasi ini menggunakan model AI untuk menganalisis video, audio, dan
       transcript serta menghasilkan candidate clips (Auto Clipper). Kami
@@ -37,27 +40,29 @@
     </p>
     <p>
       Hasil dan analisis AI <strong>harus tetap dapat direview oleh Anda</strong>
-      sebelum digunakan — termasuk sebelum video di-upload ke platform mana pun.
+      sebelum digunakan &mdash; termasuk sebelum video di-upload ke platform mana pun.
     </p>
 
-    <h2 class="fs-4 mt-4">Lingkup Penggunaan</h2>
+    <h2>Lingkup Penggunaan</h2>
     <p>
       Perangkat lunak ini disediakan <strong>sebagaimana adanya</strong>
       (as-is) untuk penggunaan pribadi/development. Tidak ada jaminan mengenai
       ketersediaan, akurasi, atau kelayakan untuk tujuan tertentu.
     </p>
 
-    <h2 class="fs-4 mt-4">Contact</h2>
+    <h2>Contact</h2>
     {% if contact_email %}
     <p>Untuk pertanyaan soal ketentuan layanan, hubungi:
-      <a href="mailto:{{ contact_email }}">{{ contact_email }}</a>.
+      <a href="mailto:{{ contact_email }}" class="text-danger text-decoration-none">{{ contact_email }}</a>.
     </p>
     {% else %}
     <p>Kontak belum dikonfigurasi. Developer aplikasi ini dapat dihubungi langsung
       melalui jejaring lokal / repository project.</p>
     {% endif %}
 
-    <p class="text-muted small mt-4">URL halaman ini: <code>{{ legal_base_url }}/terms-of-service</code></p>
+    <div class="mt-4 pt-3 border-top border-secondary-subtle border-opacity-25 text-muted small">
+      URL halaman ini: <code>{{ legal_base_url }}/terms-of-service</code>
+    </div>
   </div>
 </div>
 {% endblock %}

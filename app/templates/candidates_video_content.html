@@ -1,33 +1,54 @@
-<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
-  <div>
+<div class="mb-4">
+  <div class="text-muted small mb-2 d-flex align-items-center gap-1">
     <a href="/candidates"
        hx-get="/candidates"
        hx-target="#main-content"
        hx-push-url="true"
-       class="text-muted small text-decoration-none">← Semua Video</a>
-    <h3 class="mb-0 mt-1 text-truncate" style="max-width:600px" title="{{ video.original_filename }}">
-      {{ video.original_filename }}
-    </h3>
-    <div class="d-flex flex-wrap gap-2 mt-1">
-      <span class="badge bg-secondary">Video #{{ video.id }}</span>
-      {% if video.duration_seconds %}
-      <span class="badge bg-dark">⏱ {{ '%d:%02d'|format((video.duration_seconds // 60)|int, (video.duration_seconds % 60)|int) }}</span>
-      {% endif %}
-      <span class="badge bg-info text-dark">{{ candidates | length }} candidates</span>
+       class="text-muted text-decoration-none"><i class="bi bi-arrow-left me-1"></i> Semua Video</a>
+    <span class="opacity-50">/</span>
+    <span class="text-white text-truncate" style="max-width: 400px;">{{ video.original_filename }}</span>
+  </div>
+
+  <div class="d-flex justify-content-between align-items-center flex-wrap gap-3">
+    <div>
+      <h2 class="mb-1 text-truncate fw-bold" style="max-width:700px" title="{{ video.original_filename }}">
+        {{ video.original_filename }}
+      </h2>
+      <div class="d-flex flex-wrap gap-2 align-items-center">
+        <span class="badge bg-secondary">Video #{{ video.id }}</span>
+        {% if video.duration_seconds %}
+        <span class="badge bg-dark border border-secondary-subtle">⏱ {{ '%d:%02d'|format((video.duration_seconds // 60)|int, (video.duration_seconds % 60)|int) }}</span>
+        {% endif %}
+        <span class="badge bg-info text-dark">{{ candidates | length }} candidates</span>
+      </div>
+    </div>
+    <div class="sec-h mb-0">
+      <a href="/candidates"
+         hx-get="/candidates"
+         hx-target="#main-content"
+         hx-push-url="true"
+         class="btn btn-outline-secondary btn-sm"><i class="bi bi-arrow-left me-1"></i> Kembali ke daftar video</a>
     </div>
   </div>
 </div>
 
 {% if candidates %}
-<div class="row g-3">
+<div class="sec-h mb-3">
+  <h4 class="mb-0 fs-5 fw-semibold">{{ candidates | length }} candidates</h4>
+</div>
+
+<div class="row g-4">
   {% for candidate in candidates %}
   {% include "_candidate_row.html" %}
   {% endfor %}
 </div>
 
 {% else %}
-<div class="card shadow-sm p-5 text-center text-muted">
-  Belum ada candidates untuk video ini.
+<div class="panel text-center py-5">
+  <div class="text-muted">
+    <i class="bi bi-inbox fs-1 d-block mb-3 text-secondary opacity-50"></i>
+    <p class="fs-5 mb-0">Belum ada candidates untuk video ini.</p>
+  </div>
 </div>
 {% endif %}
 

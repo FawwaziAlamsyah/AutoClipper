@@ -1,21 +1,25 @@
-<div class="d-flex align-items-center gap-3 mb-3">
+<div class="d-flex align-items-center gap-3 mb-4">
   <a href="/history"
      hx-get="/history"
      hx-target="#main-content"
      hx-push-url="true"
-     class="btn btn-outline-secondary btn-sm">← Back</a>
+     class="btn btn-outline-secondary btn-sm"><i class="bi bi-arrow-left me-1"></i> Kembali ke Riwayat</a>
 </div>
 
-<div class="card shadow-sm p-4 mb-4">
-  <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+<div class="panel mb-4">
+  <div class="d-flex justify-content-between align-items-start flex-wrap gap-3">
     <div>
-      <h3 class="mb-1">Job #{{ status.job_id }}</h3>
-      <div class="d-flex flex-wrap gap-2 align-items-center">
-        <span class="badge bg-{{ 'success' if status.status == 'completed' else ('danger' if status.status in ('failed', 'cancelled') else ('warning' if status.status == 'running' else 'secondary')) }}">{{ status.status }}</span>
-        {% if status.current_step %}<span class="badge bg-info">Step aktif: {{ status.current_step }}</span>{% endif %}
-        <small class="text-muted">{{ status.completed_steps }} / {{ status.total_steps }} step selesai</small>
+      <div class="d-flex align-items-center gap-2 mb-2">
+        <h2 class="mb-0 fw-bold">Job #{{ status.job_id }}</h2>
+        <span class="badge bg-{{ 'success' if status.status == 'completed' else ('danger' if status.status in ('failed', 'cancelled') else ('warning' if status.status == 'running' else 'secondary')) }} px-3 py-1 fs-6">
+          {{ status.status }}
+        </span>
       </div>
-      {% if status.error_message %}<div class="alert alert-danger mt-2 mb-0">{{ status.error_message }}</div>{% endif %}
+      <div class="d-flex flex-wrap gap-2 align-items-center mt-2">
+        {% if status.current_step %}<span class="badge bg-dark border border-secondary-subtle"><i class="bi bi-play-circle me-1 text-danger"></i>Step aktif: {{ status.current_step }}</span>{% endif %}
+        <span class="text-muted small"><i class="bi bi-check2-circle me-1 text-success"></i>{{ status.completed_steps }} / {{ status.total_steps }} step selesai</span>
+      </div>
+      {% if status.error_message %}<div class="alert alert-danger mt-3 mb-0">{{ status.error_message }}</div>{% endif %}
     </div>
     <button class="btn btn-sm btn-warning"
             onclick="cancelJob(this, {{ status.job_id }})">{{ t("job.cancel") }}</button>
@@ -26,31 +30,98 @@
        hx-get="/jobs/{{ status.job_id }}/status-fragment"
        hx-trigger="{% if status.status in ('pending', 'running') %}load, every 2s{% else %}load{% endif %}"
        hx-swap="innerHTML">
-    <div class="progress mt-3" style="height: 25px;">
-      <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar"
-           style="width: {{ status.progress_percent }}%">{{ status.progress_percent }}%</div>
+    <div class="progress mt-4" style="height: 10px;">
+      <div class="progress-bar progress-bar-striped progress-bar-animated {% if status.status == 'completed' %}bg-success{% elif status.status in ('failed', 'cancelled') %}bg-danger{% endif %}" role="progressbar"
+           style="width: {{ status.progress_percent }}%"></div>
+    </div>
+    <div class="d-flex justify-content-between align-items-center mt-2">
+      <small class="text-muted">{{ status.completed_steps }} / {{ status.total_steps }} step selesai</small>
+      <span class="fw-bold small">{{ status.progress_percent }}%</span>
     </div>
   </div>
 </div>
 
-<div class="card shadow-sm p-4">
-  <h5>{{ t("job.steps") }}</h5>
-  <div class="table-responsive mt-2">
-    <table class="table table-striped align-middle">
+<div class="panel mb-4">
+  <div class="d-flex align-items-center justify-content-between mb-3">
+    <div class="d-flex align-items-center gap-2">
+      <i class="bi bi-diagram-3 text-danger fs-5"></i>
+      <h4 class="mb-0 fs-5">Pipeline Progress</h4>
+    </div>
+    <span class="badge bg-dark border border-secondary-subtle">
+      {{ status.completed_steps }} / {{ status.total_steps }} Selesai
+    </span>
+  </div>
+
+  <div class="stepper">
+    {% for s in steps %}
+    <div class="step-item {{ 'success' if s.status == 'success' else ('running' if s.status == 'running' else '') }}">
+      <div class="d-flex align-items-center gap-3">
+        <div class="step-icon {{ 'success' if s.status == 'success' else ('running' if s.status == 'running' else ('failed' if s.status == 'failed' else 'pending')) }}">
+          {% if s.status == 'success' %}
+          <i class="bi bi-check-lg"></i>
+          {% elif s.status == 'running' %}
+          <i class="bi bi-arrow-repeat spin"></i>
+          {% elif s.status == 'failed' %}
+          <i class="bi bi-x-lg"></i>
+          {% else %}
+          <i class="bi bi-clock"></i>
+          {% endif %}
+        </div>
+        <div>
+          <strong class="d-block text-white">{{ s.step_name }}</strong>
+          <span class="text-muted small">
+            {% if s.status == 'running' %}
+            Sedang berjalan...
+            {% elif s.status == 'success' %}
+            Selesai{% if s.duration_ms is not none %} ({{ '%d ms'|format(s.duration_ms) }}){% endif %}
+            {% elif s.status == 'failed' %}
+            Gagal: {{ s.error_message or 'Error tidak diketahui' }}
+            {% else %}
+            Menunggu antrian
+            {% endif %}
+          </span>
+        </div>
+      </div>
+      <div>
+        <span class="badge bg-{{ 'success' if s.status == 'success' else ('danger' if s.status == 'failed' else ('primary' if s.status == 'running' else 'secondary')) }}">
+          {{ s.status }}
+        </span>
+      </div>
+    </div>
+    {% else %}
+    <div class="text-muted text-center py-3">{{ t("job.noSteps") }}</div>
+    {% endfor %}
+  </div>
+</div>
+
+<div class="panel">
+  <div class="d-flex align-items-center gap-2 mb-3">
+    <i class="bi bi-table text-danger fs-5"></i>
+    <h5 class="mb-0">{{ t("job.steps") }}</h5>
+  </div>
+  <div class="table-responsive">
+    <table class="table align-middle">
       <thead>
-        <tr><th>{{ t("job.step") }}</th><th>{{ t("job.status") }}</th><th>{{ t("job.start") }}</th><th>{{ t("job.end") }}</th><th>{{ t("job.duration") }}</th><th>{{ t("job.error") }}</th></tr>
+        <tr>
+          <th>{{ t("job.step") }}</th>
+          <th>{{ t("job.status") }}</th>
+          <th>{{ t("job.start") }}</th>
+          <th>{{ t("job.end") }}</th>
+          <th>{{ t("job.duration") }}</th>
+          <th>{{ t("job.error") }}</th>
+        </tr>
       </thead>
       <tbody>
         {% for s in steps %}
         <tr>
-          <td><span class="badge bg-light text-dark fw-normal">{{ s.step_name }}</span></td>
+          <td><span class="badge bg-dark border border-secondary-subtle fw-normal">{{ s.step_name }}</span></td>
           <td>
             <span class="badge bg-{{ 'success' if s.status == 'success' else ('danger' if s.status == 'failed' else ('primary' if s.status == 'running' else 'secondary')) }}">{{ s.status }}</span>
           </td>
-          <td>{{ s.started_at or '-' }}</td>
-          <td>{{ s.finished_at or '-' }}</td>
-          <td>{{ '%d ms'|format(s.duration_ms) if s.duration_ms is not none else '-' }}</td>
-          <td class="text-danger">{{ s.error_message or '-' }}</td>
+          <td class="text-muted small">{{ s.started_at or '-' }}</td>
+          <td class="text-muted small">{{ s.finished_at or '-' }}</td>
+          <td class="text-muted small">{{ '%d ms'|format(s.duration_ms) if s.duration_ms is not none else '-' }}</td>
+          <td class="text-danger small">{{ s.error_message or '-' }}</td>
         </tr>
         {% else %}
         <tr><td colspan="6" class="text-center text-muted">{{ t("job.noSteps") }}</td></tr>

@@ -1,25 +1,40 @@
-<div class="d-flex justify-content-between align-items-center mb-3">
-  <div></div>
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <div class="page-head mb-0">
+    <div>
+      <h2 class="mb-1">{{ t("upload.title") }}</h2>
+      <p class="text-muted small mb-0">{{ t("upload.uploadDesc") }}</p>
+    </div>
+  </div>
   <div class="d-flex align-items-center gap-2">
     <div id="tiktok-connect-status"></div>
     <div id="instagram-connect-status"></div>
   </div>
 </div>
+
 <div class="row g-4 justify-content-center">
   <!-- Card Upload File -->
-  <div class="col-md-6">
-    <div class="card shadow-sm h-100 p-4">
-      <h3>{{ t("upload.uploadTab") }}</h3>
-      <p class="text-muted">{{ t("upload.uploadDesc") }}</p>
+  <div class="col-lg-6">
+    <div class="panel h-100 d-flex flex-column">
+      <div class="d-flex align-items-center gap-2 mb-2">
+        <i class="bi bi-cloud-arrow-up text-danger fs-5"></i>
+        <h4 class="mb-0">{{ t("upload.uploadTab") }}</h4>
+      </div>
+      <p class="text-muted small mb-3">{{ t("upload.uploadDesc") }}</p>
 
       <form id="localUploadForm" class="d-flex flex-column flex-grow-1">
-        <div class="mb-4">
+        <div class="mb-3">
           <label class="form-label" for="videoFile">Pilih file video ({{ allowed_extensions | join(', ') }})</label>
-          <input class="form-control" type="file" id="videoFile" name="file" accept=".mp4,.mov,.mkv,.avi" required>
-          <div class="form-text">{{ t("upload.maxSize") }}</div>
+          <div class="drop" onclick="document.getElementById('videoFile').click()">
+            <div class="ic"><i class="bi bi-file-earmark-play"></i></div>
+            <strong style="font-size:16px;">{{ t("ui.upload.dropzoneTitle") }}</strong>
+            <p>{{ t("ui.upload.dropzoneDesc") }}</p>
+            <span class="btn btn-primary btn-sm"><i class="bi bi-folder2-open me-1"></i> {{ t("upload.uploadBtn") }}</span>
+            <input class="d-none" type="file" id="videoFile" name="file" accept=".mp4,.mov,.mkv,.avi" required>
+          </div>
+          <div class="form-text mt-2 text-center">{{ t("upload.maxSize") }}</div>
         </div>
 
-        <div class="progress mb-3 d-none" id="uploadProgressContainer" style="height: 20px;">
+        <div class="progress mb-3 d-none" id="uploadProgressContainer" style="height: 10px;">
           <div class="progress-bar progress-bar-striped progress-bar-animated" id="uploadProgressBar" role="progressbar" style="width: 0%">0%</div>
         </div>
 
@@ -32,23 +47,29 @@
   </div>
 
   <!-- Card Download URL -->
-  <div class="col-md-6">
-    <div class="card shadow-sm h-100 p-4">
-      <h3>{{ t("upload.downloadTab") }}</h3>
-      <p class="text-muted">{{ t("upload.urlDesc") }}</p>
+  <div class="col-lg-6">
+    <div class="panel h-100 d-flex flex-column">
+      <div class="d-flex align-items-center gap-2 mb-2">
+        <i class="bi bi-link-45deg text-danger fs-5"></i>
+        <h4 class="mb-0">{{ t("upload.downloadTab") }}</h4>
+      </div>
+      <p class="text-muted small mb-3">{{ t("upload.urlDesc") }}</p>
 
       <div class="mb-4">
         <label for="videoUrl" class="form-label">{{ t("upload.urlLabel") }}</label>
-        <input class="form-control" type="url" id="videoUrl" placeholder="https://www.youtube.com/watch?v=...">
-        <div class="form-text">{{ t("upload.urlNote") }}</div>
+        <div class="input-group">
+          <span class="input-group-text bg-dark border-secondary-subtle text-muted"><i class="bi bi-globe2"></i></span>
+          <input class="form-control" type="url" id="videoUrl" placeholder="https://www.youtube.com/watch?v=...">
+        </div>
+        <div class="form-text mt-1">{{ t("upload.urlNote") }}</div>
       </div>
 
-      <div class="d-none" id="downloadSpinner">
+      <div class="d-none mb-3" id="downloadSpinner">
         <div class="mb-2 d-flex justify-content-between align-items-center">
           <span class="text-muted small">{{ t("upload.downloading") }}</span>
-          <span id="downloadPct" class="fw-semibold">0%</span>
+          <span id="downloadPct" class="fw-semibold small">0%</span>
         </div>
-        <div class="progress mb-2" style="height: 20px;">
+        <div class="progress mb-2" style="height: 10px;">
           <div class="progress-bar progress-bar-striped progress-bar-animated" id="downloadProgressBar"
                role="progressbar" style="width: 0%"></div>
         </div>
@@ -63,9 +84,12 @@
   </div>
 </div>
 
-<div class="card shadow-sm p-4 mt-4">
-  <h3>{{ t("upload.pipeline") }}</h3>
-  <p class="text-muted">{{ t("upload.pipelineDesc") }}</p>
+<div class="panel mt-4">
+  <div class="d-flex align-items-center gap-2 mb-2">
+    <i class="bi bi-sliders text-danger fs-5"></i>
+    <h4 class="mb-0">{{ t("upload.pipeline") }}</h4>
+  </div>
+  <p class="text-muted small mb-3">{{ t("upload.pipelineDesc") }}</p>
   <div id="no-category-alert" class="alert alert-warning d-none" role="alert">
     ⚠️ {{ t("upload.noCategoryWarning") }}
     <a href="/?page=training" class="alert-link ms-1" hx-get="/training" hx-target="#content-area" hx-push-url="/?page=training">{{ t("upload.goToTraining") }}</a>.
@@ -107,10 +131,13 @@
   </div>
 </div>
 
-<div class="card shadow-sm p-4 mt-4">
-  <h3>{{ t("upload.videoTable") }}</h3>
+<div class="panel mt-4">
+  <div class="d-flex align-items-center gap-2 mb-3">
+    <i class="bi bi-collection-play text-danger fs-5"></i>
+    <h4 class="mb-0">{{ t("upload.videoTable") }}</h4>
+  </div>
   <div class="table-responsive">
-    <table class="table table-striped align-middle">
+    <table class="table align-middle">
       <thead>
         <tr>
           <th>ID</th>
@@ -125,32 +152,34 @@
         {% for video in videos %}
         {% set rj = running_jobs.get(video.id) %}
         <tr id="video-row-{{ video.id }}">
-          <td>{{ video.id }}</td>
-          <td>{{ video.original_filename }}</td>
+          <td class="text-muted small">#{{ video.id }}</td>
+          <td><span class="text-truncate d-inline-block" style="max-width: 280px;" title="{{ video.original_filename }}">{{ video.original_filename }}</span></td>
           <td><span class="badge bg-{{ 'success' if video.status == 'ready' else ('warning' if (rj or video.status == 'uploading') else 'secondary') }}">{{ 'processing' if rj else video.status }}</span></td>
-          <td>{{ video.source_type }}</td>
-          <td>{{ '{}m {:.0f}s'.format((video.duration_seconds // 60)|int, video.duration_seconds % 60) if video.duration_seconds else '-' }}</td>
-          <td class="d-flex gap-2 align-items-center">
-            {% if rj %}
-            <button class="btn btn-sm btn-outline-success process-btn" data-video-id="{{ video.id }}" data-job-id="{{ rj.job_id }}" disabled>
-              <span class="spinner-border spinner-border-sm me-1"></span>Proses: {{ rj.current_step }}...
-            </button>
-            <button class="btn btn-sm btn-warning cancel-btn" data-job-id="{{ rj.job_id }}">Cancel</button>
-            {% elif video.status == 'uploading' %}
-            <button class="btn btn-sm btn-outline-secondary process-btn" data-video-id="{{ video.id }}" data-uploading="1" disabled>
-              <span class="spinner-border spinner-border-sm me-1"></span>{{ t("upload.uploading") }}
-            </button>
-            {% else %}
-            <button class="btn btn-sm btn-success process-btn" data-video-id="{{ video.id }}">Proses</button>
-            {% endif %}
-            {% if video.is_archived %}
-            <span class="badge bg-warning text-dark">📦 Archived</span>
-            {% endif %}
-            <button class="btn btn-sm btn-danger hard-delete-btn" data-video-id="{{ video.id }}">🗑 Delete All</button>
+          <td><span class="badge bg-dark">{{ video.source_type }}</span></td>
+          <td class="text-muted small">{{ '{}m {:.0f}s'.format((video.duration_seconds // 60)|int, video.duration_seconds % 60) if video.duration_seconds else '-' }}</td>
+          <td>
+            <div class="d-flex gap-2 align-items-center">
+              {% if rj %}
+              <button class="btn btn-sm btn-outline-success process-btn" data-video-id="{{ video.id }}" data-job-id="{{ rj.job_id }}" disabled>
+                <span class="spinner-border spinner-border-sm me-1"></span>Proses: {{ rj.current_step }}...
+              </button>
+              <button class="btn btn-sm btn-outline-warning cancel-btn" data-job-id="{{ rj.job_id }}">Cancel</button>
+              {% elif video.status == 'uploading' %}
+              <button class="btn btn-sm btn-outline-secondary process-btn" data-video-id="{{ video.id }}" data-uploading="1" disabled>
+                <span class="spinner-border spinner-border-sm me-1"></span>{{ t("upload.uploading") }}
+              </button>
+              {% else %}
+              <button class="btn btn-sm btn-outline-success process-btn" data-video-id="{{ video.id }}">Proses</button>
+              {% endif %}
+              {% if video.is_archived %}
+              <span class="badge bg-warning text-dark">📦 Archived</span>
+              {% endif %}
+              <button class="btn btn-sm btn-outline-danger hard-delete-btn" data-video-id="{{ video.id }}">🗑 Delete All</button>
+            </div>
           </td>
         </tr>
         {% else %}
-        <tr id="empty-row"><td colspan="6" class="text-center text-muted">{{ t("upload.noVideo") }}</td></tr>
+        <tr id="empty-row"><td colspan="6" class="text-center text-muted py-4">{{ t("upload.noVideo") }}</td></tr>
         {% endfor %}
       </tbody>
     </table>

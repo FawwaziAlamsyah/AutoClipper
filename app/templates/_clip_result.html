@@ -1,23 +1,30 @@
 {% set fname = clip.filename if clip.filename is defined else (clip.file_path.split('/')[-1] if '/' in clip.file_path else clip.file_path.split('\\')[-1]) %}
 {% set show = clip.show_path if clip.show_path is defined else clip.file_path %}
 {% set show_url = show.replace('\\', '/').split('data/outputs/')[-1] %}
-<p class="text-success mb-0">
-  <i class="bi bi-check-circle"></i>
-  Clip sudah dibuat:
-  <a target="_blank" href="/data/outputs/{{ show_url }}?v={{ cachebust(show) }}">{{ t("widget.openClip") }}</a>
-</p>
+<div class="alert alert-success d-flex align-items-center justify-content-between p-3 mb-0">
+  <div class="d-flex align-items-center gap-2">
+    <i class="bi bi-check-circle-fill fs-5 text-success"></i>
+    <span class="fw-semibold">Clip berhasil dibuat!</span>
+  </div>
+  <a target="_blank" href="/data/outputs/{{ show_url }}?v={{ cachebust(show) }}" class="btn btn-sm btn-outline-success">
+    <i class="bi bi-box-arrow-up-right me-1"></i>{{ t("widget.openClip") }}
+  </a>
+</div>
 
 {% if clip.id %}
-<div class="card shadow-sm p-4 mt-3">
-  <h5>{{ t("candDetail.subtitle") }}</h5>
+<div class="panel card shadow-sm p-4 mt-3">
+  <div class="d-flex align-items-center gap-2 mb-3">
+    <i class="bi bi-chat-square-text text-danger fs-5"></i>
+    <h5 class="mb-0">{{ t("candDetail.subtitle") }}</h5>
+  </div>
   <form class="row g-2 align-items-end"
         hx-post="/subtitle/clips/{{ clip.id }}"
         hx-target="#subtitleResult"
         hx-swap="innerHTML">
-    <div class="col-auto"><label class="form-label">{{ t("candDetail.format") }}</label><select class="form-select" name="format"><option value="srt">{{ t("candDetail.srt") }}</option><option value="vtt">{{ t("candDetail.vtt") }}</option></select></div>
-    <div class="col-auto"><label class="form-label">{{ t("candDetail.style") }}</label><select class="form-select" name="style"><option value="minimal">{{ t("candDetail.minimal") }}</option><option value="tiktok">{{ t("candDetail.tiktok") }}</option><option value="youtube">{{ t("candDetail.youtube") }}</option></select></div>
-    <div class="col-auto"><label class="form-label">{{ t("candDetail.langLabel") }}</label><select class="form-select" name="language"><option value="id">{{ t("upload.indonesia") }}</option><option value="en">{{ t("upload.english") }}</option></select></div>
-    <div class="col-auto"><button class="btn btn-dark" type="submit">{{ t("candDetail.genSub") }}</button></div>
+    <div class="col-auto"><label class="form-label">{{ t("candDetail.format") }}</label><select class="form-select form-select-sm" name="format"><option value="srt">{{ t("candDetail.srt") }}</option><option value="vtt">{{ t("candDetail.vtt") }}</option></select></div>
+    <div class="col-auto"><label class="form-label">{{ t("candDetail.style") }}</label><select class="form-select form-select-sm" name="style"><option value="minimal">{{ t("candDetail.minimal") }}</option><option value="tiktok">{{ t("candDetail.tiktok") }}</option><option value="youtube">{{ t("candDetail.youtube") }}</option></select></div>
+    <div class="col-auto"><label class="form-label">{{ t("candDetail.langLabel") }}</label><select class="form-select form-select-sm" name="language"><option value="id">{{ t("upload.indonesia") }}</option><option value="en">{{ t("upload.english") }}</option></select></div>
+    <div class="col-auto"><button class="btn btn-primary btn-sm" type="submit">{{ t("candDetail.genSub") }}</button></div>
   </form>
   <div id="subtitleResult" class="mt-3"></div>
 </div>

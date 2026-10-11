@@ -33,3 +33,41 @@ def preview_candidate_clip(
         service.build_preview_clip_file(candidate_id, str(cache_path))
 
     return FileResponse(cache_path, media_type="video/mp4")
+
+
+@router.get("/candidates/{candidate_id}/thumbnail")
+def preview_candidate_thumbnail(
+    candidate_id: int,
+    service: PreviewService = Depends(get_preview_service),
+):
+    """Serve (atau generate sekali lalu cache) thumbnail gambar (JPEG) dari full video
+    untuk preview thumbnail pada candidate card.
+    """
+    cache_dir = settings.CACHE_DIR / "thumbnails"
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    cache_path = cache_dir / f"candidate_{candidate_id}.jpg"
+
+    if not cache_path.exists():
+        service.build_candidate_thumbnail_file(candidate_id, str(cache_path))
+
+    return FileResponse(cache_path, media_type="image/jpeg")
+
+
+@router.get("/videos/{video_id}/thumbnail")
+def preview_video_thumbnail(
+    video_id: int,
+    service: PreviewService = Depends(get_preview_service),
+):
+    """Serve (atau generate sekali lalu cache) thumbnail gambar (JPEG) dari full video
+    untuk video card di halaman candidates.
+    """
+    cache_dir = settings.CACHE_DIR / "thumbnails"
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    cache_path = cache_dir / f"video_{video_id}.jpg"
+
+    if not cache_path.exists():
+        service.build_video_thumbnail_file(video_id, str(cache_path))
+
+    return FileResponse(cache_path, media_type="image/jpeg")
+
+

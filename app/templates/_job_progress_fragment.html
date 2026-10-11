@@ -1,9 +1,12 @@
-<div class="progress mt-3" style="height: 25px;">
-  <div class="progress-bar progress-bar-striped {% if status.status in ('pending', 'running') %}progress-bar-animated{% endif %}" role="progressbar"
-       style="width: {{ status.progress_percent }}%">{{ status.progress_percent }}%</div>
+<div class="progress mt-3" style="height: 10px;">
+  <div class="progress-bar {% if status.status in ('pending', 'running') %}progress-bar-striped progress-bar-animated{% endif %} {% if status.status == 'completed' %}bg-success{% elif status.status in ('failed', 'cancelled') %}bg-danger{% endif %}"
+       role="progressbar"
+       style="width: {{ status.progress_percent }}%"></div>
 </div>
-<div class="mt-2">
-  <small class="text-muted">{{ status.completed_steps }} / {{ status.total_steps }} step selesai</small>
-  {% if status.current_step %}<span class="badge bg-info ms-2">Step aktif: {{ status.current_step }}</span>{% endif %}
-  <span class="badge bg-{{ 'success' if status.status == 'completed' else ('danger' if status.status in ('failed', 'cancelled') else 'warning') }} ms-2">{{ status.status }}</span>
+<div class="d-flex flex-wrap align-items-center justify-content-between mt-2 gap-2">
+  <small class="text-muted">{{ status.completed_steps }} / {{ status.total_steps }} step selesai &bull; {{ status.progress_percent }}%</small>
+  <div class="d-flex align-items-center gap-2">
+    {% if status.current_step %}<span class="badge bg-info">Step aktif: {{ status.current_step }}</span>{% endif %}
+    <span class="badge bg-{{ 'success' if status.status == 'completed' else ('danger' if status.status in ('failed', 'cancelled') else 'warning') }}">{{ status.status }}</span>
+  </div>
 </div>

@@ -1,0 +1,14 @@
+{
+  "candidate_detail_content.html": [
+    "href:/preview/candidates/{{ candidate.id }}",
+    "t:candDetail.scoreBreakdown",
+    "t:candDetail.scoreDesc",
+    "t:candDetail.noBreakdown",
+    "t:candDetail.previewJson",
+    "t:candDetail.analyzer",
+    "t:candDetail.score",
+    "t:candDetail.weight",
+    "t:candDetail.contribution",
+    "t:candDetail.reason"
+  ]
+}

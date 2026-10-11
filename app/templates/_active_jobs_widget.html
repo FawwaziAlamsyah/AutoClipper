@@ -1,20 +1,21 @@
 {% if active_jobs %}
 <div class="position-fixed bottom-0 end-0 p-3" style="z-index: 1050;" id="global-widgets">
   {% for job in active_jobs %}
-  <div class="toast show mb-2" role="status">
-    <div class="toast-header">
-      <strong class="me-auto">Processing Job #{{ job.id }}</strong>
+  <div class="toast show mb-2 p-3" role="status">
+    <div class="d-flex justify-content-between align-items-center mb-2">
+      <strong class="small fw-bold">Processing Job #{{ job.id }}</strong>
       <a href="/jobs/{{ job.id }}/ui"
          hx-get="/jobs/{{ job.id }}/ui"
          hx-target="#main-content"
          hx-push-url="true"
-         class="small">{{ t("widget.viewDetails") }}</a>
+         class="small text-muted">{{ t("widget.viewDetails") }}</a>
     </div>
-    <div class="toast-body">
-      <div class="progress" style="height: 6px;">
-        <div class="progress-bar" style="width: {{ job.percent }}%"></div>
-      </div>
-      <span class="small text-muted">{{ job.current_step }} — {{ job.percent }}%</span>
+    <div class="progress" style="height: 6px;">
+      <div class="progress-bar" style="width: {{ job.percent }}%"></div>
+    </div>
+    <div class="d-flex justify-content-between align-items-center mt-2 small text-muted">
+      <span>{{ job.current_step }}</span>
+      <span class="fw-semibold">{{ job.percent }}%</span>
     </div>
   </div>
   {% endfor %}

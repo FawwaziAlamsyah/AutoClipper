@@ -4,78 +4,97 @@
 
 {% block content %}
 <div class="row justify-content-center">
-  <div class="col-lg-8">
-    <h1 class="mb-1">{{ t("nav.settings") }}</h1>
-    <p class="text-muted">{{ t("settings.subtitle") }}</p>
-    <hr>
+  <div class="col-xl-9 col-lg-10">
+    <div class="page-head mb-4">
+      <div>
+        <h1 class="mb-1">{{ t("nav.settings") }}</h1>
+        <p class="text-muted mb-0">{{ t("settings.subtitle") }}</p>
+      </div>
+    </div>
 
     <form method="post" action="/settings/save"
-          class="card p-4 shadow-sm"
           onsubmit="return confirmSave()">
-      <div class="mb-4">
-        <label class="form-label fw-semibold">{{ t("settings.language") }}</label>
-        <p class="text-muted small">{{ t("settings.languageDesc") }}</p>
-        <div class="d-flex gap-4">
-          <div class="form-check">
-            <input class="form-check-input" type="radio" name="lang" value="en"
-                   id="lang-en" {% if current_lang == "en" %}checked{% endif %}>
-            <label class="form-check-label" for="lang-en">{{ t("settings.english") }}</label>
-          </div>
-          <div class="form-check">
-            <input class="form-check-input" type="radio" name="lang" value="id"
-                   id="lang-id" {% if current_lang == "id" %}checked{% endif %}>
-            <label class="form-check-label" for="lang-id">{{ t("settings.indonesian") }}</label>
-          </div>
+      <!-- Panel 1: Tampilan & Bahasa -->
+      <div class="panel p-4 mb-4">
+        <div class="d-flex align-items-center gap-2 mb-3">
+          <i class="bi bi-palette text-danger fs-5"></i>
+          <h5 class="mb-0">Tampilan &amp; Bahasa</h5>
         </div>
-      </div>
-
-      <div class="mb-4">
-        <label class="form-label fw-semibold">{{ t("settings.theme") }}</label>
-        <p class="text-muted small">{{ t("settings.themeDesc") }}</p>
-        <div class="d-flex gap-4">
-          <div class="form-check">
-            <input class="form-check-input" type="radio" name="theme" value="light"
-                   id="theme-light" {% if theme == "light" %}checked{% endif %}>
-            <label class="form-check-label" for="theme-light">{{ t("nav.light") }}</label>
-          </div>
-          <div class="form-check">
-            <input class="form-check-input" type="radio" name="theme" value="dark"
-                   id="theme-dark" {% if theme == "dark" %}checked{% endif %}>
-            <label class="form-check-label" for="theme-dark">{{ t("nav.dark") }}</label>
-          </div>
-        </div>
-      </div>
-
-      <div class="mb-4">
-        <label class="form-label fw-semibold">{{ t("settings.trainedCategoryTitle") }}</label>
-        <p class="text-muted small">{{ t("settings.trainedCategoryDesc") }}</p>
-        <div class="row g-3">
+        <div class="row g-4">
           <div class="col-md-6">
-            <label class="form-label small">{{ t("settings.trainedWeightLabel") }}</label>
+            <label class="form-label fw-semibold">{{ t("settings.language") }}</label>
+            <p class="text-muted small mb-3">{{ t("settings.languageDesc") }}</p>
+            <div class="d-flex gap-4">
+              <div class="form-check">
+                <input class="form-check-input" type="radio" name="lang" value="en"
+                       id="lang-en" {% if current_lang == "en" %}checked{% endif %}>
+                <label class="form-check-label" for="lang-en">{{ t("settings.english") }}</label>
+              </div>
+              <div class="form-check">
+                <input class="form-check-input" type="radio" name="lang" value="id"
+                       id="lang-id" {% if current_lang == "id" %}checked{% endif %}>
+                <label class="form-check-label" for="lang-id">{{ t("settings.indonesian") }}</label>
+              </div>
+            </div>
+          </div>
+
+          <div class="col-md-6">
+            <label class="form-label fw-semibold">{{ t("settings.theme") }}</label>
+            <p class="text-muted small mb-3">{{ t("settings.themeDesc") }}</p>
+            <div class="d-flex gap-4">
+              <div class="form-check">
+                <input class="form-check-input" type="radio" name="theme" value="light"
+                       id="theme-light" {% if theme == "light" %}checked{% endif %}>
+                <label class="form-check-label" for="theme-light">{{ t("nav.light") }}</label>
+              </div>
+              <div class="form-check">
+                <input class="form-check-input" type="radio" name="theme" value="dark"
+                       id="theme-dark" {% if theme == "dark" %}checked{% endif %}>
+                <label class="form-check-label" for="theme-dark">{{ t("nav.dark") }}</label>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Panel 2: Bobot Scoring Kategori ML -->
+      <div class="panel p-4 mb-4">
+        <div class="d-flex align-items-center gap-2 mb-1">
+          <i class="bi bi-sliders text-danger fs-5"></i>
+          <h5 class="mb-0">{{ t("settings.trainedCategoryTitle") }}</h5>
+        </div>
+        <p class="text-muted small mb-3">{{ t("settings.trainedCategoryDesc") }}</p>
+        <div class="row g-4">
+          <div class="col-md-6">
+            <label class="form-label small text-muted">{{ t("settings.trainedWeightLabel") }}</label>
             <input type="range" name="trained_weight" class="form-range" min="0" max="1" step="0.05"
                    value="{{ trained_weight }}"
                    oninput="this.nextElementSibling.textContent = (parseFloat(this.value)*100).toFixed(0) + '%'">
-            <small class="text-muted">{{ (trained_weight * 100)|round|int }}%</small>
+            <div class="text-muted small mt-1">{{ (trained_weight * 100)|round|int }}%</div>
           </div>
           <div class="col-md-6">
-            <label class="form-label small">{{ t("settings.fallbackWeightLabel") }}</label>
+            <label class="form-label small text-muted">{{ t("settings.fallbackWeightLabel") }}</label>
             <input type="range" name="fallback_weight" class="form-range" min="0" max="1" step="0.05"
                    value="{{ fallback_weight }}"
                    oninput="this.nextElementSibling.textContent = (parseFloat(this.value)*100).toFixed(0) + '%'">
-            <small class="text-muted">{{ (fallback_weight * 100)|round|int }}%</small>
+            <div class="text-muted small mt-1">{{ (fallback_weight * 100)|round|int }}%</div>
           </div>
         </div>
       </div>
 
-      <!-- LLM & Auto Hook Model Selection -->
-      <div class="mb-4">
-        <label class="form-label fw-semibold">{{ t("settings.llmTitle") }}</label>
-        <p class="text-muted small">{{ t("settings.llmDesc") }}</p>
+      <!-- Panel 3: LLM & Auto Hook Model Selection -->
+      <div class="panel p-4 mb-4">
+        <div class="d-flex align-items-center gap-2 mb-1">
+          <i class="bi bi-robot text-danger fs-5"></i>
+          <h5 class="mb-0">{{ t("settings.llmTitle") }}</h5>
+        </div>
+        <p class="text-muted small mb-3">{{ t("settings.llmDesc") }}</p>
 
         <div class="d-flex flex-column gap-3 mb-3">
           <!-- Option: 9Router -->
-          <div class="card p-3 border {% if llm_config.active_provider == '9router' %}border-primary shadow-sm{% else %}border-secondary-subtle{% endif %}"
-               id="card-provider-9router">
+          <div class="card p-3 border {% if llm_config.active_provider == '9router' %}border-danger shadow-sm{% else %}border-secondary-subtle{% endif %}"
+               id="card-provider-9router"
+               style="background-color: var(--surface-2);">
             <div class="d-flex align-items-center justify-content-between mb-2"
                  role="button"
                  onclick="selectProvider('9router')"
@@ -84,17 +103,17 @@
                 <input class="form-check-input" type="radio" name="llm_provider" value="9router" id="provider-9router"
                        {% if llm_config.active_provider == '9router' %}checked{% endif %}
                        onchange="updateProviderDisplay()">
-                <label class="form-check-label fw-semibold" for="provider-9router" style="cursor: pointer;">
+                <label class="form-check-label fw-semibold text-white" for="provider-9router" style="cursor: pointer;">
                   {{ t("settings.provider9router") }}
                 </label>
               </div>
-              <span id="badge-9router" class="badge {% if llm_config.active_provider == '9router' %}bg-primary{% else %}bg-secondary-subtle text-secondary{% endif %}">
+              <span id="badge-9router" class="badge {% if llm_config.active_provider == '9router' %}bg-danger{% else %}bg-secondary-subtle text-secondary{% endif %}">
                 {% if llm_config.active_provider == '9router' %}✓ Aktif Digunakan{% else %}Klik untuk Pilih{% endif %}
               </span>
             </div>
 
             <div id="fields-9router" class="mt-2 ps-4">
-              <div class="row g-2">
+              <div class="row g-3">
                 <div class="col-md-6">
                   <label class="form-label small text-muted">{{ t("settings.router9ModelLabel") }}</label>
                   <input type="text" name="router9_model" class="form-control form-control-sm"
@@ -114,7 +133,7 @@
                             onclick="toggleVisibility('input-9router-key', this)"
                             title="Tampilkan / Sembunyikan API Key">👁</button>
                   </div>
-                  <div class="form-text small">
+                  <div class="form-text small text-muted">
                     Proxy lokal untuk routing multi-provider dengan fallback otomatis. Pastikan service <code>9router</code> aktif.
                   </div>
                 </div>
@@ -123,8 +142,9 @@
           </div>
 
           <!-- Option: Google Gemini -->
-          <div class="card p-3 border {% if llm_config.active_provider == 'gemini' %}border-primary shadow-sm{% else %}border-secondary-subtle{% endif %}"
-               id="card-provider-gemini">
+          <div class="card p-3 border {% if llm_config.active_provider == 'gemini' %}border-danger shadow-sm{% else %}border-secondary-subtle{% endif %}"
+               id="card-provider-gemini"
+               style="background-color: var(--surface-2);">
             <div class="d-flex align-items-center justify-content-between mb-2"
                  role="button"
                  onclick="selectProvider('gemini')"
@@ -133,23 +153,23 @@
                 <input class="form-check-input" type="radio" name="llm_provider" value="gemini" id="provider-gemini"
                        {% if llm_config.active_provider == 'gemini' %}checked{% endif %}
                        onchange="updateProviderDisplay()">
-                <label class="form-check-label fw-semibold" for="provider-gemini" style="cursor: pointer;">
+                <label class="form-check-label fw-semibold text-white" for="provider-gemini" style="cursor: pointer;">
                   {{ t("settings.providerGemini") }}
                 </label>
               </div>
-              <span id="badge-gemini" class="badge {% if llm_config.active_provider == 'gemini' %}bg-primary{% else %}bg-secondary-subtle text-secondary{% endif %}">
+              <span id="badge-gemini" class="badge {% if llm_config.active_provider == 'gemini' %}bg-danger{% else %}bg-secondary-subtle text-secondary{% endif %}">
                 {% if llm_config.active_provider == 'gemini' %}✓ Aktif Digunakan{% else %}Klik untuk Pilih{% endif %}
               </span>
             </div>
 
             <div id="fields-gemini" class="mt-2 ps-4">
-              <div class="row g-2">
+              <div class="row g-3">
                 <div class="col-md-6">
                   <label class="form-label small text-muted">{{ t("settings.geminiModelLabel") }}</label>
                   <select name="gemini_model" class="form-select form-select-sm">
                     {% for m in gemini_models %}
                     <option value="{{ m }}" {% if llm_config.gemini.model == m %}selected{% endif %}>
-                      {{ m }}{% if m == 'gemini-flash-latest' %} (Rekomendasi - Paling Cepat & Stabil - Bebas 503){% elif m == 'gemini-3.5-flash' %} (Stabil){% elif m == 'gemini-3.1-flash-lite' %} (Hemat & Cepat){% elif m == 'gemini-3.8-flash' %} (Preview - Sering Demand Tinggi/503){% elif m == 'gemini-3.7-flash' %} (Preview){% endif %}
+                      {{ m }}{% if m == 'gemini-flash-latest' %} (Rekomendasi - Paling Cepat &amp; Stabil - Bebas 503){% elif m == 'gemini-3.5-flash' %} (Stabil){% elif m == 'gemini-3.1-flash-lite' %} (Hemat &amp; Cepat){% elif m == 'gemini-3.8-flash' %} (Preview - Sering Demand Tinggi/503){% elif m == 'gemini-3.7-flash' %} (Preview){% endif %}
                     </option>
                     {% endfor %}
                   </select>
@@ -170,7 +190,7 @@
                   </div>
                   <div class="form-text small mt-1">
                     {{ t("settings.geminiApiKeyHelp") }}
-                    <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener" class="text-decoration-none fw-semibold">
+                    <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener" class="text-danger text-decoration-none fw-semibold">
                       Buat API Key di Google AI Studio &rarr;
                     </a>
                   </div>
@@ -182,18 +202,20 @@
 
         <!-- Tombol Test Koneksi -->
         <div class="d-flex align-items-center gap-2">
-          <button type="button" class="btn btn-outline-primary btn-sm"
+          <button type="button" class="btn btn-outline-danger btn-sm"
                   id="btn-test-llm"
                   onclick="runTestConnection()">
             ⚡ {{ t("settings.testConnection") }} (<span id="test-target-name">{% if llm_config.active_provider == 'gemini' %}Google Gemini{% else %}9Router{% endif %}</span>)
           </button>
-          <span id="test-llm-spinner" class="spinner-border spinner-border-sm text-primary" style="display: none;" role="status"></span>
+          <span id="test-llm-spinner" class="spinner-border spinner-border-sm text-danger" style="display: none;" role="status"></span>
         </div>
         <div id="test-llm-result" class="mt-2"></div>
       </div>
 
-      <div class="mt-2">
-        <button type="submit" class="btn btn-primary">{{ t("settings.save") }}</button>
+      <div class="mt-4 pt-2">
+        <button type="submit" class="btn btn-primary px-4 py-2 fw-semibold">
+          <i class="bi bi-check-circle me-1"></i>{{ t("settings.save") }}
+        </button>
       </div>
     </form>
   </div>
@@ -230,15 +252,15 @@ function updateProviderDisplay() {
 
   if (isGemini) {
     if (cardGemini) {
-      cardGemini.classList.add('border-primary', 'shadow-sm');
+      cardGemini.classList.add('border-danger', 'shadow-sm');
       cardGemini.classList.remove('border-secondary-subtle');
     }
     if (card9Router) {
-      card9Router.classList.remove('border-primary', 'shadow-sm');
+      card9Router.classList.remove('border-danger', 'shadow-sm');
       card9Router.classList.add('border-secondary-subtle');
     }
     if (badgeGemini) {
-      badgeGemini.className = 'badge bg-primary';
+      badgeGemini.className = 'badge bg-danger';
       badgeGemini.textContent = '✓ Aktif Digunakan';
     }
     if (badge9Router) {
@@ -248,15 +270,15 @@ function updateProviderDisplay() {
     if (targetName) targetName.textContent = 'Google Gemini';
   } else {
     if (card9Router) {
-      card9Router.classList.add('border-primary', 'shadow-sm');
+      card9Router.classList.add('border-danger', 'shadow-sm');
       card9Router.classList.remove('border-secondary-subtle');
     }
     if (cardGemini) {
-      cardGemini.classList.remove('border-primary', 'shadow-sm');
+      cardGemini.classList.remove('border-danger', 'shadow-sm');
       cardGemini.classList.add('border-secondary-subtle');
     }
     if (badge9Router) {
-      badge9Router.className = 'badge bg-primary';
+      badge9Router.className = 'badge bg-danger';
       badge9Router.textContent = '✓ Aktif Digunakan';
     }
     if (badgeGemini) {
