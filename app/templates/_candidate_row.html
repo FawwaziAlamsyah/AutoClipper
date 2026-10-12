@@ -1,7 +1,7 @@
 <div class="col-12 col-md-6 col-xl-4" id="row-{{ candidate.id }}">
   <div class="card clip-card h-100">
     <div class="thumb">
-      <video controls preload="metadata">
+      <video controls preload="metadata" playsinline>
         {% if candidate.clip_show_path %}
         <source src="/data/outputs/{{ candidate.clip_show_path.split('data/outputs/')[-1] }}?v={{ cachebust(candidate.clip_show_path) }}" type="video/mp4">
         {% else %}

@@ -52,8 +52,9 @@
   </div>
 
   <div class="thumb">
-    <video class="w-100 h-100 rounded clip-player-video" controls preload="metadata">
+    <video class="w-100 h-100 rounded clip-player-video" controls preload="metadata" playsinline>
       <source src="/data/outputs/{{ preview_path }}?v={{ cachebust(raw_path) }}" type="video/mp4">
     </video>
+    <div class="play" title="Play / Pause"><b>▶</b></div>
   </div>
 </div>

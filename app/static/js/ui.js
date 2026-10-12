@@ -140,26 +140,44 @@
     initUI();
   }
 
-  // Handle click on center play/stop button on candidate preview thumbnails
+  // Handle click on candidate preview thumbnails or play button
   document.addEventListener('click', (e) => {
-    const playBtn = e.target.closest('.thumb .play');
-    if (playBtn) {
-      e.preventDefault();
-      e.stopPropagation();
-      const thumb = playBtn.closest('.thumb');
-      if (!thumb) return;
-      const video = thumb.querySelector('video');
-      if (!video) return;
+    const thumb = e.target.closest('.thumb');
+    if (!thumb) return;
 
-      if (video.paused) {
-        // Pause any other playing video previews on the page
-        document.querySelectorAll('.thumb video').forEach((v) => {
-          if (v !== video && !v.paused) v.pause();
-        });
-        video.play().catch(() => {});
-      } else {
-        video.pause();
+    // Don't intercept clicks on links or non-play buttons
+    if (e.target.closest('a, button')) return;
+
+    const video = thumb.querySelector('video');
+    if (!video) return;
+
+    // If clicked directly on the video element's bottom area (native controls), let native controls handle it
+    if (e.target === video) {
+      const rect = video.getBoundingClientRect();
+      const clickY = e.clientY - rect.top;
+      if (clickY > rect.height - 42) {
+        return;
       }
+    }
+
+    e.preventDefault();
+    e.stopPropagation();
+
+    if (video.paused) {
+      // Pause any other playing video previews on the page
+      document.querySelectorAll('.thumb video').forEach((v) => {
+        if (v !== video && !v.paused) v.pause();
+      });
+      video.play().catch((err) => {
+        console.warn('[Video Player] Failed to play video with audio, retrying muted...', err);
+        // Fallback: if browser blocks autoplay due to sound policy
+        video.muted = true;
+        video.play().catch((e2) => {
+          console.error('[Video Player] Playback failed completely:', e2);
+        });
+      });
+    } else {
+      video.pause();
     }
   });
 

@@ -1266,7 +1266,7 @@ pre {
   display: grid;
   place-items: center;
   opacity: 0;
-  transition: 0.25s;
+  transition: opacity 0.2s ease, background 0.2s ease;
   background: rgba(0, 0, 0, 0.35);
   pointer-events: auto;
   cursor: pointer;
@@ -1277,6 +1277,19 @@ pre {
 .video-card:hover .play,
 .thumb:hover .play {
   opacity: 1;
+}
+
+/* Saat video sedang diputar, sembunyikan background gelap agar video tidak redup */
+.thumb.is-playing .play {
+  opacity: 0;
+  background: transparent;
+}
+
+.clip-card:hover .thumb.is-playing .play,
+.video-card:hover .thumb.is-playing .play,
+.thumb.is-playing:hover .play {
+  opacity: 0.7;
+  background: transparent;
 }
 
 .thumb .play b {
