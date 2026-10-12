@@ -439,3 +439,99 @@ def test_add_watermark_top_right_corner(tmp_path) -> None:
     import json
     data = json.loads((tmp_path / "assets" / "watermark_position.json").read_text(encoding="utf-8"))
     assert data["x_pct"] == 0.9 and data["y_pct"] == 0.1
+
+
+def test_run_auto_hook_filters_by_trimmed_clip_bounds() -> None:
+    """_run_auto_hook harus memfilter segmen transkrip berdasarkan clip.start_time & clip.end_time
+    (hasil trim), bukan rentang awal candidate."""
+    (mock_db, mock_candidate, mock_video, mock_clip,
+     mock_cand_repo, mock_video_repo, mock_clip_repo,
+     mock_transcript_repo, mock_segment_repo, completed) = _make_service_with_mocks()
+
+    # Candidate awal: 0.0s s/d 100.0s
+    mock_candidate.start_time = 0.0
+    mock_candidate.end_time = 100.0
+
+    # Klip sudah di-trim: 20.0s s/d 50.0s
+    mock_clip.start_time = 20.0
+    mock_clip.end_time = 50.0
+
+    mock_transcript = MagicMock()
+    mock_transcript.id = 1
+    mock_transcript_repo.get_by_video.return_value = mock_transcript
+
+    # Segmen: ada yang di luar window trim (< 20s dan > 50s) serta yang di dalam (20s - 50s)
+    seg_outside_early = MagicMock(start_time=5.0, end_time=15.0, text="Bagian awal sebelum trim")
+    seg_inside_1 = MagicMock(start_time=22.0, end_time=28.0, text="Bagian dalam trim 1")
+    seg_inside_2 = MagicMock(start_time=30.0, end_time=36.0, text="Bagian dalam trim 2")
+    seg_inside_3 = MagicMock(start_time=38.0, end_time=44.0, text="Bagian dalam trim 3")
+    seg_inside_4 = MagicMock(start_time=45.0, end_time=49.0, text="Bagian dalam trim 4")
+    seg_outside_late = MagicMock(start_time=55.0, end_time=65.0, text="Bagian akhir setelah trim")
+
+    mock_segment_repo.get_by_transcript.return_value = [
+        seg_outside_early, seg_inside_1, seg_inside_2, seg_inside_3, seg_inside_4, seg_outside_late
+    ]
+
+    service = _build_service(
+        mock_db, mock_cand_repo, mock_video_repo, mock_clip_repo,
+        mock_transcript_repo, mock_segment_repo,
+    )
+
+    with patch("app.ai_modules.hook_analysis.hook_moment_finder.HookMomentFinder.find") as mock_finder_find, \
+         patch("app.services.hook_composer_service.HookComposerService.compose") as mock_compose:
+
+        from app.ai_modules.hook_analysis.hook_moment_finder import HookMoment
+        mock_finder_find.return_value = (
+            HookMoment(
+                hook_moment_start=30.0,
+                hook_moment_end=32.0,
+                hook_type="shock",
+                hook_confidence=0.9,
+                hook_caption="Hook keren",
+                best_idx=1,
+            ),
+            None,
+        )
+
+        service._run_auto_hook(mock_clip, mock_candidate, mock_video)
+
+        # HookMomentFinder.find harus dipanggil HANYA dengan segmen di dalam window klip (20s s/d 50s)
+        called_segments = mock_finder_find.call_args[0][0]
+        assert len(called_segments) == 4
+        assert seg_outside_early not in called_segments
+        assert seg_outside_late not in called_segments
+        assert called_segments == [seg_inside_1, seg_inside_2, seg_inside_3, seg_inside_4]
+
+        # window_duration yang dikirim ke composer harus 30.0 (50.0 - 20.0), bukan 100.0
+        assert mock_compose.call_args[1]["window_duration"] == 30.0
+
+
+def test_regenerate_hook_reruns_if_hook_outside_trimmed_bounds() -> None:
+    """regenerate_hook harus otomatis memicu _run_auto_hook jika candidate.hook_moment_start
+    berada di luar rentang klip yang telah di-trim."""
+    (mock_db, mock_candidate, mock_video, mock_clip,
+     mock_cand_repo, mock_video_repo, mock_clip_repo,
+     mock_transcript_repo, mock_segment_repo, completed) = _make_service_with_mocks()
+
+    # Klip di-trim ke 30.0s s/d 60.0s
+    mock_clip.start_time = 30.0
+    mock_clip.end_time = 60.0
+
+    # Hook moment lama candidate berada di 10.0s (sudah di luar klip aktif!)
+    mock_candidate.hook_moment_start = 10.0
+    mock_candidate.hook_moment_end = 12.0
+
+    mock_clip_repo.get.return_value = mock_clip
+    mock_cand_repo.get.return_value = mock_candidate
+    mock_video_repo.get.return_value = mock_video
+
+    service = _build_service(
+        mock_db, mock_cand_repo, mock_video_repo, mock_clip_repo,
+        mock_transcript_repo, mock_segment_repo,
+    )
+
+    with patch.object(service, "_run_auto_hook") as mock_auto_hook, \
+         patch("pathlib.Path.exists", return_value=True):
+        res = service.regenerate_hook(mock_clip.id)
+        mock_auto_hook.assert_called_once_with(mock_clip, mock_candidate, mock_video)
+        assert res == mock_clip

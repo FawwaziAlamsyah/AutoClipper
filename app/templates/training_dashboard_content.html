@@ -1,143 +1,272 @@
 <div class="panel p-4 mb-4">
-  <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+  <div class="d-flex justify-content-between align-items-center flex-wrap gap-3 mb-3">
     <div class="d-flex align-items-center gap-2">
-      <i class="bi bi-tags text-danger fs-5"></i>
-      <h5 class="mb-0">Kategori Scoring ML</h5>
+      <div class="p-2 rounded-3 bg-danger bg-opacity-10 border border-danger border-opacity-25 text-danger">
+        <i class="bi bi-tags-fill fs-5"></i>
+      </div>
+      <div>
+        <h5 class="mb-0 fw-bold">ML Scoring Categories</h5>
+        <small class="text-muted">Target classification &amp; trained regression models</small>
+      </div>
     </div>
-    <div class="d-flex gap-2">
-      <input type="text" class="form-control form-control-sm" id="newCategoryName" placeholder="Nama kategori baru...">
-      <button class="btn btn-sm btn-primary" onclick="createCategory()"><i class="bi bi-plus-lg me-1"></i>Tambah</button>
+    <div class="d-flex gap-2 align-items-center">
+      <div class="input-group input-group-sm">
+        <span class="input-group-text bg-dark border-secondary-subtle text-muted"><i class="bi bi-plus-circle"></i></span>
+        <input type="text" class="form-control form-control-sm bg-dark text-white border-secondary-subtle" id="newCategoryName" placeholder="New category name..." onkeydown="if(event.key==='Enter') createCategory()">
+        <button class="btn btn-sm btn-primary fw-semibold" onclick="createCategory()">Add</button>
+      </div>
     </div>
   </div>
 
-  <div class="d-flex gap-2 flex-wrap mb-3">
+  <div class="d-flex gap-2 flex-wrap align-items-center mb-3">
     {% for cat in categories %}
     <a href="/training/dashboard?category_id={{ cat.id }}"
        hx-get="/training/dashboard?category_id={{ cat.id }}"
        hx-target="#main-content" hx-push-url="true"
-       class="btn btn-sm {{ 'btn-primary' if cat.id == selected_category_id else 'btn-outline-secondary' }} rounded-pill px-3">
+       class="btn btn-sm rounded-pill px-3 d-inline-flex align-items-center gap-2 {{ 'btn-primary shadow-sm fw-semibold' if cat.id == selected_category_id else 'btn-outline-secondary text-secondary-emphasis' }}"
+       style="{{ 'box-shadow: 0 0 12px rgba(229, 9, 20, 0.35);' if cat.id == selected_category_id else '' }}">
+      {% if cat.id == selected_category_id %}<span class="badge bg-white text-danger rounded-circle p-1" style="width:6px; height:6px;"></span>{% endif %}
       {{ cat.name }}
     </a>
     {% endfor %}
   </div>
 
   {% if selected_category_id %}
-  <div class="d-flex gap-2">
-    <button class="btn btn-sm btn-outline-secondary" onclick="renameCategory({{ selected_category_id }})"><i class="bi bi-pencil me-1"></i>Ubah Nama</button>
-    <button class="btn btn-sm btn-outline-danger" onclick="deleteCategory({{ selected_category_id }})"><i class="bi bi-trash me-1"></i>Hapus Kategori Ini</button>
+  <div class="d-flex justify-content-between align-items-center pt-2 border-top border-secondary-subtle border-opacity-25">
+    <div class="text-muted small">
+      Active category ID: <span class="badge bg-dark border border-secondary-subtle">#{{ selected_category_id }}</span>
+    </div>
+    <div class="d-flex gap-2">
+      <button class="btn btn-sm btn-outline-secondary" onclick="renameCategory({{ selected_category_id }})">
+        <i class="bi bi-pencil me-1"></i>Rename
+      </button>
+      <button class="btn btn-sm btn-outline-danger" onclick="deleteCategory({{ selected_category_id }})">
+        <i class="bi bi-trash3 me-1"></i>Delete Category
+      </button>
+    </div>
   </div>
   {% endif %}
 </div>
 
-<div class="page-head mb-4">
+<div class="d-flex justify-content-between align-items-center flex-wrap gap-3 mb-4">
   <div>
-    <h2 class="mb-1">{{ t("train.title") }}</h2>
-    <p class="text-muted mb-0">{{ t("train.desc") }}</p>
+    <div class="d-flex align-items-center gap-2 mb-1">
+      <span class="badge bg-danger bg-opacity-25 text-danger border border-danger border-opacity-25 px-2 py-1 small">XGBoost Engine</span>
+      <h2 class="mb-0 fw-bold">{{ t("train.title") }}</h2>
+    </div>
+    <p class="text-muted small mb-0">{{ t("train.desc") }}</p>
   </div>
   <div>
-    <a href="/training" hx-get="/training" hx-target="#main-content" hx-push-url="true" class="btn btn-outline-secondary btn-sm">
-      <i class="bi bi-file-earmark-arrow-up me-1"></i>{{ t("train.bulkImport") }}
+    <a href="/training" hx-get="/training" hx-target="#main-content" hx-push-url="true" class="btn btn-outline-secondary btn-sm d-inline-flex align-items-center gap-2">
+      <i class="bi bi-file-earmark-arrow-up text-danger"></i>
+      <span>{{ t("train.bulkImport") }}</span>
     </a>
   </div>
 </div>
 
 <div class="row g-4 mb-4">
-  <div class="col-lg-4">
-    <div class="panel p-4 h-100">
-      <div class="d-flex align-items-center gap-2 mb-2">
-        <i class="bi bi-database text-danger fs-5"></i>
-        <h5 class="mb-0">{{ t("train.dataTitle") }}</h5>
-      </div>
-      <div class="fs-4 fw-bold text-white mb-2">{{ total }} <span class="fs-6 fw-normal text-muted">contoh</span></div>
-      <table class="table table-sm table-borderless mb-0">
-        <tbody>
-          <tr><td><span class="badge bg-success-subtle text-success border border-success-subtle">real_performance</span></td><td class="text-end fw-semibold text-white">{{ counts_by_source.real_performance or 0 }}</td><td class="text-muted small">{{ t("train.viewsLikes") }}</td></tr>
-          <tr><td><span class="badge bg-primary-subtle text-primary border border-primary-subtle">user_liked</span></td><td class="text-end fw-semibold text-white">{{ counts_by_source.user_liked or 0 }}</td><td class="text-muted small">{{ t("train.fromCategory") }}</td></tr>
-        </tbody>
-      </table>
-      {% if total < 20 %}
-      <div class="alert alert-warning mt-3 mb-0 small">
-        <i class="bi bi-exclamation-triangle me-1"></i><strong>{{ t("train.notEnough") }}</strong> Minimal 20 contoh. Saat ini: {{ total }} contoh.
-      </div>
-      {% endif %}
-    </div>
-  </div>
-
+  <!-- Card 1: Dataset Samples -->
   <div class="col-lg-4">
     <div class="panel p-4 h-100 d-flex flex-column justify-content-between">
       <div>
-        <div class="d-flex align-items-center gap-2 mb-2">
-          <i class="bi bi-cpu text-danger fs-5"></i>
-          <h5 class="mb-0">{{ t("train.trainBtn") }}</h5>
+        <div class="d-flex justify-content-between align-items-center mb-3">
+          <div class="d-flex align-items-center gap-2">
+            <i class="bi bi-database text-danger fs-5"></i>
+            <h5 class="mb-0 fw-semibold">{{ t("train.dataTitle") }}</h5>
+          </div>
+          <span class="badge bg-dark border border-secondary-subtle">Dataset</span>
         </div>
-        <p class="text-muted small">Latih model scoring dari semua data training. Setiap klik menghasilkan run baru.</p>
+        <div class="d-flex align-items-baseline gap-2 mb-3">
+          <span class="display-6 fw-bold text-white">{{ total }}</span>
+          <span class="text-muted">curated samples</span>
+        </div>
+        <div class="p-3 rounded-3 bg-dark bg-opacity-50 border border-secondary-subtle border-opacity-25 mb-3">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <div class="d-flex align-items-center gap-2">
+              <span class="badge bg-success-subtle text-success border border-success-subtle">real_performance</span>
+              <small class="text-muted">{{ t("train.viewsLikes") }}</small>
+            </div>
+            <span class="fw-bold text-white">{{ counts_by_source.real_performance or 0 }}</span>
+          </div>
+          <div class="d-flex justify-content-between align-items-center">
+            <div class="d-flex align-items-center gap-2">
+              <span class="badge bg-primary-subtle text-primary border border-primary-subtle">user_liked</span>
+              <small class="text-muted">{{ t("train.fromCategory") }}</small>
+            </div>
+            <span class="fw-bold text-white">{{ counts_by_source.user_liked or 0 }}</span>
+          </div>
+        </div>
       </div>
       <div>
-        <button class="btn btn-primary btn-lg w-100 fw-semibold" id="trainBtn"
+        {% if total < 20 %}
+        <div class="alert alert-warning py-2 px-3 mb-0 small border-warning border-opacity-50">
+          <div class="d-flex align-items-center gap-2 mb-1">
+            <i class="bi bi-exclamation-triangle-fill text-warning"></i>
+            <strong>{{ t("train.notEnough") }}</strong>
+          </div>
+          <span>Needs at least 20 samples ({{ 20 - total }} remaining). Currently: {{ total }}/20.</span>
+        </div>
+        {% else %}
+        <div class="alert alert-success py-2 px-3 mb-0 small border-success border-opacity-50 d-flex align-items-center gap-2">
+          <i class="bi bi-check-circle-fill text-success fs-6"></i>
+          <span>Ready for training. Sufficient samples ({{ total }} &ge; 20).</span>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <!-- Card 2: Train Model Action -->
+  <div class="col-lg-4">
+    <div class="panel p-4 h-100 d-flex flex-column justify-content-between" style="border: 1px solid rgba(229, 9, 20, 0.25);">
+      <div>
+        <div class="d-flex justify-content-between align-items-center mb-3">
+          <div class="d-flex align-items-center gap-2">
+            <i class="bi bi-cpu text-danger fs-5"></i>
+            <h5 class="mb-0 fw-semibold">{{ t("train.trainBtn") }}</h5>
+          </div>
+          <span class="badge bg-danger bg-opacity-25 text-danger border border-danger border-opacity-25">XGBoost</span>
+        </div>
+        <p class="text-muted small mb-4">
+          Train a fine-tuned scoring model from all category samples. Each training run evaluates 5-fold cross-validation and records full telemetry metrics.
+        </p>
+      </div>
+      <div>
+        <button class="btn btn-primary btn-lg w-100 fw-bold py-3 d-flex align-items-center justify-content-center gap-2 shadow" id="trainBtn"
                 {% if total < 20 %}disabled{% endif %}
                 onclick="trainModel(this)">
-          <i class="bi bi-rocket-takeoff-fill me-2"></i>{{ t("train.trainBtn") }} Sekarang
+          <i class="bi bi-rocket-takeoff-fill"></i>
+          <span>{{ t("train.trainBtn") }} Now</span>
         </button>
         <div id="trainResult" class="mt-3"></div>
       </div>
     </div>
   </div>
 
+  <!-- Card 3: Active Production Model -->
   <div class="col-lg-4">
-    <div class="panel p-4 h-100">
-      <div class="d-flex align-items-center gap-2 mb-2">
-        <i class="bi bi-check-circle text-success fs-5"></i>
-        <h5 class="mb-0">{{ t("train.activeModel") }}</h5>
+    <div class="panel p-4 h-100 d-flex flex-column justify-content-between">
+      <div>
+        <div class="d-flex justify-content-between align-items-center mb-3">
+          <div class="d-flex align-items-center gap-2">
+            <i class="bi bi-shield-check text-success fs-5"></i>
+            <h5 class="mb-0 fw-semibold">{{ t("train.activeModel") }}</h5>
+          </div>
+          {% if active_run %}
+          <span class="badge bg-success-subtle text-success border border-success-subtle">Active</span>
+          {% else %}
+          <span class="badge bg-secondary-subtle text-muted">No Model</span>
+          {% endif %}
+        </div>
+
+        {% if active_run %}
+        <p class="text-muted small mb-3">
+          Run <strong>#{{ active_run.id }}</strong> &bull; {{ active_run.trained_at.strftime('%Y-%m-%d %H:%M') }}
+        </p>
+        <div class="row g-2 mb-3">
+          <div class="col-6">
+            <div class="p-3 rounded-3 bg-dark bg-opacity-50 border border-secondary-subtle border-opacity-25 text-center">
+              <small class="text-muted d-block mb-1">{{ t("train.valMAE") }}</small>
+              <span class="fs-4 fw-bold text-white">{{ active_run.val_mae }}</span>
+              <small class="text-muted d-block text-xsmall mt-1">Mean Absolute Error</small>
+            </div>
+          </div>
+          <div class="col-6">
+            <div class="p-3 rounded-3 bg-dark bg-opacity-50 border border-secondary-subtle border-opacity-25 text-center">
+              <small class="text-muted d-block mb-1">{{ t("train.valR2") }}</small>
+              <span class="fs-4 fw-bold text-info">{{ active_run.val_r2 }}</span>
+              <small class="text-muted d-block text-xsmall mt-1">Variance Explained</small>
+            </div>
+          </div>
+        </div>
+        <div class="d-flex justify-content-between align-items-center small text-muted">
+          <span>{{ t("train.samples") }}</span>
+          <span class="text-white fw-semibold">{{ active_run.sample_count }} items</span>
+        </div>
+        {% else %}
+        <div class="text-center py-4 text-muted">
+          <i class="bi bi-cpu fs-1 d-block mb-2 opacity-50"></i>
+          <p class="small mb-0">{{ t("train.noModel") }}</p>
+          <small class="text-muted">Click "Train Model Now" once you have &ge; 20 samples.</small>
+        </div>
+        {% endif %}
       </div>
       {% if active_run %}
-      <p class="text-muted small mb-2">Run <strong>#{{ active_run.id }}</strong> — {{ active_run.trained_at.strftime('%Y-%m-%d %H:%M') }}</p>
-      <table class="table table-sm table-borderless mb-0">
-        <tbody>
-          <tr><td class="text-muted">{{ t("train.samples") }}</td><td class="text-white"><strong>{{ active_run.sample_count }}</strong></td></tr>
-          <tr><td class="text-muted">{{ t("train.valMAE") }}</td><td class="text-white"><strong>{{ active_run.val_mae }}</strong></td></tr>
-          <tr><td class="text-muted">{{ t("train.valR2") }}</td><td class="text-white"><strong>{{ active_run.val_r2 }}</strong></td></tr>
-        </tbody>
-      </table>
-      {% else %}
-      <p class="text-muted small mb-0">{{ t("train.noModel") }}</p>
+      <div class="pt-2 border-top border-secondary-subtle border-opacity-25">
+        <small class="text-muted text-xsmall"><i class="bi bi-info-circle me-1"></i>Active model is used for automated candidate scoring inference.</small>
+      </div>
       {% endif %}
     </div>
   </div>
 </div>
 
+<!-- Training History Panel -->
 <div class="panel p-4 mb-4">
-  <div class="d-flex align-items-center gap-2 mb-1">
-    <i class="bi bi-clock-history text-danger fs-5"></i>
-    <h5 class="mb-0">{{ t("train.history") }}</h5>
+  <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+    <div>
+      <div class="d-flex align-items-center gap-2 mb-1">
+        <i class="bi bi-clock-history text-danger fs-5"></i>
+        <h5 class="mb-0 fw-bold">{{ t("train.history") }}</h5>
+        <span class="badge bg-secondary rounded-pill">{{ training_runs | length }}</span>
+      </div>
+      <p class="text-muted small mb-0">{{ t("train.historyDesc") }}</p>
+    </div>
+    {% if training_runs %}
+    <div>
+      <button class="btn btn-sm btn-outline-danger d-inline-flex align-items-center gap-1"
+              id="clearHistoryBtn"
+              onclick="clearTrainingHistory({{ selected_category_id }})">
+        <i class="bi bi-trash3"></i>
+        <span>Clear History</span>
+      </button>
+    </div>
+    {% endif %}
   </div>
-  <p class="text-muted small mb-3">{{ t("train.historyDesc") }}</p>
+
   {% if training_runs %}
-  <div class="table-responsive">
-    <table class="table table-sm align-middle">
+  <div class="table-responsive rounded-3 border border-secondary-subtle border-opacity-25">
+    <table class="table table-hover align-middle mb-0">
       <thead>
-        <tr>
-          <th>#</th>
+        <tr class="text-muted small">
+          <th class="ps-3">#</th>
           <th>{{ t("train.date") }}</th>
           <th>Sample</th>
           <th>MAE</th>
           <th>R²</th>
           <th>{{ t("train.source") }}</th>
-          <th></th>
+          <th>Status</th>
+          <th class="text-end pe-3">Actions</th>
         </tr>
       </thead>
       <tbody>
         {% for run in training_runs %}
         <tr class="{{ 'table-active' if run.is_active else '' }}">
-          <td class="fw-semibold">{{ run.id }}</td>
-          <td class="text-white-50">{{ run.trained_at.strftime('%Y-%m-%d %H:%M') }}</td>
-          <td>{{ run.sample_count }}</td>
-          <td>{{ run.val_mae }}</td>
-          <td>{{ run.val_r2 }}</td>
-          <td class="small text-muted">{{ run.real_performance_count }} asli / {{ run.user_liked_count }} kategori</td>
+          <td class="ps-3 fw-bold text-white">#{{ run.id }}</td>
+          <td class="text-white-50 small">
+            <i class="bi bi-calendar3 me-1 text-secondary"></i>{{ run.trained_at.strftime('%Y-%m-%d %H:%M') }}
+          </td>
+          <td><span class="badge bg-dark border border-secondary-subtle">{{ run.sample_count }}</span></td>
+          <td><span class="badge bg-secondary-subtle text-secondary-emphasis">{{ run.val_mae }}</span></td>
+          <td><span class="badge bg-info-subtle text-info">{{ run.val_r2 }}</span></td>
+          <td class="small text-muted">{{ run.real_performance_count }} actual / {{ run.user_liked_count }} category</td>
           <td>
-            {% if run.is_active %}<span class="badge bg-success-subtle text-success border border-success-subtle">Aktif</span>
-            {% else %}<button class="btn btn-sm btn-outline-secondary"
-                              onclick="activateRun(this, {{ run.id }})">{{ t("train.activate") }}</button>{% endif %}
+            {% if run.is_active %}
+            <span class="badge bg-success-subtle text-success border border-success-subtle d-inline-flex align-items-center gap-1">
+              <span class="p-1 rounded-circle bg-success" style="width:4px; height:4px;"></span> Active
+            </span>
+            {% else %}
+            <button class="btn btn-sm btn-outline-secondary py-0 px-2"
+                    onclick="activateRun(this, {{ run.id }})">
+              {{ t("train.activate") }}
+            </button>
+            {% endif %}
+          </td>
+          <td class="text-end pe-3">
+            <button class="btn btn-sm btn-outline-danger py-1 px-2"
+                    title="Delete Run #{{ run.id }}"
+                    onclick="deleteRun(this, {{ run.id }})">
+              <i class="bi bi-trash3"></i>
+            </button>
           </td>
         </tr>
         {% endfor %}
@@ -145,7 +274,10 @@
     </table>
   </div>
   {% else %}
-  <p class="text-muted small mb-0">{{ t("train.noHistory") }}</p>
+  <div class="p-4 rounded-3 text-center text-muted bg-dark bg-opacity-25 border border-secondary-subtle border-opacity-25">
+    <i class="bi bi-inbox fs-2 d-block mb-2 text-secondary opacity-50"></i>
+    <p class="small mb-0">{{ t("train.noHistory") }}</p>
+  </div>
   {% endif %}
 </div>
 
@@ -153,26 +285,26 @@
 <div class="panel p-4">
   <div class="d-flex align-items-center gap-2 mb-1">
     <i class="bi bi-bar-chart-fill text-danger fs-5"></i>
-    <h5 class="mb-0">{{ t("train.feature") }} {{ t("train.importance") }} — {{ t("train.activeModel") }} (Run #{{ active_run.id }})</h5>
+    <h5 class="mb-0 fw-bold">{{ t("train.feature") }} {{ t("train.importance") }} &mdash; {{ t("train.activeModel") }} (Run #{{ active_run.id }})</h5>
   </div>
   <p class="text-muted small mb-3">{{ t("train.sorted") }}</p>
-  <div class="table-responsive">
-    <table class="table align-middle">
+  <div class="table-responsive rounded-3 border border-secondary-subtle border-opacity-25">
+    <table class="table align-middle mb-0">
       <thead>
-        <tr>
-          <th>{{ t("train.feature") }}</th>
+        <tr class="text-muted small">
+          <th class="ps-3">{{ t("train.feature") }}</th>
           <th>{{ t("train.importance") }}</th>
-          <th style="width:40%">{{ t("train.visual") }}</th>
+          <th style="width:50%" class="pe-3">{{ t("train.visual") }}</th>
         </tr>
       </thead>
       <tbody>
         {% for name, val in active_run.feature_importance.items() %}
         <tr>
-          <td><code class="text-danger-emphasis">{{ name }}</code></td>
+          <td class="ps-3"><code class="text-danger-emphasis fw-semibold">{{ name }}</code></td>
           <td class="fw-semibold text-white">{{ "%.4f"|format(val) }}</td>
-          <td>
-            <div class="progress" style="height:8px;">
-              <div class="progress-bar" style="width: {{ (val * 100)|round(1) }}%"></div>
+          <td class="pe-3">
+            <div class="progress" style="height:8px; background: rgba(255,255,255,0.06);">
+              <div class="progress-bar bg-danger" style="width: {{ (val * 100)|round(1) }}%"></div>
             </div>
           </td>
         </tr>
@@ -183,61 +315,79 @@
 </div>
 {% endif %}
 
-
 <script>
 async function createCategory() {
   const input = document.getElementById('newCategoryName');
   const name = input.value.trim();
-  if (!name) { alert('Nama kategori tidak boleh kosong.'); return; }
+  if (!name) { alert('Category name cannot be empty.'); return; }
   const res = await fetch(`/categories?name=${encodeURIComponent(name)}`, { method: 'POST' });
   if (res.ok) {
     const data = await res.json();
-    window.location.href = `/training/dashboard?category_id=${data.id}`;
+    if (typeof htmx !== 'undefined') {
+      htmx.ajax('GET', `/training/dashboard?category_id=${data.id}`, { target: '#main-content', pushUrl: true });
+    } else {
+      window.location.href = `/training/dashboard?category_id=${data.id}`;
+    }
   } else {
-    const err = await res.json();
-    alert(err.detail || 'Gagal membuat kategori.');
+    const err = await res.json().catch(() => ({}));
+    alert(err.detail || 'Failed to create category.');
   }
 }
 
 async function renameCategory(categoryId) {
-  const newName = prompt('Nama baru untuk kategori ini:');
+  const newName = prompt('New name for this category:');
   if (!newName) return;
   const res = await fetch(`/categories/${categoryId}?name=${encodeURIComponent(newName)}`, { method: 'PUT' });
-  if (res.ok) location.reload();
-  else alert('Gagal mengubah nama.');
+  if (res.ok) {
+    if (typeof htmx !== 'undefined') {
+      htmx.ajax('GET', `/training/dashboard?category_id=${categoryId}`, { target: '#main-content', pushUrl: false });
+    } else {
+      location.reload();
+    }
+  } else {
+    alert('Failed to rename category.');
+  }
 }
 
 async function deleteCategory(categoryId) {
-  if (!confirm('Hapus kategori ini? Model terlatihnya ikut terhapus. Candidate yang sudah ditandai kategori ini TIDAK terhapus, cuma jadi tanpa kategori.')) return;
+  if (!confirm('Delete this category? Its trained model will also be deleted. Candidates tagged with this category will become untagged.')) return;
   const res = await fetch(`/categories/${categoryId}`, { method: 'DELETE' });
-  if (res.ok) window.location.href = '/training/dashboard';
-  else alert('Gagal menghapus kategori.');
+  if (res.ok) {
+    if (typeof htmx !== 'undefined') {
+      htmx.ajax('GET', '/training/dashboard', { target: '#main-content', pushUrl: true });
+    } else {
+      window.location.href = '/training/dashboard';
+    }
+  } else {
+    alert('Failed to delete category.');
+  }
 }
 
 async function trainModel(btn) {
   const categoryId = {{ selected_category_id or 'null' }};
-  if (!categoryId) { alert('Pilih kategori dulu.'); return; }
+  if (!categoryId) { alert('Please select a category first.'); return; }
   btn.disabled = true;
-  btn.textContent = '⏳ Training...';
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Training Model...';
   const resultDiv = document.getElementById('trainResult');
   resultDiv.innerHTML = '';
   try {
     const res = await fetch(`/training/train?category_id=${categoryId}`, { method: 'POST' });
     const data = await res.json();
     if (res.ok) {
-      const pageRes = await fetch(`/training/dashboard?category_id=${categoryId}`, { headers: { 'HX-Request': 'true' } });
-      if (pageRes.ok) {
-        document.getElementById('main-content').innerHTML = await pageRes.text();
+      if (typeof htmx !== 'undefined') {
+        htmx.ajax('GET', `/training/dashboard?category_id=${categoryId}`, { target: '#main-content', pushUrl: false });
+      } else {
+        window.location.reload();
       }
     } else {
-      resultDiv.innerHTML = `<div class="alert alert-danger small mb-0">${data.detail || 'Gagal training.'}</div>`;
+      resultDiv.innerHTML = `<div class="alert alert-danger small mb-0 mt-2">${data.detail || 'Failed to train model.'}</div>`;
       btn.disabled = false;
-      btn.textContent = '🚀 {{ t("train.trainBtn") }} Sekarang';
+      btn.innerHTML = '<i class="bi bi-rocket-takeoff-fill me-2"></i>{{ t("train.trainBtn") }} Now';
     }
   } catch (e) {
-    resultDiv.innerHTML = `<div class="alert alert-danger small mb-0">{{ t("train.error") }}</div>`;
+    resultDiv.innerHTML = `<div class="alert alert-danger small mb-0 mt-2">{{ t("train.error") }}</div>`;
     btn.disabled = false;
-    btn.textContent = '🚀 {{ t("train.trainBtn") }} Sekarang';
+    btn.innerHTML = '<i class="bi bi-rocket-takeoff-fill me-2"></i>{{ t("train.trainBtn") }} Now';
   }
 }
 
@@ -248,13 +398,15 @@ async function activateRun(btn, runId) {
   try {
     const res = await fetch(`/training/runs/${runId}/activate`, { method: 'POST' });
     if (res.ok) {
-      const pageRes = await fetch(`/training/dashboard?category_id={{ selected_category_id }}`, { headers: { 'HX-Request': 'true' } });
-      if (pageRes.ok) {
-        document.getElementById('main-content').innerHTML = await pageRes.text();
+      const categoryId = {{ selected_category_id or 'null' }};
+      if (typeof htmx !== 'undefined') {
+        htmx.ajax('GET', `/training/dashboard?category_id=${categoryId}`, { target: '#main-content', pushUrl: false });
+      } else {
+        window.location.reload();
       }
     } else {
-      const data = await res.json();
-      alert(data.detail || 'Gagal mengaktifkan.');
+      const data = await res.json().catch(() => ({}));
+      alert(data.detail || 'Failed to activate.');
       btn.disabled = false;
       btn.textContent = '{{ t("train.activate") }}';
     }
@@ -262,6 +414,53 @@ async function activateRun(btn, runId) {
     alert('{{ t("train.error") }}');
     btn.disabled = false;
     btn.textContent = '{{ t("train.activate") }}';
+  }
+}
+
+async function deleteRun(btn, runId) {
+  if (!confirm('Are you sure you want to delete training run #' + runId + '?')) return;
+  btn.disabled = true;
+  try {
+    const res = await fetch(`/training/runs/${runId}`, { method: 'DELETE' });
+    if (res.ok) {
+      const categoryId = {{ selected_category_id or 'null' }};
+      if (typeof htmx !== 'undefined') {
+        htmx.ajax('GET', `/training/dashboard?category_id=${categoryId}`, { target: '#main-content', pushUrl: false });
+      } else {
+        window.location.reload();
+      }
+    } else {
+      const data = await res.json().catch(() => ({}));
+      alert(data.detail || 'Failed to delete training run.');
+      btn.disabled = false;
+    }
+  } catch (e) {
+    alert('Failed to delete training run. Please check server connection.');
+    btn.disabled = false;
+  }
+}
+
+async function clearTrainingHistory(categoryId) {
+  if (!categoryId) return;
+  if (!confirm('Are you sure you want to delete ALL training history runs for this category? This will delete all saved training run records and model checkpoints.')) return;
+  const btn = document.getElementById('clearHistoryBtn');
+  if (btn) btn.disabled = true;
+  try {
+    const res = await fetch(`/training/runs?category_id=${categoryId}`, { method: 'DELETE' });
+    if (res.ok) {
+      if (typeof htmx !== 'undefined') {
+        htmx.ajax('GET', `/training/dashboard?category_id=${categoryId}`, { target: '#main-content', pushUrl: false });
+      } else {
+        window.location.reload();
+      }
+    } else {
+      const data = await res.json().catch(() => ({}));
+      alert(data.detail || 'Failed to clear training history.');
+      if (btn) btn.disabled = false;
+    }
+  } catch (e) {
+    alert('Failed to clear training history. Please check server connection.');
+    if (btn) btn.disabled = false;
   }
 }
 </script>

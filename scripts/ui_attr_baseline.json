@@ -62,7 +62,11 @@
     "names": [],
     "fors": [],
     "hx_attrs": [],
-    "on_attrs": [],
+    "on_attrs": [
+      "onclick:redoClipEdit({{ clip.id }})",
+      "onclick:resetClipEdit({{ clip.id }})",
+      "onclick:undoClipEdit({{ clip.id }})"
+    ],
     "data_attrs": [],
     "urls": [
       "src:/data/outputs/{{ preview_path }}?v={{ cachebust(raw_path) }}"
@@ -269,9 +273,14 @@
       "global-widgets",
       "i18n",
       "main-content",
-      "navbarNav"
+      "main-nav",
+      "navbar-platform-status",
+      "navbarNav",
+      "pill-ig-status",
+      "pill-tiktok-status"
     ],
     "names": [
+      "theme-color",
       "viewport"
     ],
     "fors": [],
@@ -279,6 +288,7 @@
       "hx-get:/",
       "hx-get:/candidates",
       "hx-get:/jobs/active/status-widget",
+      "hx-get:/settings",
       "hx-get:/storage/dashboard",
       "hx-get:/training/dashboard",
       "hx-get:/upload",
@@ -297,11 +307,14 @@
       "href:/",
       "href:/candidates",
       "href:/privacy-policy",
+      "href:/settings",
       "href:/static/css/style.css",
+      "href:/static/css/theme-cinema.css",
       "href:/storage/dashboard",
       "href:/terms-of-service",
       "href:/training/dashboard",
-      "href:/upload"
+      "href:/upload",
+      "src:/static/js/ui.js"
     ],
     "jinja_tags": [
       "{% block content %}",
@@ -314,12 +327,14 @@
       "nav.dashboard",
       "nav.footerLegal",
       "nav.footerTerms",
+      "nav.settings",
       "nav.storage",
       "nav.training",
       "nav.upload"
     ],
     "script_hashes": [
       "46dcc08e42d40d8c396dfc34d1abef2001e839433850d8804cdad2bb35e1bf3a",
+      "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
       "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
       "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     ]
@@ -462,9 +477,9 @@
     "urls": [
       "href:/candidates/video/{{ video_id }}",
       "href:/data/outputs/{{ clip_show_path.split(",
-      "href:/preview/candidates/{{ candidate.id }}",
       "src:/clips/{{ clip.id }}/thumbnail?v={{ ts|default(0) }}",
-      "src:/data/assets/watermark_visible.png?v={{ ts|default(0) }}"
+      "src:/data/assets/watermark_visible.png?v={{ ts|default(0) }}",
+      "src:/preview/candidates/{{ candidate.id }}/clip"
     ],
     "jinja_tags": [
       "{% include \"_clip_edit_preview.html\" %}"
@@ -472,14 +487,12 @@
     "t_keys": [
       "candDetail.addAudio",
       "candDetail.addText",
-      "candDetail.analyzer",
       "candDetail.applyTrim",
       "candDetail.applyVolume",
       "candDetail.applyWatermark",
       "candDetail.audioFile",
       "candDetail.audioStart",
       "candDetail.bottom",
-      "candDetail.contribution",
       "candDetail.crop",
       "candDetail.cropFrame",
       "candDetail.cropFrameApply",
@@ -511,16 +524,10 @@
       "candDetail.langLabel",
       "candDetail.middle",
       "candDetail.minimal",
-      "candDetail.noBreakdown",
       "candDetail.openClip",
-      "candDetail.previewJson",
       "candDetail.processing",
-      "candDetail.reason",
       "candDetail.renderClip",
       "candDetail.retryHook",
-      "candDetail.score",
-      "candDetail.scoreBreakdown",
-      "candDetail.scoreDesc",
       "candDetail.sound",
       "candDetail.srt",
       "candDetail.startSec",
@@ -544,7 +551,6 @@
       "candDetail.watermarkSize",
       "candDetail.watermarkUploadFail",
       "candDetail.watermarkUploaded",
-      "candDetail.weight",
       "candDetail.youtube",
       "instagram.badge_title",
       "instagram.captionPlaceholder",
@@ -574,7 +580,7 @@
       "instagram.viewOnInstagram"
     ],
     "script_hashes": [
-      "d5956ebdd44358ea135f10bea65c0c998e6252bc1db994a1d3e07380a6bfad96"
+      "7bc0a3232a20fd9279bbc7e40818d841ef9b49fab6ba54785af3d9aadf738cc0"
     ]
   },
   "candidates_archived_content.html": {
@@ -587,11 +593,17 @@
       "hx-push-url:true",
       "hx-target:#main-content"
     ],
-    "on_attrs": [],
-    "data_attrs": [],
+    "on_attrs": [
+      "onerror:this.remove()"
+    ],
+    "data_attrs": [
+      "data-d:-1",
+      "data-d:1"
+    ],
     "urls": [
       "href:/candidates",
-      "href:/candidates/video/{{ s.video.id }}"
+      "href:/candidates/video/{{ s.video.id }}",
+      "src:/preview/videos/{{ s.video.id }}/thumbnail"
     ],
     "jinja_tags": [],
     "t_keys": [
@@ -613,12 +625,18 @@
       "hx-push-url:true",
       "hx-target:#main-content"
     ],
-    "on_attrs": [],
-    "data_attrs": [],
+    "on_attrs": [
+      "onerror:this.remove()"
+    ],
+    "data_attrs": [
+      "data-d:-1",
+      "data-d:1"
+    ],
     "urls": [
       "href:/candidates/archived",
       "href:/candidates/video/{{ s.video.id }}",
-      "href:/upload"
+      "href:/upload",
+      "src:/preview/videos/{{ s.video.id }}/thumbnail"
     ],
     "jinja_tags": [],
     "t_keys": [
@@ -650,17 +668,23 @@
     ],
     "t_keys": [],
     "script_hashes": [
-      "4ef08fae084fd98a4f3b9d0ad4b62d34bc972a24adbe880592a900b463423a9c"
+      "64cf2090c2474c450271f55d33cf430b11ee2180f2859a9842da92dbe356dae4"
     ]
   },
   "dashboard.html": {
     "ids": [],
     "names": [],
     "fors": [],
-    "hx_attrs": [],
+    "hx_attrs": [
+      "hx-get:/candidates",
+      "hx-get:/upload",
+      "hx-push-url:true",
+      "hx-target:#main-content"
+    ],
     "on_attrs": [],
     "data_attrs": [],
     "urls": [
+      "href:/candidates",
       "href:/settings",
       "href:/upload"
     ],
@@ -682,7 +706,12 @@
       "dash.settings",
       "dash.time",
       "dash.totalVideos",
-      "dash.uploadDownload"
+      "dash.uploadDownload",
+      "nav.candidates",
+      "ui.dash.emptyStats",
+      "ui.dash.eyebrow",
+      "ui.dash.heroDesc",
+      "ui.dash.heroTitle"
     ],
     "script_hashes": []
   },
@@ -691,6 +720,7 @@
     "names": [],
     "fors": [],
     "hx_attrs": [
+      "hx-get:/candidates",
       "hx-get:/upload",
       "hx-push-url:true",
       "hx-target:#main-content"
@@ -698,6 +728,7 @@
     "on_attrs": [],
     "data_attrs": [],
     "urls": [
+      "href:/candidates",
       "href:/settings",
       "href:/upload"
     ],
@@ -709,53 +740,12 @@
       "dash.quickActions",
       "dash.settings",
       "dash.totalVideos",
-      "dash.uploadDownload"
-    ],
-    "script_hashes": []
-  },
-  "history.html": {
-    "ids": [],
-    "names": [],
-    "fors": [],
-    "hx_attrs": [],
-    "on_attrs": [],
-    "data_attrs": [],
-    "urls": [],
-    "jinja_tags": [
-      "{% block content %}",
-      "{% block title %}",
-      "{% extends \"base.html\" %}"
-    ],
-    "t_keys": [
-      "hist.action",
-      "hist.date",
-      "hist.desc",
-      "hist.empty",
-      "hist.jobId",
-      "hist.subtitle",
-      "hist.title",
-      "hist.videoId"
-    ],
-    "script_hashes": []
-  },
-  "history_content.html": {
-    "ids": [],
-    "names": [],
-    "fors": [],
-    "hx_attrs": [],
-    "on_attrs": [],
-    "data_attrs": [],
-    "urls": [],
-    "jinja_tags": [],
-    "t_keys": [
-      "hist.action",
-      "hist.date",
-      "hist.desc",
-      "hist.empty",
-      "hist.jobId",
-      "hist.subtitle",
-      "hist.title",
-      "hist.videoId"
+      "dash.uploadDownload",
+      "nav.candidates",
+      "ui.dash.emptyStats",
+      "ui.dash.eyebrow",
+      "ui.dash.heroDesc",
+      "ui.dash.heroTitle"
     ],
     "script_hashes": []
   },
@@ -766,8 +756,8 @@
     "names": [],
     "fors": [],
     "hx_attrs": [
-      "hx-get:/history",
       "hx-get:/jobs/{{ status.job_id }}/status-fragment",
+      "hx-get:/upload",
       "hx-push-url:true",
       "hx-swap:innerHTML",
       "hx-target:#main-content",
@@ -778,7 +768,7 @@
     ],
     "data_attrs": [],
     "urls": [
-      "href:/history"
+      "href:/upload"
     ],
     "jinja_tags": [],
     "t_keys": [
@@ -793,7 +783,7 @@
       "job.steps"
     ],
     "script_hashes": [
-      "3715e95ec6f2a5de98870fb901dc684eaeffcb37907093a410154b0aa382e982"
+      "765f8aa02d70e6ccd0e8ba10ed691bb000005f2584b0ba83296e8e713de39d47"
     ]
   },
   "privacy_policy.html": {
@@ -825,35 +815,25 @@
       "fields-gemini",
       "input-9router-key",
       "input-gemini-key",
-      "lang-en",
-      "lang-id",
       "provider-9router",
       "provider-gemini",
       "test-llm-result",
       "test-llm-spinner",
-      "test-target-name",
-      "theme-dark",
-      "theme-light"
+      "test-target-name"
     ],
     "names": [
       "fallback_weight",
       "gemini_api_key",
       "gemini_model",
-      "lang",
       "llm_provider",
       "router9_api_key",
       "router9_base_url",
       "router9_model",
-      "theme",
       "trained_weight"
     ],
     "fors": [
-      "lang-en",
-      "lang-id",
       "provider-9router",
-      "provider-gemini",
-      "theme-dark",
-      "theme-light"
+      "provider-gemini"
     ],
     "hx_attrs": [],
     "on_attrs": [
@@ -875,17 +855,11 @@
       "{% extends \"base.html\" %}"
     ],
     "t_keys": [
-      "nav.dark",
-      "nav.light",
       "nav.settings",
-      "settings.english",
       "settings.fallbackWeightLabel",
       "settings.geminiApiKeyHelp",
       "settings.geminiApiKeyLabel",
       "settings.geminiModelLabel",
-      "settings.indonesian",
-      "settings.language",
-      "settings.languageDesc",
       "settings.llmDesc",
       "settings.llmTitle",
       "settings.provider9router",
@@ -896,15 +870,13 @@
       "settings.save",
       "settings.subtitle",
       "settings.testConnection",
-      "settings.theme",
-      "settings.themeDesc",
       "settings.trainedCategoryDesc",
       "settings.trainedCategoryTitle",
       "settings.trainedWeightLabel"
     ],
     "script_hashes": [
       "035ef138909d48eade0b01dfc8f9a3adbb932d3b2666580d6c68c0a51ab2ea9c",
-      "2c1fa77798512df0928f4b686b8d1abf4cd63e18f860dc62a104c33b38058b55"
+      "e69595dc08222ae5f9e7a2692b8f81c63064bc6b7c52895f56c8f972768ce421"
     ]
   },
   "storage_dashboard_content.html": {
@@ -934,7 +906,7 @@
       "storage.uploads"
     ],
     "script_hashes": [
-      "761e75c4664df7e7ab7b438fe4510eda08fbca880377d217ca0513d66e8b7571"
+      "9f611022a9e36d39299c80192e1d058fb2bce6a476377cd4416d65c9cf016d09"
     ]
   },
   "terms_of_service.html": {
@@ -1009,7 +981,7 @@
       "train.visual"
     ],
     "script_hashes": [
-      "e5f8890bbca12ae8a00c02ae4a4a9798c6edfb33dc9490ed5578a308abba99fe"
+      "c4caafb819f985d4513496c17e99f78a5a76fbc107dfa16331673e1c0f6e43a9"
     ]
   },
   "training_import.html": {
@@ -1056,7 +1028,7 @@
       "trainImport.uploadLeft"
     ],
     "script_hashes": [
-      "fabba8c36f7a9b1f676cd3ab8d6ef80edd4c5eb2e17311c59bd12bb89eee1abe"
+      "f6eddb9f2cb45993c26fe5b831435e9279a2fd17ae8eeeeb239f6cb7a300d634"
     ]
   },
   "upload.html": {
@@ -1096,7 +1068,9 @@
       "videoUrl"
     ],
     "hx_attrs": [],
-    "on_attrs": [],
+    "on_attrs": [
+      "onclick:document.getElementById("
+    ],
     "data_attrs": [
       "data-job-id:{{ rj.job_id }}",
       "data-uploading:1",
@@ -1111,7 +1085,7 @@
     ],
     "t_keys": [],
     "script_hashes": [
-      "c66059201a17a6f6a8a471267be5158b62f5928dbe50e91c767b813b5ca2be3e"
+      "5316b7c1caf98458570e247dc065d58d049634c7bb7b5627c50a97052aca7a5c"
     ]
   },
   "upload_content.html": {
@@ -1161,7 +1135,9 @@
       "hx-push-url:/?page=training",
       "hx-target:#content-area"
     ],
-    "on_attrs": [],
+    "on_attrs": [
+      "onclick:document.getElementById("
+    ],
     "data_attrs": [
       "data-job-id:{{ rj.job_id }}",
       "data-uploading:1",
@@ -1174,7 +1150,11 @@
     ],
     "jinja_tags": [],
     "t_keys": [
+      "cand.process",
+      "ui.upload.dropzoneDesc",
+      "ui.upload.dropzoneTitle",
       "upload.action",
+      "upload.allowedExt",
       "upload.autoDetect",
       "upload.cancel",
       "upload.categoryNotTrained",
@@ -1218,6 +1198,7 @@
       "upload.selectCategory",
       "upload.skipKeywords",
       "upload.status",
+      "upload.title",
       "upload.type",
       "upload.uploadBtn",
       "upload.uploadDesc",
@@ -1229,7 +1210,7 @@
       "upload.videoTable"
     ],
     "script_hashes": [
-      "35fba5dc4d1b97ec2e9b4acaf164259db1b8fe7f3e96bbc5901417efb7f62c2d"
+      "84daee2746b0891dea93da89d42949ee949ac0021e7723f39784abc9ed5ed3c4"
     ]
   }
 }

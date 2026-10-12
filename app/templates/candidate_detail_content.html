@@ -16,7 +16,7 @@
           <span class="badge bg-secondary d-none">Job {{ candidate.job_id }}</span>
           <span class="badge bg-dark d-none">Final Score {{ candidate.final_score }}</span>
           {% if clip and clip.tiktok_uploaded %}
-          <span class="badge bg-info text-dark" title="Klip sudah dikirim ke inbox TikTok">TikTok ✓</span>
+          <span class="badge bg-info text-dark" title="Clip uploaded to TikTok inbox">TikTok ✓</span>
           {% endif %}
           {% if clip and clip.instagram_published %}
           <span class="badge bg-danger" title="{{ t('instagram.badge_title') }}">{{ t("instagram.publishedBadge") }}</span>
@@ -31,7 +31,7 @@
            hx-get="/candidates/video/{{ video_id }}"
            hx-target="#main-content"
            hx-push-url="true"
-           class="btn btn-outline-secondary btn-sm"><i class="bi bi-arrow-left me-1"></i> Daftar Candidates</a>
+           class="btn btn-outline-secondary btn-sm"><i class="bi bi-arrow-left me-1"></i> Candidates List</a>
       </div>
     </div>
     {% if candidate.hook_text %}
@@ -52,7 +52,7 @@
       <div class="d-flex align-items-center justify-content-between mb-3">
         <div class="d-flex align-items-center gap-2">
           <i class="bi bi-play-circle text-danger fs-5"></i>
-          <h5 class="mb-0">Preview Klip</h5>
+          <h5 class="mb-0">Clip Preview</h5>
         </div>
         <span class="badge bg-secondary">Raw Stream</span>
       </div>
@@ -60,9 +60,10 @@
         <video class="w-100 h-100 clip-player-video" controls preload="metadata">
           <source src="/preview/candidates/{{ candidate.id }}/clip" type="video/mp4">
         </video>
+        <div class="play" title="Play / Pause"><b>▶</b></div>
       </div>
       <div class="alert alert-info py-2 px-3 mt-3 mb-0 small">
-        <i class="bi bi-info-circle me-1"></i> Preview klip mentah. Klik <strong>Generate Clip</strong> di panel sebelah kanan untuk membuat file klip dan mengaktifkan fitur edit video.
+        <i class="bi bi-info-circle me-1"></i> Raw clip preview. Click <strong>Generate Clip</strong> on the right panel to generate clip file and enable video editing.
       </div>
     </div>
     {% endif %}
@@ -95,11 +96,11 @@
       <div class="section-label mb-2">{{ t("candDetail.text") }} Overlay</div>
       <form onsubmit="return submitEditForm(event, '/clips/{{ clip.id }}/edit/text')">
         <div class="mb-3">
-          <input type="text" name="text" class="form-control" placeholder="Teks overlay..." required>
+          <input type="text" name="text" class="form-control" placeholder="Overlay text..." required>
         </div>
         <div class="row g-2 mb-3">
           <div class="col">
-            <label class="form-label small text-muted">Posisi</label>
+            <label class="form-label small text-muted">Position</label>
             <select name="position" class="form-select form-select-sm">
               <option value="top">{{ t("candDetail.top") }}</option>
               <option value="middle">{{ t("candDetail.middle") }}</option>
@@ -111,7 +112,7 @@
             <input type="number" name="font_size" class="form-control form-control-sm" value="48" min="12" max="120">
           </div>
           <div class="col">
-            <label class="form-label small text-muted">Warna</label>
+            <label class="form-label small text-muted">Color</label>
             <input type="color" name="color" class="form-control form-control-sm form-control-color w-100" value="#ffffff">
           </div>
         </div>
@@ -326,7 +327,13 @@
 
     <!-- Tab Hook -->
     <div class="tab-pane fade p-2" id="tab-hook">
-      <div class="section-label mb-2">AI Hook Moment</div>
+      <div class="d-flex align-items-center justify-content-between mb-2">
+        <div class="section-label mb-0">AI Hook Moment</div>
+        <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle">
+          Clip: {{ '%.1f'|format(clip.start_time) }}s – {{ '%.1f'|format(clip.end_time) }}s
+          ({{ '%.1f'|format(clip.end_time - clip.start_time) }}s)
+        </span>
+      </div>
       <div id="hook-llm-status" class="mb-3">
         <small class="text-muted">{{ t("candDetail.hookLlmLoading") }}</small>
       </div>
@@ -352,18 +359,18 @@
               class="form-control form-control-sm hook-caption-input"
               rows="2"
               maxlength="120"
-              placeholder="Teks caption overlay hook..."
+              placeholder="Hook overlay caption text..."
             >{{ candidate.hook_caption or '' }}</textarea>
             <button
               class="btn btn-outline-success"
               type="button"
               onclick="saveHookCaption(this, {{ candidate.id }})"
-              title="Simpan caption baru — lalu klik Generate Ulang Hook untuk re-render video">
-              💾 Simpan
+              title="Save new caption — then click Regenerate Hook to re-render video">
+              💾 Save
             </button>
           </div>
           <div id="hook-caption-status-{{ candidate.id }}" class="mt-1"></div>
-          <small class="text-muted d-block mt-1">Setelah simpan, klik <strong>Generate Ulang Hook</strong> untuk re-render video dengan teks baru.</small>
+          <small class="text-muted d-block mt-1">After saving, click <strong>Regenerate Hook</strong> to re-render video with updated text.</small>
         </div>
         <p class="text-muted small mb-0">
           <i class="bi bi-clock me-1"></i>{{ t("candDetail.hookMoment") }}:
@@ -374,50 +381,46 @@
         <p class="text-muted small mb-0">{{ t("candDetail.hookNotFound") }}</p>
       {% endif %}
 
-      {% if candidate.hook_moment_start is not none %}
       <div class="mt-3 d-flex flex-wrap gap-2 align-items-center">
         {% if clip.hook_skip_reason == 'render_failed' %}
-        <span class="text-danger small">
-          <i class="bi bi-exclamation-triangle"></i> Render hook sebelumnya gagal —
-          clip normal tetap dipakai.
+        <span class="text-danger small w-100 mb-1">
+          <i class="bi bi-exclamation-triangle"></i> Previous hook render failed —
+          normal clip is kept.
         </span>
+        {% elif clip.hook_skip_reason and candidate.hook_moment_start is none %}
+        <div class="alert alert-warning py-2 px-3 mb-2 small w-100">
+          <i class="bi bi-exclamation-triangle"></i>
+          Previous hook search failed
+          {% if clip.hook_skip_reason == 'llm_unavailable' %} — LLM unreachable
+          {% elif clip.hook_skip_reason == 'low_confidence' %} — LLM confidence too low
+          {% elif clip.hook_skip_reason == 'moment_too_close_to_start' %} — moment too close to start
+          {% elif clip.hook_skip_reason == 'window_too_short' %} — clip duration too short
+          {% else %} ({{ clip.hook_skip_reason }})
+          {% endif %}.
+          Ensure LLM is active, then try again.
+        </div>
         {% endif %}
-        {% if clip.hook_applied %}
-        <small class="text-muted">Hook sudah diterapkan. Ingin re-render?</small>
-        {% endif %}
+
+        {% if candidate.hook_moment_start is not none %}
         <button type="button" class="btn btn-sm btn-outline-primary"
                 onclick="regenerateHook(this, {{ clip.id }})">
           🔄 {{ t("candDetail.retryHook") }}
         </button>
-      </div>
-      {% endif %}
-
-      {% if clip and candidate.hook_moment_start is none and clip.hook_skip_reason not in ('disabled',) %}
-      <div class="mt-3">
-        {% if clip.hook_skip_reason %}
-        <div class="alert alert-warning py-2 px-3 mb-2 small">
-          <i class="bi bi-exclamation-triangle"></i>
-          Hook gagal dicari sebelumnya
-          {% if clip.hook_skip_reason == 'llm_unavailable' %} — LLM tidak bisa dihubungi
-          {% elif clip.hook_skip_reason == 'low_confidence' %} — confidence LLM terlalu rendah
-          {% elif clip.hook_skip_reason == 'moment_too_close_to_start' %} — momen terlalu dekat ke awal
-          {% else %} ({{ clip.hook_skip_reason }})
-          {% endif %}.
-          Pastikan LLM sudah aktif, lalu coba lagi.
-        </div>
         {% endif %}
+
+        {% if clip and clip.hook_skip_reason not in ('disabled',) %}
         <button type="button" class="btn btn-sm btn-outline-warning"
                 onclick="retryHookSearch(this, {{ clip.id }})">
-          🔍 Cari Hook Ulang
+          🔍 Find Hook from Active Clip (AI)
         </button>
+        {% endif %}
       </div>
-      {% endif %}
     </div>
 
   </div>
 
   <button class="btn btn-sm btn-outline-secondary mt-3" onclick="resetClipEdit({{ clip.id }})">
-    ↺ Reset ke Original
+    ↺ Reset to Original
   </button>
 </div>
 {% endif %}
@@ -430,7 +433,7 @@
         <i class="bi bi-film text-danger fs-5"></i>
         <h5 class="mb-0">{{ t("candDetail.renderClip") }}</h5>
       </div>
-      <p class="text-muted small mb-3">Buat atau kelola file klip video dari kandidat ini.</p>
+      <p class="text-muted small mb-3">Generate or manage clip video file for this candidate.</p>
 
       {% if clip %}
       {% set clip_show_path = (clip.edited_file_path or clip.file_path).replace('\\', '/') %}
@@ -438,7 +441,7 @@
         <div class="d-flex align-items-center gap-2">
           <i class="bi bi-check-circle-fill text-success fs-5"></i>
           <div>
-            <div class="fw-semibold text-white">Clip sudah dibuat</div>
+            <div class="fw-semibold text-white">Clip generated</div>
             <div class="text-white-50 text-xsmall">{{ clip_show_path.split('/')[-1] }}</div>
           </div>
         </div>
@@ -458,10 +461,10 @@
       <div class="mt-4 pt-3 border-top border-secondary-subtle border-opacity-25">
         <div class="section-label mb-2"><i class="bi bi-tiktok me-1"></i>TikTok Publisher</div>
         {% if clip.tiktok_uploaded %}
-        <span class="badge bg-info text-dark mb-2 d-inline-block" title="Klip sudah dikirim ke inbox TikTok">TikTok ✓ Sudah di-upload</span>
+        <span class="badge bg-info text-dark mb-2 d-inline-block" title="Clip uploaded to TikTok inbox">TikTok ✓ Uploaded</span>
         {% endif %}
         <button class="btn btn-light text-dark fw-semibold w-100 d-flex align-items-center justify-content-center gap-2" id="tiktokPublishBtn" onclick="publishToTikTok({{ clip.id }})">
-          <i class="bi bi-tiktok"></i> Upload ke TikTok (Draft/Private)
+          <i class="bi bi-tiktok"></i> Upload to TikTok (Draft/Private)
         </button>
         <div id="tiktok-publish-status" class="mt-2"></div>
       </div>
@@ -528,7 +531,7 @@
         <i class="bi bi-chat-square-text text-danger fs-5"></i>
         <h5 class="mb-0">{{ t("candDetail.subtitle") }}</h5>
       </div>
-      <p class="text-muted small mb-3">Generate dan pasang subtitle otomatis pada klip.</p>
+      <p class="text-muted small mb-3">Generate and burn automatic subtitles onto clip.</p>
       <div class="row g-2 align-items-end">
         <div class="col-6 col-sm-auto">
           <label class="form-label small text-muted">{{ t("candDetail.format") }}</label>
@@ -548,7 +551,7 @@
         <div class="col-12 col-sm-auto">
           <label class="form-label small text-muted">{{ t("candDetail.langLabel") }}</label>
           <select class="form-select form-select-sm" id="subLanguage">
-            <option value="id">Indonesia</option>
+            <option value="id">Indonesian</option>
             <option value="en">English</option>
           </select>
         </div>
@@ -587,7 +590,7 @@ async function submitEditForm(event, url) {
     _setPreviewHtml(await res.text());
   } else {
     const err = await res.json().catch(() => ({}));
-    alert(err.detail || 'Gagal edit clip.');
+    alert(err.detail || 'Failed to edit clip.');
   }
   return false;
 }
@@ -838,7 +841,7 @@ async function submitEditFormFile(event, url) {
     _setPreviewHtml(await res.text());
   } else {
     const err = await res.json().catch(() => ({}));
-    alert(err.detail || 'Gagal edit clip.');
+    alert(err.detail || 'Failed to edit clip.');
   }
   return false;
 }
@@ -883,7 +886,7 @@ function _startEditProgress(btn) {
     const step = pct < 60 ? 3 : (pct < 85 ? 0.8 : 0.1);
     pct = Math.min(pct + step, 90);
     inner.style.width = pct.toFixed(1) + '%';
-    label.textContent = `Memproses... ${Math.round(pct)}%`;
+    label.textContent = `Processing... ${Math.round(pct)}%`;
   }, 300);
 }
 function _stopEditProgress(btn) {
@@ -892,19 +895,45 @@ function _stopEditProgress(btn) {
   const label = document.getElementById('edit-progress-label');
   const bar = document.getElementById('edit-progress-bar');
   if (inner) { inner.style.width = '100%'; inner.classList.remove('progress-bar-animated'); }
-  if (label) label.textContent = 'Selesai 100%';
+  if (label) label.textContent = 'Completed 100%';
   setTimeout(() => { if (bar) bar.style.display = 'none'; }, 800);
   btn.disabled = false;
   btn.textContent = btn.dataset.origText || btn.textContent;
 }
 
+async function undoClipEdit(clipId) {
+  const btn = document.querySelector('.action-btn-undo');
+  if (btn) btn.disabled = true;
+  const res = await fetch(`/clips/${clipId}/edit/undo`, { method: 'POST' });
+  if (res.ok) {
+    _setPreviewHtml(await res.text());
+  } else {
+    const err = await res.json().catch(() => ({}));
+    alert(err.detail || 'Failed to undo edit.');
+    if (btn) btn.disabled = false;
+  }
+}
+
+async function redoClipEdit(clipId) {
+  const btn = document.querySelector('.action-btn-redo');
+  if (btn) btn.disabled = true;
+  const res = await fetch(`/clips/${clipId}/edit/redo`, { method: 'POST' });
+  if (res.ok) {
+    _setPreviewHtml(await res.text());
+  } else {
+    const err = await res.json().catch(() => ({}));
+    alert(err.detail || 'Failed to redo edit.');
+    if (btn) btn.disabled = false;
+  }
+}
+
 async function resetClipEdit(clipId) {
-  if (!confirm('Reset semua edit dan kembali ke clip original?')) return;
+  if (!confirm('Reset all edits back to original clip? All history steps will be cleared.')) return;
   const res = await fetch(`/clips/${clipId}/edit/reset`, { method: 'POST' });
   if (res.ok) {
     _setPreviewHtml(await res.text());
   } else {
-    alert('Gagal reset.');
+    alert('Failed to reset.');
   }
 }
 
@@ -918,12 +947,12 @@ async function _hookStatusMessage(clipId) {
     if (s.hook_applied) return null;                   // sudah terpasang → sukses
     const reason = s.hook_skip_reason;
     let why = '';
-    if (reason === 'window_too_short') why = ' window video terlalu pendek / tidak ada momen hook yang cocok di segmen transcript.';
-    else if (reason === 'llm_unavailable') why = ' LLM tidak bisa dihubungi. Pastikan LLM aktif lalu coba lagi.';
-    else if (reason === 'low_confidence') why = ' confidence keluaran LLM terlalu rendah.';
-    else if (reason === 'moment_too_close_to_start') why = ' momen hook terlalu dekat ke awal video.';
+    if (reason === 'window_too_short') why = ' video window too short / no matching hook moment found in transcript.';
+    else if (reason === 'llm_unavailable') why = ' LLM unreachable. Ensure LLM is active and try again.';
+    else if (reason === 'low_confidence') why = ' LLM output confidence too low.';
+    else if (reason === 'moment_too_close_to_start') why = ' hook moment too close to video start.';
     else if (reason) why = ` (${reason})`;
-    return 'Hook tidak ditemukan:' + why;
+    return 'Hook not found:' + why;
   } catch (e) {
     return null;
   }
@@ -949,11 +978,11 @@ async function _applyHookAction(btn, clipId, url, failMsg) {
 }
 
 async function regenerateHook(btn, clipId) {
-  await _applyHookAction(btn, clipId, `/clips/${clipId}/hook/regenerate`, 'Gagal generate ulang hook.');
+  await _applyHookAction(btn, clipId, `/clips/${clipId}/hook/regenerate`, 'Failed to regenerate hook.');
 }
 
 async function retryHookSearch(btn, clipId) {
-  await _applyHookAction(btn, clipId, `/clips/${clipId}/hook/retry-search`, 'Gagal mencari hook. Pastikan LLM sudah aktif dan coba lagi.');
+  await _applyHookAction(btn, clipId, `/clips/${clipId}/hook/retry-search`, 'Failed to search hook. Ensure LLM is active and try again.');
 }
 
 async function generateSubtitle(btn, clipId) {
@@ -982,10 +1011,10 @@ async function generateSubtitle(btn, clipId) {
     if (res.ok) {
       // Subtitle di-burn ke klip → refresh video preview biar keliatan nempel.
       if (previewWrapper) previewWrapper.innerHTML = await res.text();
-      resultDiv.innerHTML = '<p class="text-success small">✓ Subtitle tertempel ke klip.</p>';
+      resultDiv.innerHTML = '<p class="text-success small">✓ Subtitles burned onto clip.</p>';
     } else {
       const data = await res.json().catch(() => ({}));
-      resultDiv.innerHTML = `<div class="alert alert-danger small">${data.detail || 'Gagal generate subtitle.'}</div>`;
+      resultDiv.innerHTML = `<div class="alert alert-danger small">${data.detail || 'Failed to generate subtitles.'}</div>`;
     }
   } catch (e) {
     resultDiv.innerHTML = `<div class="alert alert-danger small">{{ t("candDetail.error") }}</div>`;
@@ -999,7 +1028,7 @@ async function uploadWatermark(btn) {
   const statusEl = document.getElementById('wm-upload-status');
   if (!fileInput || !statusEl) return;
   const file = fileInput.files[0];
-  if (!file) { statusEl.textContent = 'Pilih file PNG dulu.'; return; }
+  if (!file) { statusEl.textContent = 'Please select a PNG file first.'; return; }
 
   const fd = new FormData();
   fd.append('watermark', file);
@@ -1031,7 +1060,7 @@ async function publishToTikTok(clipId) {
   const res = await fetch(`/tiktok/publish/${clipId}`, { method: 'POST' });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    statusEl.innerHTML = `<span class="text-danger">Gagal: ${err.detail || 'unknown error'}</span>`;
+    statusEl.innerHTML = `<span class="text-danger">Failed: ${err.detail || 'unknown error'}</span>`;
     btn.disabled = false;
     return;
   }
@@ -1043,9 +1072,9 @@ function renderTikTokBar(status, progress) {
   const pct = Math.max(0, Math.min(100, progress || 0));
   const barClass = (status === 'error' || status === 'timeout') ? 'bg-danger'
     : (status === 'complete') ? 'bg-success' : 'bg-primary';
-  const label = (status === 'uploading') ? 'Mengunggah ke TikTok...'
-    : (status === 'processing') ? 'TikTok sedang memproses...'
-    : (status === 'complete') ? 'Selesai' : `Status: ${status}`;
+  const label = (status === 'uploading') ? 'Uploading to TikTok...'
+    : (status === 'processing') ? 'TikTok is processing...'
+    : (status === 'complete') ? 'Completed' : `Status: ${status}`;
   return `<div class="progress" style="height:20px;">
       <div class="progress-bar ${barClass} progress-bar-striped progress-bar-animated" style="width:${pct}%;">${pct}%</div>
     </div>
@@ -1060,11 +1089,11 @@ async function pollTikTokStatus(localId, btn, statusEl) {
     statusEl.innerHTML = (data.status === 'complete')
       ? renderTikTokBar('complete', 100)
       : renderTikTokBar('error', data.status === 'timeout' ? 100 : (data.progress || 0))
-        + `<div class="text-danger mt-1">Gagal: ${data.error || 'timeout, cek manual di TikTok Studio'}</div>`;
+        + `<div class="text-danger mt-1">Failed: ${data.error || 'timeout, check TikTok Studio manually'}</div>`;
     if (data.status === 'complete') {
       btn.disabled = true;
-      btn.textContent = 'Sudah di-upload ke TikTok';
-      btn.title = 'Sudah dikirim ke inbox TikTok';
+      btn.textContent = 'Uploaded to TikTok';
+      btn.title = 'Uploaded to TikTok inbox';
     } else {
       btn.disabled = false;
     }
@@ -1130,7 +1159,7 @@ async function pollInstagramStatus(localId, btn, statusEl) {
 
     if (data.status === 'failed') {
       statusEl.innerHTML = renderInstagramBar('failed', data.progress || 0)
-        + `<div class="alert alert-danger py-1 px-2 small mt-2">Gagal: ${esc(data.error || 'Terjadi kesalahan')}</div>`;
+        + `<div class="alert alert-danger py-1 px-2 small mt-2">Failed: ${esc(data.error || 'An error occurred')}</div>`;
       btn.disabled = false;
       return;
     }
@@ -1138,7 +1167,7 @@ async function pollInstagramStatus(localId, btn, statusEl) {
     statusEl.innerHTML = renderInstagramBar(data.status, data.progress || 10);
     setTimeout(() => pollInstagramStatus(localId, btn, statusEl), 2000);
   } catch (e) {
-    statusEl.innerHTML = `<div class="alert alert-danger py-1 px-2 small mt-2">Gagal memeriksa status: ${esc(e.message)}</div>`;
+    statusEl.innerHTML = `<div class="alert alert-danger py-1 px-2 small mt-2">Failed to check status: ${esc(e.message)}</div>`;
     btn.disabled = false;
   }
 }
@@ -1154,20 +1183,20 @@ async function publishToInstagram(clipId) {
   const isRepost = btn.dataset.repost === '1';
 
   btn.disabled = true;
-  statusEl.innerHTML = '<div class="spinner-border spinner-border-sm text-danger me-1"></div><small class="text-muted">Memeriksa preflight...</small>';
+  statusEl.innerHTML = '<div class="spinner-border spinner-border-sm text-danger me-1"></div><small class="text-muted">Checking preflight...</small>';
 
   try {
     const preflightRes = await fetch(`/instagram/preflight/${clipId}?caption=${encodeURIComponent(caption)}&fit_mode=${encodeURIComponent(fitMode)}`);
     const report = await preflightRes.json();
     if (!report.ok) {
-      statusEl.innerHTML = `<div class="alert alert-danger py-1 px-2 small mb-0"><strong>Tidak dapat mengirim:</strong><ul class="mb-0 ps-3">${report.errors.map(e => '<li>' + esc(e) + '</li>').join('')}</ul></div>`;
+      statusEl.innerHTML = `<div class="alert alert-danger py-1 px-2 small mb-0"><strong>Cannot publish:</strong><ul class="mb-0 ps-3">${report.errors.map(e => '<li>' + esc(e) + '</li>').join('')}</ul></div>`;
       btn.disabled = false;
       return;
     }
 
     let confirmPrompt = '{{ t("instagram.confirmPrompt") }}';
     if (report.warnings && report.warnings.length > 0) {
-      confirmPrompt += '\n\nPeringatan:\n' + report.warnings.map(w => '• ' + w).join('\n');
+      confirmPrompt += '\n\nWarnings:\n' + report.warnings.map(w => '• ' + w).join('\n');
     }
     if (isRepost) {
       confirmPrompt += '\n\n' + '{{ t("instagram.confirmRepostPrompt") }}';
@@ -1193,8 +1222,8 @@ async function publishToInstagram(clipId) {
 
     if (!publishRes.ok) {
       const errData = await publishRes.json().catch(() => ({}));
-      const errMsg = errData.detail || errData.message || 'Terjadi kesalahan saat memulai publish.';
-      statusEl.innerHTML = `<div class="alert alert-danger py-1 px-2 small mt-2">Gagal: ${esc(errMsg)}</div>`;
+      const errMsg = errData.detail || errData.message || 'An error occurred while starting publish.';
+      statusEl.innerHTML = `<div class="alert alert-danger py-1 px-2 small mt-2">Failed: ${esc(errMsg)}</div>`;
       btn.disabled = false;
       return;
     }
@@ -1203,7 +1232,7 @@ async function publishToInstagram(clipId) {
     pollInstagramStatus(local_id, btn, statusEl);
 
   } catch (err) {
-    statusEl.innerHTML = `<div class="alert alert-danger py-1 px-2 small mt-2">Koneksi gagal: ${esc(err.message)}</div>`;
+    statusEl.innerHTML = `<div class="alert alert-danger py-1 px-2 small mt-2">Connection failed: ${esc(err.message)}</div>`;
     btn.disabled = false;
   }
 }
@@ -1232,7 +1261,7 @@ async function checkInstagramTokenStatus() {
       }
     } else {
       if (hint) {
-        hint.textContent = '✓ {{ t("instagram.connected") }} (' + data.days_left + ' hari)';
+        hint.textContent = '✓ {{ t("instagram.connected") }} (' + data.days_left + ' days)';
         hint.className = 'text-success small';
       }
     }
@@ -1285,7 +1314,7 @@ function _startGenerateProgress(btn) {
     const step = pct < 60 ? 3 : (pct < 85 ? 0.8 : 0.1);
     pct = Math.min(pct + step, 90);
     if (inner) inner.style.width = pct.toFixed(1) + '%';
-    if (label) label.textContent = `Memproses... ${Math.round(pct)}%`;
+    if (label) label.textContent = `Processing... ${Math.round(pct)}%`;
   }, 300);
 }
 function _stopGenerateProgress(btn) {
@@ -1294,19 +1323,25 @@ function _stopGenerateProgress(btn) {
   const label = document.getElementById('generate-progress-label');
   const bar = document.getElementById('generate-progress-bar');
   if (inner) { inner.style.width = '100%'; inner.classList.remove('progress-bar-animated'); }
-  if (label) label.textContent = 'Selesai 100%';
+  if (label) label.textContent = 'Completed 100%';
   setTimeout(() => { if (bar) bar.style.display = 'none'; }, 800);
   btn.disabled = false;
   btn.textContent = btn.dataset.origText || 'Generate Clip';
 }
 
 // Load LLM status di tab Hook saat pertama kali dibuka
-document.addEventListener('DOMContentLoaded', () => {
+function _initHookTabListener() {
   const hookTab = document.querySelector('[data-bs-target="#tab-hook"]');
-  if (hookTab) {
+  if (hookTab && !hookTab.dataset.hookBound) {
+    hookTab.dataset.hookBound = '1';
     hookTab.addEventListener('shown.bs.tab', loadHookStatus);
   }
-});
+}
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', _initHookTabListener);
+} else {
+  _initHookTabListener();
+}
 
 async function saveHookCaption(btn, candidateId) {
   const textarea = document.getElementById('hook-caption-input-' + candidateId);
@@ -1315,7 +1350,7 @@ async function saveHookCaption(btn, candidateId) {
 
   const newCaption = textarea.value.trim();
   if (!newCaption) {
-    statusEl.innerHTML = '<small class="text-danger">Caption tidak boleh kosong.</small>';
+    statusEl.innerHTML = '<small class="text-danger">Caption cannot be empty.</small>';
     return;
   }
 
@@ -1334,16 +1369,16 @@ async function saveHookCaption(btn, candidateId) {
     if (res.ok) {
       const data = await res.json();
       textarea.value = data.hook_caption;
-      statusEl.innerHTML = '<small class="text-success">✓ Caption disimpan. Klik <strong>Generate Ulang Hook</strong> untuk re-render.</small>';
+      statusEl.innerHTML = '<small class="text-success">✓ Caption saved. Click <strong>Regenerate Hook</strong> to re-render.</small>';
     } else {
       const err = await res.json().catch(() => ({}));
-      statusEl.innerHTML = `<small class="text-danger">Gagal simpan: ${err.detail || 'unknown error'}</small>`;
+      statusEl.innerHTML = `<small class="text-danger">Failed to save: ${err.detail || 'unknown error'}</small>`;
     }
   } catch (e) {
-    statusEl.innerHTML = '<small class="text-danger">Terjadi kesalahan koneksi.</small>';
+    statusEl.innerHTML = '<small class="text-danger">Connection error occurred.</small>';
   } finally {
     btn.disabled = false;
-    btn.textContent = '💾 Simpan';
+    btn.textContent = '💾 Save';
   }
 }
 
@@ -1357,43 +1392,43 @@ async function loadHookStatus() {
 
     if (!d.api_key_configured) {
       el.innerHTML = `<div class="alert alert-warning small py-2 mb-0">
-        ⚠️ LLM API key belum dikonfigurasi — Auto Hook tidak aktif.
+        ⚠️ LLM API key not configured — Auto Hook is inactive.
       </div>`;
       return;
     }
 
     if (!d.use_auto_hook) {
       el.innerHTML = `<div class="alert alert-secondary small py-2 mb-0">
-        Auto Hook dinonaktifkan via config (USE_AUTO_HOOK=false).
+        Auto Hook disabled via config (USE_AUTO_HOOK=false).
       </div>`;
       return;
     }
 
     let lines = [`<div class="d-flex flex-wrap gap-2 align-items-center mb-1">`];
-    lines.push(`<span class="badge bg-success">✓ LLM aktif (${d.model})</span>`);
+    lines.push(`<span class="badge bg-success">✓ LLM active (${d.model})</span>`);
 
     if (d.remaining_tokens !== null) {
       const pct = d.limit_tokens ? Math.round(d.remaining_tokens / d.limit_tokens * 100) : null;
       const color = pct === null ? 'secondary' : pct > 30 ? 'success' : pct > 10 ? 'warning' : 'danger';
-      lines.push(`<span class="badge bg-${color}">Token tersisa: ${d.remaining_tokens.toLocaleString()}${d.limit_tokens ? ' / ' + d.limit_tokens.toLocaleString() : ''}</span>`);
+      lines.push(`<span class="badge bg-${color}">Tokens remaining: ${d.remaining_tokens.toLocaleString()}${d.limit_tokens ? ' / ' + d.limit_tokens.toLocaleString() : ''}</span>`);
       if (d.reset_tokens_at) lines.push(`<span class="text-muted small">Reset: ${d.reset_tokens_at}</span>`);
     }
 
     if (d.remaining_requests !== null) {
-      lines.push(`<span class="badge bg-secondary">Request tersisa: ${d.remaining_requests}</span>`);
+      lines.push(`<span class="badge bg-secondary">Requests remaining: ${d.remaining_requests}</span>`);
     }
 
     lines.push('</div>');
 
     if (d.last_error) {
       lines.push(`<div class="alert alert-danger small py-1 mb-0 mt-1">
-        Error terakhir: ${d.last_error.substring(0, 120)}${d.last_error.length > 120 ? '...' : ''}
-        <br><small class="text-muted">Saat token/quota habis, clip tetap di-generate normal tanpa hook.</small>
+        Last error: ${d.last_error.substring(0, 120)}${d.last_error.length > 120 ? '...' : ''}
+        <br><small class="text-muted">When tokens/quota run out, clips are still generated normally without hook.</small>
       </div>`);
     } else if (d.last_called_at) {
       lines.push(`<small class="text-muted">Last call: ${new Date(d.last_called_at).toLocaleString()}</small>`);
     } else {
-      lines.push(`<small class="text-muted">Belum ada LLM call sejak server start.</small>`);
+      lines.push(`<small class="text-muted">No LLM calls since server start.</small>`);
     }
 
     el.innerHTML = lines.join('');
@@ -1441,7 +1476,7 @@ function initCropTab(clipId) {
     showCropBox();
   };
   img.onerror = () => {
-    if (loading) loading.innerHTML = '<span class="text-danger small">Gagal muat thumbnail.</span>';
+    if (loading) loading.innerHTML = '<span class="text-danger small">Failed to load thumbnail.</span>';
   };
   // Muat dimensi video asli via metadata (meta=1 → JSON). Tanpa ini konversi
   // persen→piksel berbasis thumbnail 640px, bukan resolusi asli, jadi angka
@@ -1677,7 +1712,7 @@ async function submitCropFrame(event, clipId) {
       _setPreviewHtml(await res.text());
     } else {
       const err = await res.json().catch(() => ({}));
-      alert(err.detail || 'Gagal crop frame. Cek nilai X/Y/Width/Height.');
+      alert(err.detail || 'Failed to crop frame. Check X/Y/Width/Height values.');
     }
   } catch (e) {
     alert('{{ t("candDetail.error") }}');
@@ -1696,16 +1731,30 @@ async function doGenerateClip(btn, candidateId) {
       { method: 'POST' }
     );
     if (res.ok) {
-      const html = await res.text();
-      // Stop animasi dulu (clearInterval), langsung set 100% tanpa timeout,
-      // lalu replace outerHTML segera agar hasil muncul tanpa delay.
       clearInterval(_progressTimer);
       const inner = document.getElementById('generate-progress-inner');
-      if (inner) { inner.style.width = '100%'; inner.classList.remove('progress-bar-animated'); }
-      document.getElementById('clip-action').outerHTML = html;
+      const label = document.getElementById('generate-progress-label');
+      if (inner) {
+        inner.style.width = '100%';
+        inner.classList.remove('progress-bar-animated');
+      }
+      if (label) {
+        label.textContent = 'Completed 100%';
+      }
+
+      setTimeout(() => {
+        if (typeof htmx !== 'undefined') {
+          htmx.ajax('GET', window.location.pathname + window.location.search, {
+            target: '#main-content',
+            pushUrl: false,
+          });
+        } else {
+          window.location.reload();
+        }
+      }, 350);
     } else {
       _stopGenerateProgress(btn);
-      alert('Gagal generate clip. Coba lagi.');
+      alert('Failed to generate clip. Please try again.');
     }
   } catch (e) {
     _stopGenerateProgress(btn);

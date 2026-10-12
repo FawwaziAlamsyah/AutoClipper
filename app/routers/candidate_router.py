@@ -11,11 +11,13 @@ from app.core.htmx import render
 from app.core.di.dependencies import (
     get_candidate_service,
     get_category_service,
+    get_clip_editor_service,
     get_preview_service,
 )
 from app.schemas.candidate_schema import CandidateDetail
 from app.services.candidate_service import CandidateService
 from app.services.category_service import CategoryService
+from app.services.clip_editor_service import ClipEditorService
 from app.services.preview_service import PreviewService
 
 router = APIRouter(prefix="/candidates", tags=["candidates"])
@@ -131,6 +133,7 @@ def candidate_detail(
     candidate_id: int,
     service: CandidateService = Depends(get_candidate_service),
     preview_service: PreviewService = Depends(get_preview_service),
+    editor_service: ClipEditorService = Depends(get_clip_editor_service),
 ) -> HTMLResponse:
     """Render detail candidate: breakdown score, preview, subtitle form."""
     try:
@@ -140,6 +143,9 @@ def candidate_detail(
 
     clip_by_candidate = service.get_completed_clips([candidate_id])
     clip = clip_by_candidate.get(candidate_id)
+    history = None
+    if clip:
+        history = editor_service.get_history(clip.id)
 
     try:
         preview = preview_service.get_candidate_preview(candidate_id)
@@ -166,6 +172,7 @@ def candidate_detail(
             "candidate": candidate,
             "breakdown": candidate.score_breakdown or {},
             "clip": clip,
+            "history": history,
             "preview": preview,
             "video_id": candidate.video_id,
         },

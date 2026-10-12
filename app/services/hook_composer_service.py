@@ -19,6 +19,7 @@ Alur:
 import logging
 import subprocess
 import tempfile
+import time
 from pathlib import Path
 
 from sqlalchemy.orm import Session
@@ -86,14 +87,26 @@ class HookComposerService:
             return False
 
         try:
-            result_path = self._render_hook(clip, video_source_path, aspect_ratio, hook_moment)
-            clip.edited_file_path = str(result_path)
+            from app.services.clip_history_manager import ClipHistoryManager
+
+            history_mgr = ClipHistoryManager(clip_id)
+            base_clip_path = history_mgr.get_base_for_hook(clip)
+            result_path = self._render_hook(
+                clip, video_source_path, aspect_ratio, hook_moment, base_clip_path=base_clip_path
+            )
+            history_mgr.push_step(
+                clip=clip,
+                action="hook",
+                label="AI Hook Teaser",
+                temp_file_path=result_path,
+                hook_applied=True,
+            )
             clip.hook_applied = True
             clip.hook_skip_reason = None
             self.db.commit()
             logger.info(
                 "HookComposer: hook diterapkan ke clip %d → %s",
-                clip_id, result_path.name,
+                clip_id, clip.edited_file_path,
             )
             return True
         except Exception as e:
@@ -126,27 +139,31 @@ class HookComposerService:
             return False
 
         try:
-            result_path = self._render_hook(clip, video_source_path, aspect_ratio, hook_moment)
-            clip.edited_file_path = str(result_path)
+            from app.services.clip_history_manager import ClipHistoryManager
+
+            history_mgr = ClipHistoryManager(clip_id)
+            base_clip_path = history_mgr.get_base_for_hook(clip)
+            result_path = self._render_hook(
+                clip, video_source_path, aspect_ratio, hook_moment, base_clip_path=base_clip_path
+            )
+            history_mgr.push_step(
+                clip=clip,
+                action="hook",
+                label="AI Hook Teaser",
+                temp_file_path=result_path,
+                hook_applied=True,
+            )
             clip.hook_applied = True
             clip.hook_skip_reason = None
             self.db.commit()
             logger.info(
                 "HookComposer.regenerate: hook diterapkan ke clip %d → %s",
-                clip_id, result_path.name,
+                clip_id, clip.edited_file_path,
             )
             return True
         except Exception as e:
             logger.warning(
                 "HookComposer.regenerate gagal untuk clip %d: %s", clip_id, e,
-            )
-            clip.hook_applied = False
-            clip.hook_skip_reason = "render_failed"
-            self.db.commit()
-            return False
-            logger.warning(
-                "HookComposer render gagal untuk clip %d (clip normal tetap dipakai): %s",
-                clip_id, e,
             )
             clip.hook_applied = False
             clip.hook_skip_reason = "render_failed"
@@ -161,11 +178,18 @@ class HookComposerService:
         video_source_path: str,
         aspect_ratio: str,
         hook_moment: HookMoment,
+        base_clip_path: str | Path | None = None,
     ) -> Path:
         """Render seluruh pipeline hook, return path file akhir."""
-        clip_path = Path(clip.file_path)
-        output_dir = clip_path.parent
-        stem = clip_path.stem
+        if base_clip_path is not None:
+            clip_path = Path(base_clip_path)
+        else:
+            from app.services.clip_history_manager import ClipHistoryManager
+
+            clip_path = ClipHistoryManager(clip.id).get_base_for_hook(clip)
+
+        output_dir = Path(clip.file_path).parent
+        stem = Path(clip.file_path).stem
 
         # Pastikan TEMP_DIR ada sebelum TemporaryDirectory
         settings.TEMP_DIR.mkdir(parents=True, exist_ok=True)
@@ -204,7 +228,8 @@ class HookComposerService:
             self._apply_sfx(str(teaser_caption), str(teaser_final), teaser_duration)
 
             # Step 5 — Concat teaser + clip utuh (dengan fadewhite di titik cut)
-            output_path = output_dir / f"{stem}_hook.mp4"
+            ts = int(time.time() * 1000)
+            output_path = settings.TEMP_DIR / f"{stem}_hook_{ts}.mp4"
             self._concat(str(teaser_final), str(clip_path), str(output_path), tmp, teaser_duration)
 
         return output_path

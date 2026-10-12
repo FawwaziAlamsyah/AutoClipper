@@ -2,7 +2,7 @@
   <div class="sec-h">
     <div>
       <h2>{{ t("cand.title") }}</h2>
-      <div style="font-size: 13px; color: var(--muted); margin-top: 4px;">{{ summaries | length }} video dengan candidates. {{ t("cand.click") }} untuk lihat detail.</div>
+      <div style="font-size: 13px; color: var(--muted); margin-top: 4px;">{{ summaries | length }} videos with candidates. {{ t("cand.click") }} to view details.</div>
     </div>
     <div>
       <a class="btn btn-line btn-sm"
@@ -17,7 +17,7 @@
 
   {% if summaries %}
   <div class="row-wrap">
-    <button class="arrow l" data-d="-1" type="button" aria-label="Geser ke kiri">‹</button>
+    <button class="arrow l" data-d="-1" type="button" aria-label="Scroll left">‹</button>
     <div class="row-scroller">
       {% for s in summaries %}
       <article class="card video-card">
@@ -65,13 +65,13 @@
              hx-get="/candidates/video/{{ s.video.id }}"
              hx-target="#main-content"
              hx-push-url="true">
-            Lihat {{ s.candidate_count }} Candidates →
+            View {{ s.candidate_count }} Candidates →
           </a>
         </div>
       </article>
       {% endfor %}
     </div>
-    <button class="arrow r" data-d="1" type="button" aria-label="Geser ke kanan">›</button>
+    <button class="arrow r" data-d="1" type="button" aria-label="Scroll right">›</button>
   </div>
 
   {% else %}
@@ -79,10 +79,10 @@
     <div class="text-muted">
       <i class="bi bi-camera-reels fs-1 d-block mb-3 text-secondary opacity-50"></i>
       <p class="fs-5 mb-1">{{ t("cand.empty") }}</p>
-      <p class="small text-muted mb-0">{{ t("cand.click") }} <strong>{{ t("cand.process") }}</strong> di halaman <a href="/upload"
+      <p class="small text-muted mb-0">{{ t("cand.click") }} <strong>{{ t("cand.process") }}</strong> on the <a href="/upload"
          hx-get="/upload"
          hx-target="#main-content"
-         hx-push-url="true" class="text-danger">{{ t("cand.upload") }}</a> untuk memulai.</p>
+         hx-push-url="true" class="text-danger">{{ t("cand.upload") }}</a> page to get started.</p>
     </div>
   </div>
   {% endif %}

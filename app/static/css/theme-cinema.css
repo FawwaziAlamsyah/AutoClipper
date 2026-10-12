@@ -1262,24 +1262,26 @@ pre {
 
 .thumb .play {
   position: absolute;
-  inset: 0;
+  inset: 0 0 42px 0;
   display: grid;
   place-items: center;
   opacity: 0;
   transition: 0.25s;
   background: rgba(0, 0, 0, 0.35);
-  pointer-events: none;
+  pointer-events: auto;
+  cursor: pointer;
   z-index: 4;
 }
 
 .clip-card:hover .play,
-.video-card:hover .play {
+.video-card:hover .play,
+.thumb:hover .play {
   opacity: 1;
 }
 
 .thumb .play b {
-  width: 46px;
-  height: 46px;
+  width: 48px;
+  height: 48px;
   border-radius: 50%;
   background: rgba(255, 255, 255, 0.92);
   display: grid;
@@ -1287,6 +1289,19 @@ pre {
   color: #000;
   font-size: 16px;
   padding-left: 3px;
+  user-select: none;
+  transition: transform 0.15s ease, background 0.15s ease;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.45);
+}
+
+.thumb .play:hover b {
+  transform: scale(1.12);
+  background: #ffffff;
+}
+
+.thumb.is-playing .play b {
+  padding-left: 0;
+  font-size: 14px;
 }
 
 .thumb {
@@ -1556,6 +1571,46 @@ pre {
 
 .editor-tabs-sticky .nav-tabs .nav-link.active i {
   color: #ffffff !important;
+}
+
+/* ── Studio Action Toolbar (Undo / Redo / History) ── */
+.editor-action-toolbar {
+  background: var(--surface-2);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+}
+
+.action-btn-undo:hover:not(:disabled) i {
+  display: inline-block;
+  transform: rotate(-30deg);
+  transition: transform 0.2s ease;
+}
+
+.action-btn-redo:hover:not(:disabled) i {
+  display: inline-block;
+  transform: rotate(30deg);
+  transition: transform 0.2s ease;
+}
+
+.step-info-pill {
+  background: var(--surface-3);
+  border: 1px solid var(--line-strong);
+  color: #f5f5f1;
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.2px;
+}
+
+.step-info-pill .step-label-muted {
+  color: #d0d0d8;
+}
+
+.step-info-pill-orig {
+  background: var(--surface-3);
+  border: 1px solid var(--line-strong);
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 500;
 }
 
 .nav-tabs {

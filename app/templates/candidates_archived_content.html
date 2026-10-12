@@ -17,7 +17,7 @@
 
   {% if summaries %}
   <div class="row-wrap">
-    <button class="arrow l" data-d="-1" type="button" aria-label="Geser ke kiri">‹</button>
+    <button class="arrow l" data-d="-1" type="button" aria-label="Scroll left">‹</button>
     <div class="row-scroller">
       {% for s in summaries %}
       <article class="card video-card archived">
@@ -39,7 +39,7 @@
           </div>
 
           <div class="tags mb-3">
-            <span class="tag wait">📦 Diarsipkan</span>
+            <span class="tag wait">📦 Archived</span>
             {% if s.video.archived_at %}
             <span class="tag">{{ s.video.archived_at.strftime('%d %b %Y') }}</span>
             {% endif %}
@@ -69,13 +69,13 @@
              hx-get="/candidates/video/{{ s.video.id }}"
              hx-target="#main-content"
              hx-push-url="true">
-            Lihat {{ s.candidate_count }} Candidates →
+            View {{ s.candidate_count }} Candidates →
           </a>
         </div>
       </article>
       {% endfor %}
     </div>
-    <button class="arrow r" data-d="1" type="button" aria-label="Geser ke kanan">›</button>
+    <button class="arrow r" data-d="1" type="button" aria-label="Scroll right">›</button>
   </div>
 
   {% else %}

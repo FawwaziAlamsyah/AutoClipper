@@ -37,10 +37,10 @@
 <div class="panel p-4">
   <div class="d-flex align-items-center gap-2 mb-1">
     <i class="bi bi-archive text-danger fs-5"></i>
-    <h5 class="mb-0">Video Belum Diarsipkan ({{ archivable | length }})</h5>
+    <h5 class="mb-0">Unarchived Videos ({{ archivable | length }})</h5>
   </div>
   <p class="text-muted small mb-3">
-    Diurutkan dari file terbesar. Archive menghapus file dari disk &mdash; data candidate dan training tetap tersimpan.
+    Sorted by largest file size. Archiving removes the video file from disk &mdash; candidate and training data are preserved.
   </p>
 
   {% if archivable %}
@@ -52,7 +52,7 @@
           <th>{{ t("storage.filename") }}</th>
           <th>{{ t("storage.size") }}</th>
           <th>{{ t("storage.notRendered") }}</th>
-          <th class="text-end" style="width: 120px;">Aksi</th>
+          <th class="text-end" style="width: 120px;">Action</th>
         </tr>
       </thead>
       <tbody>
@@ -91,7 +91,7 @@
 
 <script>
 async function archiveVideo(btn, videoId) {
-  if (!confirm('File video akan dihapus dari disk untuk hemat storage.\nData candidate/training tetap tersimpan. Lanjutkan?')) return;
+  if (!confirm('Video file will be deleted from disk to save storage.\nCandidate and training data are preserved. Continue?')) return;
   btn.disabled = true;
   btn.textContent = '...';
   try {
@@ -99,12 +99,12 @@ async function archiveVideo(btn, videoId) {
     if (res.ok) {
       document.getElementById('storage-row-' + videoId)?.remove();
     } else {
-      alert('Gagal mengarsipkan video.');
+      alert('Failed to archive video.');
       btn.disabled = false;
       btn.textContent = '📦 Archive';
     }
   } catch (e) {
-    alert('Terjadi kesalahan.');
+    alert('An error occurred.');
     btn.disabled = false;
     btn.textContent = '📦 Archive';
   }

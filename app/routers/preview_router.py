@@ -1,5 +1,6 @@
 """Preview endpoints."""
 
+import threading
 from fastapi import APIRouter, Depends
 from fastapi.responses import FileResponse
 
@@ -8,6 +9,16 @@ from app.core.di.dependencies import get_preview_service
 from app.services.preview_service import PreviewService
 
 router = APIRouter(prefix="/preview", tags=["preview"])
+
+_preview_locks: dict[int, threading.Lock] = {}
+_locks_mutex = threading.Lock()
+
+
+def _get_candidate_lock(candidate_id: int) -> threading.Lock:
+    with _locks_mutex:
+        if candidate_id not in _preview_locks:
+            _preview_locks[candidate_id] = threading.Lock()
+        return _preview_locks[candidate_id]
 
 
 @router.get("/candidates/{candidate_id}")
@@ -29,8 +40,10 @@ def preview_candidate_clip(
     """
     cache_path = settings.CACHE_DIR / "previews" / f"candidate_{candidate_id}.mp4"
 
-    if not cache_path.exists():
-        service.build_preview_clip_file(candidate_id, str(cache_path))
+    if not cache_path.exists() or cache_path.stat().st_size == 0:
+        with _get_candidate_lock(candidate_id):
+            if not cache_path.exists() or cache_path.stat().st_size == 0:
+                service.build_preview_clip_file(candidate_id, str(cache_path))
 
     return FileResponse(cache_path, media_type="video/mp4")
 

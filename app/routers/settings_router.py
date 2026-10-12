@@ -96,7 +96,7 @@ def settings_save(
         )
 
     resp = RedirectResponse(url=request.headers.get("referer") or "/", status_code=303)
-    resp.set_cookie(**_cookie({"lang": lang, "theme": theme}))
+    resp.set_cookie(**_cookie({"lang": "en", "theme": "dark"}))
     return resp
 
 

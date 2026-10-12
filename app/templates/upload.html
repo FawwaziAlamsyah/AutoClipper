@@ -6,7 +6,7 @@
 <div class="page-head mb-4">
   <div>
     <h2 class="mb-1">Upload & Download Video</h2>
-    <p class="text-muted small mb-0">Unggah file video lokal atau download langsung dari URL untuk diproses.</p>
+    <p class="text-muted small mb-0">Upload local video files or download directly from URL for processing.</p>
   </div>
 </div>
 
@@ -16,20 +16,20 @@
     <div class="panel h-100 d-flex flex-column card shadow-sm p-4">
       <div class="d-flex align-items-center gap-2 mb-2">
         <i class="bi bi-cloud-arrow-up text-danger fs-5"></i>
-        <h3 class="mb-0 fs-4">Upload File Video</h3>
+        <h3 class="mb-0 fs-4">Upload Video File</h3>
       </div>
-      <p class="text-muted small mb-3">Pilih file video lokal dari komputer Anda.</p>
+      <p class="text-muted small mb-3">Choose a local video file from your computer.</p>
 
       <div class="mb-3">
-        <label for="videoFile" class="form-label">Pilih file video ({{ allowed_extensions | join(', ') }})</label>
+        <label for="videoFile" class="form-label">Choose video file ({{ allowed_extensions | join(', ') }})</label>
         <div class="drop" onclick="document.getElementById('videoFile').click()">
           <div class="ic"><i class="bi bi-file-earmark-play"></i></div>
-          <strong style="font-size:16px;">Tarik & lepaskan file video ke sini</strong>
-          <p>atau klik untuk memilih file dari komputer Anda</p>
-          <span class="btn btn-primary btn-sm"><i class="bi bi-folder2-open me-1"></i> Pilih File</span>
+          <strong style="font-size:16px;">Drag & drop video file here</strong>
+          <p>or click to browse from your computer</p>
+          <span class="btn btn-primary btn-sm"><i class="bi bi-folder2-open me-1"></i> Choose File</span>
           <input class="d-none" type="file" id="videoFile" accept=".mp4,.mov,.mkv,.avi">
         </div>
-        <div class="form-text mt-2 text-center">Maksimal ukuran file: {{ max_size_mb }} MB.</div>
+        <div class="form-text mt-2 text-center">Maximum file size: {{ max_size_mb }} MB.</div>
       </div>
 
       <div class="progress mb-3 d-none" id="uploadProgressContainer" style="height: 10px;">
@@ -48,22 +48,22 @@
     <div class="panel h-100 d-flex flex-column card shadow-sm p-4">
       <div class="d-flex align-items-center gap-2 mb-2">
         <i class="bi bi-link-45deg text-danger fs-5"></i>
-        <h3 class="mb-0 fs-4">Download dari URL</h3>
+        <h3 class="mb-0 fs-4">Download from URL</h3>
       </div>
-      <p class="text-muted small mb-3">Masukkan link URL video (YouTube, TikTok, dll).</p>
+      <p class="text-muted small mb-3">Enter video URL link (YouTube, TikTok, etc.).</p>
 
       <div class="mb-4">
-        <label for="videoUrl" class="form-label">URL Video</label>
+        <label for="videoUrl" class="form-label">Video URL</label>
         <div class="input-group">
           <span class="input-group-text bg-dark border-secondary-subtle text-muted"><i class="bi bi-globe2"></i></span>
           <input class="form-control" type="url" id="videoUrl" placeholder="https://www.youtube.com/watch?v=...">
         </div>
-        <div class="form-text mt-1">Video akan di-download secara otomatis dan di-import.</div>
+        <div class="form-text mt-1">Video will be automatically downloaded and imported.</div>
       </div>
 
       <div class="d-none mb-3" id="downloadSpinner">
         <div class="mb-2 d-flex justify-content-between align-items-center">
-          <span class="text-muted small">Sedang mengunduh video...</span>
+          <span class="text-muted small">Downloading video...</span>
           <span id="downloadPct" class="fw-semibold small">0%</span>
         </div>
         <div class="progress mb-2" style="height: 10px;">
@@ -83,15 +83,15 @@
 <div class="panel mt-4 card shadow-sm p-4">
   <div class="d-flex align-items-center gap-2 mb-2">
     <i class="bi bi-sliders text-danger fs-5"></i>
-    <h3 class="mb-0 fs-4">Pengaturan Pipeline</h3>
+    <h3 class="mb-0 fs-4">Pipeline Settings</h3>
   </div>
-  <p class="text-muted small mb-3">Parameter ini dipakai saat tombol Proses di tabel video diklik.</p>
+  <p class="text-muted small mb-3">These parameters are used when the Process button in the video table is clicked.</p>
   <div class="row g-3">
     <div class="col-md-3">
-      <label class="form-label">Bahasa</label>
+      <label class="form-label">Language</label>
       <select class="form-select" id="pl-language">
         <option value="">Auto Detect</option>
-        <option value="id">Indonesia</option>
+        <option value="id">Indonesian</option>
         <option value="en">English</option>
       </select>
     </div>
@@ -120,24 +120,24 @@
       </select>
     </div>
     <div class="col-md-3">
-      <label class="form-label">Jumlah Clip</label>
+      <label class="form-label">Number of Clips</label>
       <input class="form-control" type="number" id="pl-num-clips" value="5" min="1" max="20">
     </div>
     <div class="col-md-3">
-      <label class="form-label">Durasi Min (detik)</label>
+      <label class="form-label">Min Duration (sec)</label>
       <input class="form-control" type="number" id="pl-min-duration" value="30" min="5">
     </div>
     <div class="col-md-3">
-      <label class="form-label">Durasi Maks (detik)</label>
+      <label class="form-label">Max Duration (sec)</label>
       <input class="form-control" type="number" id="pl-max-duration" value="60" min="10">
     </div>
     <div class="col-md-3">
-      <label class="form-label">Keyword Boost (koma)</label>
-      <input class="form-control" type="text" id="pl-keywords" placeholder="bitcoin, ai, investasi">
+      <label class="form-label">Keyword Boost (comma)</label>
+      <input class="form-control" type="text" id="pl-keywords" placeholder="bitcoin, ai, investing">
     </div>
     <div class="col-md-3">
-      <label class="form-label">Skip Keywords (koma)</label>
-      <input class="form-control" type="text" id="pl-skip-keywords" placeholder="sponsor, subscribe, iklan">
+      <label class="form-label">Skip Keywords (comma)</label>
+      <input class="form-control" type="text" id="pl-skip-keywords" placeholder="sponsor, subscribe, ad">
     </div>
   </div>
 </div>
@@ -145,18 +145,18 @@
 <div class="panel mt-4 card shadow-sm p-4">
   <div class="d-flex align-items-center gap-2 mb-3">
     <i class="bi bi-collection-play text-danger fs-5"></i>
-    <h3 class="mb-0 fs-4">Video Terupload</h3>
+    <h3 class="mb-0 fs-4">Uploaded Videos</h3>
   </div>
   <div class="table-responsive">
     <table class="table align-middle">
       <thead>
         <tr>
           <th>ID</th>
-          <th>Nama File</th>
+          <th>File Name</th>
           <th>Status</th>
-          <th>Tipe</th>
-          <th>Durasi</th>
-          <th>Aksi</th>
+          <th>Type</th>
+          <th>Duration</th>
+          <th>Action</th>
         </tr>
       </thead>
       <tbody id="videoTableBody">
@@ -172,7 +172,7 @@
             <div class="d-flex gap-2 align-items-center">
               {% if rj %}
               <button class="btn btn-sm btn-outline-success process-btn" data-video-id="{{ video.id }}" data-job-id="{{ rj.job_id }}" disabled>
-                <span class="spinner-border spinner-border-sm me-1"></span>Proses: {{ rj.current_step }}...
+                <span class="spinner-border spinner-border-sm me-1"></span>Processing: {{ rj.current_step }}...
               </button>
               <button class="btn btn-sm btn-outline-warning cancel-btn" data-job-id="{{ rj.job_id }}">Cancel</button>
               {% elif video.status == 'uploading' %}
@@ -180,7 +180,7 @@
                 <span class="spinner-border spinner-border-sm me-1"></span>Uploading...
               </button>
               {% else %}
-              <button class="btn btn-sm btn-outline-success process-btn" data-video-id="{{ video.id }}">Proses</button>
+              <button class="btn btn-sm btn-outline-success process-btn" data-video-id="{{ video.id }}">Process</button>
               {% endif %}
               {% if video.is_archived %}
               <span class="badge bg-warning text-dark">📦 Archived</span>
@@ -192,7 +192,7 @@
           </td>
         </tr>
         {% else %}
-        <tr id="empty-row"><td colspan="6" class="text-center text-muted">Belum ada video.</td></tr>
+        <tr id="empty-row"><td colspan="6" class="text-center text-muted">No videos yet.</td></tr>
         {% endfor %}
       </tbody>
     </table>
@@ -200,7 +200,7 @@
 </div>
 
 <script>
-// Pipeline settings — simpan ke sessionStorage agar tidak reset saat pindah halaman
+// Pipeline settings — save to sessionStorage so they persist across page navigation
 const PL_IDS = ['pl-language', 'pl-content-type', 'pl-clip-style', 'pl-num-clips',
                 'pl-min-duration', 'pl-max-duration', 'pl-keywords', 'pl-skip-keywords'];
 const PL_KEY = 'pipelineSettings';
@@ -221,11 +221,9 @@ function restorePipelineSettings() {
       const el = document.getElementById(id);
       if (el && state[id] !== undefined) el.value = state[id];
     });
-  } catch (e) { /* sessionStorage rusak → pakai default */ }
+  } catch (e) {}
 }
 
-// Event delegation untuk save (input/change) pada kontainer pengaturan pipeline
-const plContainer = document.querySelector('.card.shadow-sm.p-4.mt-4 .row.g-3')?.parentElement;
 PL_IDS.forEach(id => {
   const el = document.getElementById(id);
   if (el) el.addEventListener('change', savePipelineSettings);
@@ -233,13 +231,13 @@ PL_IDS.forEach(id => {
 restorePipelineSettings();
 
 function esc(str) {
-  const div = document.createElement('div');
-  div.textContent = str == null ? '' : str;
-  return div.innerHTML;
+  const d = document.createElement('div');
+  d.textContent = str;
+  return d.innerHTML;
 }
 
 function formatDuration(sec) {
-  if (sec == null) return '-';
+  if (!sec) return '-';
   const m = Math.floor(sec / 60);
   const s = Math.round(sec % 60);
   return `${m}m ${s}s`;
@@ -249,7 +247,7 @@ function rowHtml(v) {
   const statusBadge = `<span class="badge bg-${v.status === 'ready' ? 'success' : (v.status === 'uploading' ? 'warning' : 'secondary')}">${esc(v.status)}</span>`;
   const actions = v.status === 'uploading'
     ? `<button class="btn btn-sm btn-outline-secondary process-btn" data-video-id="${v.id}" data-uploading="1" disabled><span class="spinner-border spinner-border-sm me-1"></span>Uploading...</button>`
-    : `<button class="btn btn-sm btn-success process-btn" data-video-id="${v.id}">Proses</button>`;
+    : `<button class="btn btn-sm btn-success process-btn" data-video-id="${v.id}">Process</button>`;
   const archiveBtn = v.is_archived
     ? `<span class="badge bg-warning text-dark">📦 Archived</span>`
     : `<button class="btn btn-sm btn-outline-warning delete-btn" data-video-id="${v.id}">📦 Archive</button>`;
@@ -281,7 +279,7 @@ function setProcessing(btn, jobId) {
   btn.classList.remove('btn-success');
   btn.classList.add('btn-outline-success');
   btn.dataset.jobId = jobId;
-  btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Proses: memulai...';
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Processing: starting...';
 
   // Add Cancel button
   const cell = btn.parentNode;
@@ -317,9 +315,9 @@ function bindRowActions(row) {
 async function cancelJob(btn) {
   const jobId = btn.dataset.jobId;
   if (!jobId) return;
-  if (!confirm(`Cancel job ${jobId}? Proses ini akan dihentikan.`)) return;
+  if (!confirm(`Cancel job ${jobId}? This process will be stopped.`)) return;
   btn.disabled = true;
-  btn.textContent = 'Membatalkan...';
+  btn.textContent = 'Cancelling...';
   const res = await fetch(`/jobs/${jobId}/cancel`, { method: 'POST' });
   if (res.ok) {
     const row = btn.closest('tr');
@@ -331,7 +329,7 @@ async function cancelJob(btn) {
         procBtn.disabled = false;
         procBtn.classList.remove('btn-outline-success');
         procBtn.classList.add('btn-success');
-        procBtn.innerHTML = 'Proses';
+        procBtn.innerHTML = 'Process';
         delete procBtn.dataset.jobId;
       }
       const badge = row.querySelector('td:nth-child(3) .badge');
@@ -342,7 +340,7 @@ async function cancelJob(btn) {
       }
     }
   } else {
-    alert('Gagal cancel job.');
+    alert('Failed to cancel job.');
     btn.disabled = false;
     btn.textContent = 'Cancel';
   }
@@ -352,15 +350,15 @@ async function processVideo(btn) {
   const videoId = btn.dataset.videoId;
   const row = document.getElementById(`video-row-${videoId}`);
   const badge = row?.querySelector('td:nth-child(3) .badge');
-  // status 'ready' = video sudah pernah diproses — minta konfirmasi proses ulang
+  // status 'ready' = video has been processed before — confirm re-process
   if (badge && badge.textContent.trim() === 'ready') {
-    if (!confirm('Video ini sudah pernah diproses. Apakah ingin memproses ulang?')) {
+    if (!confirm('This video has already been processed. Re-process?')) {
       return;
     }
   }
   btn.disabled = true;
   const oldText = btn.textContent;
-  btn.textContent = 'Memulai...';
+  btn.textContent = 'Starting...';
 
   const params = {
     language: document.getElementById('pl-language').value || null,
@@ -381,7 +379,7 @@ async function processVideo(btn) {
     });
     const data = await res.json();
     if (!res.ok) {
-      alert(data.detail || 'Gagal memulai proses.');
+      alert(data.detail || 'Failed to start process.');
       btn.disabled = false;
       btn.textContent = oldText;
       return;
@@ -391,20 +389,18 @@ async function processVideo(btn) {
     const jobId = data.job_id;
     setProcessing(btn, jobId);
     const done = await pollJob(jobId, (step, pct) => {
-      btn.innerHTML = `<span class="spinner-border spinner-border-sm me-1"></span>Proses: ${step}${pct != null ? ` (${pct}%)` : ''}`;
-      btn.title = `Proses: ${step}`;
+      btn.innerHTML = `<span class="spinner-border spinner-border-sm me-1"></span>Processing: ${step}${pct != null ? ` (${pct}%)` : ''}`;
+      btn.title = `Processing: ${step}`;
     });
 
     const row = document.getElementById(`video-row-${videoId}`);
     const cancelBtn = row ? row.querySelector('.cancel-btn') : null;
     if (done === 'completed') {
       if (cancelBtn) cancelBtn.remove();
-      // Kembalikan tombol ke "Proses" aktif — user bisa proses ulang (dengan
-      // confirm saat video sudah ready, lihat processVideo di atas).
       btn.disabled = false;
       btn.classList.remove('btn-outline-success');
       btn.classList.add('btn-success');
-      btn.textContent = 'Proses';
+      btn.textContent = 'Process';
       delete btn.dataset.jobId;
       const badge = row.querySelector('td:nth-child(3) .badge');
       if (badge) {
@@ -426,7 +422,7 @@ async function processVideo(btn) {
       }
     } else {
       if (cancelBtn) cancelBtn.remove();
-      alert(`Proses gagal. ${done}`);
+      alert(`Process failed. ${done}`);
       btn.disabled = false;
       btn.classList.remove('btn-outline-success');
       btn.classList.add('btn-success');
@@ -435,7 +431,7 @@ async function processVideo(btn) {
   } catch (e) {
     btn.disabled = false;
     btn.textContent = oldText;
-    alert('Terjadi kesalahan sistem.');
+    alert('System error occurred.');
   }
 }
 
@@ -456,18 +452,17 @@ async function pollJob(jobId, onStep) {
 async function deleteVideo(btn) {
   const videoId = btn.dataset.videoId;
   if (!confirm(
-    `File video ID ${videoId} akan dihapus dari disk untuk hemat storage.\n` +
-    `Semua data candidate/training tetap tersimpan. Lanjutkan?`
+    `Video file ID ${videoId} will be deleted from disk to save storage.\n` +
+    `Candidate and training data are preserved. Continue?`
   )) return;
   btn.disabled = true;
   btn.textContent = '...';
   const res = await fetch(`/upload/videos/${videoId}`, { method: 'DELETE' });
   if (res.ok) {
-    // Ganti tombol Archive dengan badge Archived — jangan hapus row
     btn.outerHTML = `<span class="badge bg-warning text-dark">📦 Archived</span>`;
   } else {
     const data = await res.json();
-    alert(data.detail || 'Gagal mengarsipkan video.');
+    alert(data.detail || 'Failed to archive video.');
     btn.disabled = false;
     btn.textContent = '📦 Archive';
   }
@@ -476,9 +471,9 @@ async function deleteVideo(btn) {
 async function hardDeleteVideo(btn) {
   const videoId = btn.dataset.videoId;
   if (!confirm(
-    `⚠️ DELETE ALL: Video ID ${videoId} beserta SEMUA data terkait akan dihapus permanen.\n` +
-    `Ini termasuk candidates, training labels, transcripts, dan analysis results.\n\n` +
-    `Operasi ini TIDAK BISA di-undo. Lanjutkan?`
+    `⚠️ DELETE ALL: Video ID ${videoId} along with ALL associated data will be permanently deleted.\n` +
+    `This includes candidates, training labels, transcripts, and analysis results.\n\n` +
+    `CANNOT be undone. Continue?`
   )) return;
   btn.disabled = true;
   btn.textContent = '...';
@@ -487,11 +482,11 @@ async function hardDeleteVideo(btn) {
     document.getElementById(`video-row-${videoId}`)?.remove();
     const tbody = document.getElementById('videoTableBody');
     if (tbody && !tbody.querySelector('tr')) {
-      tbody.innerHTML = '<tr id="empty-row"><td colspan="6" class="text-center text-muted">Belum ada video.</td></tr>';
+      tbody.innerHTML = '<tr id="empty-row"><td colspan="6" class="text-center text-muted">No videos yet.</td></tr>';
     }
   } else {
     const data = await res.json();
-    alert(data.detail || 'Gagal menghapus video.');
+    alert(data.detail || 'Failed to delete video.');
     btn.disabled = false;
     btn.textContent = '🗑 Delete All';
   }
@@ -510,7 +505,7 @@ function removePending(id) {
   sessionStorage.setItem(PENDING_UPLOADS, JSON.stringify(getPending().filter(x => x !== id)));
 }
 
-// Upload file — begin (record survive) lalu finish via XHR dengan progress bar
+// Upload file — begin (record survive) then finish via XHR with progress bar
 document.getElementById('uploadBtn').addEventListener('click', async () => {
   const fileInput = document.getElementById('videoFile');
   const btn = document.getElementById('uploadBtn');
@@ -523,7 +518,7 @@ document.getElementById('uploadBtn').addEventListener('click', async () => {
   succDiv.classList.add('d-none');
 
   if (!fileInput.files.length) {
-    showAlert(errDiv, 'Pilih file video terlebih dahulu.', false);
+    showAlert(errDiv, 'Please select a video file first.', false);
     return;
   }
 
@@ -535,14 +530,12 @@ document.getElementById('uploadBtn').addEventListener('click', async () => {
   progressBar.textContent = '0%';
 
   try {
-    // 1. Buat record uploading dulu (survive navigasi)
     const beginRes = await fetch(`/upload/begin?filename=${encodeURIComponent(file.name)}`, { method: 'POST' });
-    if (!beginRes.ok) throw new Error('Gagal memulai upload');
+    if (!beginRes.ok) throw new Error('Failed to start upload');
     const video = await beginRes.json();
     addPending(video.id);
     addRow(video);
 
-    // 2. Kirim file via XHR — onprogress update persen, finish endpoint sync (threadpool)
     await new Promise((resolve, reject) => {
       const xhr = new XMLHttpRequest();
       xhr.open('POST', `/upload/${video.id}/finish`, true);
@@ -558,29 +551,29 @@ document.getElementById('uploadBtn').addEventListener('click', async () => {
         if (xhr.status >= 200 && xhr.status < 300) {
           resolve(JSON.parse(xhr.responseText));
         } else {
-          let detail = 'Gagal mengunggah file.';
+          let detail = 'Failed to upload file.';
           try { detail = JSON.parse(xhr.responseText).detail; } catch (e) {}
           reject(new Error(detail));
         }
       };
-      xhr.onerror = () => reject(new Error('Koneksi bermasalah atau proses dihentikan.'));
+      xhr.onerror = () => reject(new Error('Connection issue or process terminated.'));
       const fd = new FormData();
       fd.append('file', file);
       xhr.send(fd);
     }).then((v) => {
       btn.disabled = false;
       progressContainer.classList.add('d-none');
-      showAlert(succDiv, `File berhasil diunggah! ID Video: ${v.id}`, true);
+      showAlert(succDiv, `File uploaded successfully! Video ID: ${v.id}`, true);
       refreshRow(v);
     }).catch((err) => {
       btn.disabled = false;
       progressContainer.classList.add('d-none');
-      showAlert(errDiv, err.message || 'Gagal mengunggah file.', false);
+      showAlert(errDiv, err.message || 'Failed to upload file.', false);
     });
   } catch (e) {
     btn.disabled = false;
     progressContainer.classList.add('d-none');
-    showAlert(errDiv, e.message || 'Gagal memulai upload.', false);
+    showAlert(errDiv, e.message || 'Failed to start upload.', false);
   }
 });
 
@@ -589,14 +582,13 @@ function pollUploadStatus(videoId, onDone, onError) {
   (function tick() {
     fetch(`/upload/videos/${videoId}`)
       .then(r => {
-        // Video tak ada (404) → stop polling, jangan loop terus
-        if (!r.ok) { onError('Video tidak ditemukan.'); return; }
+        if (!r.ok) { onError('Video not found.'); return; }
         return r.json();
       })
       .then(v => {
         if (!v) return;
         if (v.status === 'uploaded') { onDone(v); return; }
-        if (v.status === 'failed') { onError('Upload gagal.'); return; }
+        if (v.status === 'failed') { onError('Upload failed.'); return; }
         if (++tries > 3600) { onError('Upload timeout.'); return; }
         setTimeout(tick, 2000);
       })
@@ -617,8 +609,7 @@ function refreshRow(video) {
   const procBtn = cell.querySelector('.process-btn');
   if (procBtn) {
     procBtn.disabled = false;
-    procBtn.textContent = 'Proses';
-    // Upload selesai → tombol hijau (btn-success), bukan outline abu dari status uploading
+    procBtn.textContent = 'Process';
     procBtn.classList.remove('btn-outline-secondary', 'btn-outline-success');
     procBtn.classList.add('btn-success');
     delete procBtn.dataset.uploading;
@@ -638,7 +629,7 @@ document.getElementById('downloadBtn').addEventListener('click', async () => {
 
   const url = urlInput.value.trim();
   if (!url) {
-    showAlert(errDiv, 'URL tidak boleh kosong.', false);
+    showAlert(errDiv, 'URL cannot be empty.', false);
     return;
   }
 
@@ -656,11 +647,10 @@ document.getElementById('downloadBtn').addEventListener('click', async () => {
     if (!res.ok) {
       btn.disabled = false;
       spinner.classList.add('d-none');
-      showAlert(errDiv, data.detail || 'Gagal memulai download.', false);
+      showAlert(errDiv, data.detail || 'Failed to start download.', false);
       return;
     }
 
-    // Poll progress download sampai selesai/gagal
     const dlId = data.download_id;
     const pctEl = document.getElementById('downloadPct');
     const bar = document.getElementById('downloadProgressBar');
@@ -673,7 +663,7 @@ document.getElementById('downloadBtn').addEventListener('click', async () => {
         pctEl.textContent = '100%';
         btn.disabled = false;
         spinner.classList.add('d-none');
-        showAlert(succDiv, `Video berhasil di-download! ID: ${pd.video.id} - ${pd.video.original_filename}`, true);
+        showAlert(succDiv, `Video downloaded successfully! ID: ${pd.video.id} - ${pd.video.original_filename}`, true);
         addRow(pd.video);
         urlInput.value = '';
         return;
@@ -681,7 +671,7 @@ document.getElementById('downloadBtn').addEventListener('click', async () => {
       if (pd.status === 'error') {
         btn.disabled = false;
         spinner.classList.add('d-none');
-        showAlert(errDiv, pd.error || 'Gagal mendownload video.', false);
+        showAlert(errDiv, pd.error || 'Failed to download video.', false);
         return;
       }
       bar.style.width = (pd.percent || 0) + '%';
@@ -689,11 +679,11 @@ document.getElementById('downloadBtn').addEventListener('click', async () => {
     }
     btn.disabled = false;
     spinner.classList.add('d-none');
-    showAlert(errDiv, 'Timeout menunggu download selesai.', false);
+    showAlert(errDiv, 'Timeout waiting for download to finish.', false);
   } catch (e) {
     btn.disabled = false;
     spinner.classList.add('d-none');
-    showAlert(errDiv, 'Terjadi kesalahan sistem.', false);
+    showAlert(errDiv, 'System error occurred.', false);
   }
 });
 
@@ -738,19 +728,18 @@ document.querySelectorAll('#videoTableBody tr').forEach(row => {
   const procBtn = row.querySelector('.process-btn');
   if (procBtn && procBtn.dataset.jobId) {
     pollJob(procBtn.dataset.jobId, (step, pct) => {
-      procBtn.innerHTML = `<span class="spinner-border spinner-border-sm me-1"></span>Proses: ${step}${pct != null ? ` (${pct}%)` : ''}`;
-      procBtn.title = `Proses: ${step}`;
+      procBtn.innerHTML = `<span class="spinner-border spinner-border-sm me-1"></span>Processing: ${step}${pct != null ? ` (${pct}%)` : ''}`;
+      procBtn.title = `Processing: ${step}`;
     }).then((done) => {
       const videoId = procBtn.dataset.videoId;
       const rowEl = document.getElementById(`video-row-${videoId}`);
       const cancelBtn = rowEl ? rowEl.querySelector('.cancel-btn') : null;
       if (done === 'completed') {
         if (cancelBtn) cancelBtn.remove();
-        // Kembalikan ke "Proses" aktif — bisa proses ulang (confirm saat ready)
         procBtn.disabled = false;
         procBtn.classList.remove('btn-outline-success');
         procBtn.classList.add('btn-success');
-        procBtn.textContent = 'Proses';
+        procBtn.textContent = 'Process';
         delete procBtn.dataset.jobId;
         const badge = rowEl.querySelector('td:nth-child(3) .badge');
         if (badge) {
@@ -763,7 +752,7 @@ document.querySelectorAll('#videoTableBody tr').forEach(row => {
         procBtn.disabled = false;
         procBtn.classList.remove('btn-outline-success');
         procBtn.classList.add('btn-success');
-        procBtn.innerHTML = 'Proses';
+        procBtn.innerHTML = 'Process';
         delete procBtn.dataset.jobId;
         const badge = rowEl.querySelector('td:nth-child(3) .badge');
         if (badge) {
@@ -776,7 +765,7 @@ document.querySelectorAll('#videoTableBody tr').forEach(row => {
         procBtn.disabled = false;
         procBtn.classList.remove('btn-outline-success');
         procBtn.classList.add('btn-success');
-        procBtn.innerHTML = 'Proses';
+        procBtn.innerHTML = 'Process';
         delete procBtn.dataset.jobId;
       }
     });

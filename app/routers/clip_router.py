@@ -143,19 +143,30 @@ def generate_clip_detail(
     )
 
 
+def _preview_response(request: Request, clip, service: ClipEditorService) -> HTMLResponse:
+    history = service.get_history(clip.id)
+    return templates.TemplateResponse(
+        request=request,
+        name="_clip_edit_preview.html",
+        context={
+            "request": request,
+            "clip": clip,
+            "ts": int(time.time()),
+            "history": history,
+        },
+    )
+
+
 @router.post("/{clip_id}/hook/regenerate", response_class=HTMLResponse)
 def regenerate_hook(
     request: Request,
     clip_id: int,
     service: ClipService = Depends(get_clip_service),
+    editor_service: ClipEditorService = Depends(get_clip_editor_service),
 ):
     """Generate ulang hook dari momen tersimpan candidate (tanpa replay LLM)."""
     clip = service.regenerate_hook(clip_id)
-    return templates.TemplateResponse(
-        request=request,
-        name="_clip_edit_preview.html",
-        context={"request": request, "clip": clip, "ts": int(time.time())},
-    )
+    return _preview_response(request, clip, editor_service)
 
 
 @router.post("/{clip_id}/hook/retry-search", response_class=HTMLResponse)
@@ -163,19 +174,11 @@ def retry_hook_search(
     request: Request,
     clip_id: int,
     service: ClipService = Depends(get_clip_service),
+    editor_service: ClipEditorService = Depends(get_clip_editor_service),
 ):
-    """Cari ulang momen hook dari awal via LLM.
-
-    Dipakai saat hook_moment_start masih null (LLM sebelumnya gagal/tidak bisa
-    dihubungi). Berbeda dari /regenerate yang hanya re-render momen tersimpan,
-    endpoint ini menjalankan ulang seluruh pipeline pencarian hook + compose.
-    """
+    """Cari ulang momen hook dari awal via LLM."""
     clip = service.retry_hook_search(clip_id)
-    return templates.TemplateResponse(
-        request=request,
-        name="_clip_edit_preview.html",
-        context={"request": request, "clip": clip, "ts": int(time.time())},
-    )
+    return _preview_response(request, clip, editor_service)
 
 
 @router.get("/{clip_id}/hook/status", response_class=JSONResponse)
@@ -191,6 +194,10 @@ def hook_status(clip_id: int, service: ClipService = Depends(get_clip_service)) 
         "hook_skip_reason": clip.hook_skip_reason,
         "hook_applied": bool(clip.hook_applied),
         "moment_start": candidate.hook_moment_start if candidate else None,
+        "moment_end": candidate.hook_moment_end if candidate else None,
+        "hook_caption": candidate.hook_caption if candidate else None,
+        "clip_start": clip.start_time,
+        "clip_end": clip.end_time,
     }
 
 
@@ -260,9 +267,7 @@ def edit_add_text(
     service: ClipEditorService = Depends(get_clip_editor_service),
 ):
     clip = service.add_text(clip_id, text, position, font_size, color)
-    return templates.TemplateResponse(
-        request=request, name="_clip_edit_preview.html", context={"request": request, "clip": clip, "ts": int(time.time())},
-    )
+    return _preview_response(request, clip, service)
 
 
 @router.post("/{clip_id}/edit/crop", response_class=HTMLResponse)
@@ -274,9 +279,7 @@ def edit_crop(
     service: ClipEditorService = Depends(get_clip_editor_service),
 ):
     clip = service.crop(clip_id, start_time, end_time)
-    return templates.TemplateResponse(
-        request=request, name="_clip_edit_preview.html", context={"request": request, "clip": clip, "ts": int(time.time())},
-    )
+    return _preview_response(request, clip, service)
 
 
 @router.post("/{clip_id}/edit/crop-frame", response_class=HTMLResponse)
@@ -291,10 +294,7 @@ def edit_crop_frame(
 ):
     """Crop area visual frame video (spatial crop) — potong piksel, bukan durasi."""
     clip = service.crop_frame(clip_id, x, y, width, height)
-    return templates.TemplateResponse(
-        request=request, name="_clip_edit_preview.html",
-        context={"request": request, "clip": clip, "ts": int(time.time())},
-    )
+    return _preview_response(request, clip, service)
 
 
 @router.post("/{clip_id}/edit/sound", response_class=HTMLResponse)
@@ -320,9 +320,7 @@ async def edit_mix_sound(
     finally:
         temp_audio_path.unlink(missing_ok=True)
 
-    return templates.TemplateResponse(
-        request=request, name="_clip_edit_preview.html", context={"request": request, "clip": clip, "ts": int(time.time())},
-    )
+    return _preview_response(request, clip, service)
 
 
 @router.post("/{clip_id}/edit/volume", response_class=HTMLResponse)
@@ -333,9 +331,7 @@ def edit_adjust_volume(
     service: ClipEditorService = Depends(get_clip_editor_service),
 ):
     clip = service.adjust_volume(clip_id, video_volume)
-    return templates.TemplateResponse(
-        request=request, name="_clip_edit_preview.html", context={"request": request, "clip": clip, "ts": int(time.time())},
-    )
+    return _preview_response(request, clip, service)
 
 
 @router.post("/{clip_id}/edit/watermark", response_class=HTMLResponse)
@@ -350,9 +346,7 @@ def edit_add_watermark(
     service: ClipEditorService = Depends(get_clip_editor_service),
 ):
     clip = service.add_watermark(clip_id, position, scale, opacity, x_pct=x_pct, y_pct=y_pct)
-    return templates.TemplateResponse(
-        request=request, name="_clip_edit_preview.html", context={"request": request, "clip": clip, "ts": int(time.time())},
-    )
+    return _preview_response(request, clip, service)
 
 
 @router.get("/watermark/last-position", response_class=JSONResponse)
@@ -407,6 +401,37 @@ def edit_progress(clip_id: int):
     return JSONResponse(state)
 
 
+@router.post("/{clip_id}/edit/undo", response_class=HTMLResponse)
+def edit_undo(
+    request: Request,
+    clip_id: int,
+    service: ClipEditorService = Depends(get_clip_editor_service),
+):
+    """Rollback 1-langkah edit (Undo ala CapCut)."""
+    clip = service.undo(clip_id)
+    return _preview_response(request, clip, service)
+
+
+@router.post("/{clip_id}/edit/redo", response_class=HTMLResponse)
+def edit_redo(
+    request: Request,
+    clip_id: int,
+    service: ClipEditorService = Depends(get_clip_editor_service),
+):
+    """Maju 1-langkah edit (Redo ala CapCut)."""
+    clip = service.redo(clip_id)
+    return _preview_response(request, clip, service)
+
+
+@router.get("/{clip_id}/edit/history", response_class=JSONResponse)
+def edit_get_history(
+    clip_id: int,
+    service: ClipEditorService = Depends(get_clip_editor_service),
+) -> dict:
+    """Ambil ringkasan stack riwayat edit untuk sinkronisasi state frontend."""
+    return service.get_history(clip_id)
+
+
 @router.post("/{clip_id}/edit/reset", response_class=HTMLResponse)
 def edit_reset(
     request: Request,
@@ -414,6 +439,4 @@ def edit_reset(
     service: ClipEditorService = Depends(get_clip_editor_service),
 ):
     clip = service.reset(clip_id)
-    return templates.TemplateResponse(
-        request=request, name="_clip_edit_preview.html", context={"request": request, "clip": clip, "ts": int(time.time())},
-    )
+    return _preview_response(request, clip, service)

@@ -1,12 +1,59 @@
 <div id="clip-edit-preview">
   {% set raw_path = clip.edited_file_path or clip.file_path %}
   {% set preview_path = raw_path.replace('\\', '/').split('data/outputs/')[-1] %}
+
+  <!-- CapCut Studio Action Toolbar (Undo / Redo / Step History / Reset) -->
+  <div class="editor-action-toolbar mb-3 p-2 px-3 rounded-3 d-flex flex-wrap align-items-center justify-content-between gap-2">
+    <div class="d-flex align-items-center flex-wrap gap-2">
+      <!-- Undo Button (Rollback 1-Step) -->
+      <button type="button"
+              class="btn btn-sm btn-outline-secondary action-btn-undo"
+              {% if not (history and history.can_undo) %}disabled{% endif %}
+              onclick="undoClipEdit({{ clip.id }})"
+              title="{% if history and history.undo_label %}Undo: {{ history.undo_label }}{% else %}Rollback 1-Step (Undo){% endif %}">
+        <i class="bi bi-arrow-counterclockwise me-1"></i>Undo
+      </button>
+
+      <!-- Redo Button (Forward 1-Step) -->
+      <button type="button"
+              class="btn btn-sm btn-outline-secondary action-btn-redo"
+              {% if not (history and history.can_redo) %}disabled{% endif %}
+              onclick="redoClipEdit({{ clip.id }})"
+              title="{% if history and history.redo_label %}Redo: {{ history.redo_label }}{% else %}Forward 1-Step (Redo){% endif %}">
+        <i class="bi bi-arrow-clockwise me-1"></i>Redo
+      </button>
+
+      <!-- Step Counter & Label Badge -->
+      {% if history and history.current_step > 0 %}
+      <span class="badge step-info-pill rounded-pill px-3 py-1-5 d-inline-flex align-items-center gap-1">
+        <i class="bi bi-layers-fill text-info me-1"></i>
+        <span class="step-label-muted">Step {{ history.current_step }}/{{ history.total_steps - 1 }}:</span>
+        <strong class="text-white">{{ history.current_label }}</strong>
+      </span>
+      {% else %}
+      <span class="badge step-info-pill-orig rounded-pill px-3 py-1-5 d-inline-flex align-items-center gap-1">
+        <i class="bi bi-film me-1 text-light"></i>
+        <span class="text-white">Original Clip</span>
+      </span>
+      {% endif %}
+    </div>
+
+    <div class="d-flex align-items-center gap-2 ms-auto">
+      {% if clip.edited_file_path %}
+      <span class="badge bg-warning text-dark"><i class="bi bi-pencil-fill me-1"></i>{{ t("widget.edited") }}</span>
+      {% endif %}
+      <button type="button"
+              class="btn btn-sm btn-outline-danger d-inline-flex align-items-center gap-1"
+              onclick="resetClipEdit({{ clip.id }})"
+              title="Reset all edits back to original video">
+        <i class="bi bi-arrow-repeat"></i>Reset
+      </button>
+    </div>
+  </div>
+
   <div class="thumb">
     <video class="w-100 h-100 rounded clip-player-video" controls preload="metadata">
       <source src="/data/outputs/{{ preview_path }}?v={{ cachebust(raw_path) }}" type="video/mp4">
     </video>
   </div>
-  {% if clip.edited_file_path %}
-  <span class="badge bg-warning text-dark mt-2"><i class="bi bi-pencil-fill me-1"></i>{{ t("widget.edited") }}</span>
-  {% endif %}
 </div>

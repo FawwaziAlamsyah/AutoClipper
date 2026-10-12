@@ -23,7 +23,7 @@
 
       <form id="localUploadForm" class="d-flex flex-column flex-grow-1">
         <div class="mb-3">
-          <label class="form-label" for="videoFile">Pilih file video ({{ allowed_extensions | join(', ') }})</label>
+          <label class="form-label" for="videoFile">{{ t("upload.allowedExt") }}</label>
           <div class="drop" onclick="document.getElementById('videoFile').click()">
             <div class="ic"><i class="bi bi-file-earmark-play"></i></div>
             <strong style="font-size:16px;">{{ t("ui.upload.dropzoneTitle") }}</strong>
@@ -161,7 +161,7 @@
             <div class="d-flex gap-2 align-items-center">
               {% if rj %}
               <button class="btn btn-sm btn-outline-success process-btn" data-video-id="{{ video.id }}" data-job-id="{{ rj.job_id }}" disabled>
-                <span class="spinner-border spinner-border-sm me-1"></span>Proses: {{ rj.current_step }}...
+                <span class="spinner-border spinner-border-sm me-1"></span>Processing: {{ rj.current_step }}...
               </button>
               <button class="btn btn-sm btn-outline-warning cancel-btn" data-job-id="{{ rj.job_id }}">Cancel</button>
               {% elif video.status == 'uploading' %}
@@ -169,7 +169,7 @@
                 <span class="spinner-border spinner-border-sm me-1"></span>{{ t("upload.uploading") }}
               </button>
               {% else %}
-              <button class="btn btn-sm btn-outline-success process-btn" data-video-id="{{ video.id }}">Proses</button>
+              <button class="btn btn-sm btn-outline-success process-btn" data-video-id="{{ video.id }}">{{ t("cand.process") }}</button>
               {% endif %}
               {% if video.is_archived %}
               <span class="badge bg-warning text-dark">📦 Archived</span>
@@ -261,9 +261,9 @@ function initUploadPage() {
       const res = await fetch('/tiktok/status');
       const data = await res.json();
       if (data.connected) {
-        el.innerHTML = `<span class="badge bg-success">✓ TikTok terhubung</span>`;
+        el.innerHTML = `<span class="badge bg-success">✓ TikTok connected</span>`;
       } else {
-        el.innerHTML = `<a href="/tiktok/oauth/login" class="btn btn-sm btn-dark">🔗 Connect Akun TikTok</a>`;
+        el.innerHTML = `<a href="/tiktok/oauth/login" class="btn btn-sm btn-dark">🔗 Connect TikTok Account</a>`;
       }
     } catch (e) {}
   }
@@ -279,14 +279,14 @@ function initUploadPage() {
       if (data.status === 'active') {
         const days = data.days_left != null ? data.days_left : '?';
         if (data.days_left != null && data.days_left <= 7) {
-          el.innerHTML = `<span class="badge bg-warning text-dark" title="${esc(data.username || '')}">⚠ Instagram (token habis dalam ${esc(days)} hari)</span>`;
+          el.innerHTML = `<span class="badge bg-warning text-dark" title="${esc(data.username || '')}">⚠ Instagram (token expires in ${esc(days)} days)</span>`;
         } else {
-          el.innerHTML = `<span class="badge bg-success" title="${esc(data.username || '')}">✓ Instagram terhubung (${esc(days)} hari)</span>`;
+          el.innerHTML = `<span class="badge bg-success" title="${esc(data.username || '')}">✓ Instagram connected (${esc(days)} days)</span>`;
         }
       } else if (data.status === 'needs_reconnect') {
-        el.innerHTML = `<span class="badge bg-danger" title="${esc(data.last_error || '')}">⚠ Instagram perlu reconnect</span> <small class="text-danger ms-1" style="font-size:0.75rem;">Generate token baru di dashboard Meta, perbarui IG_ACCESS_TOKEN di .env, lalu restart aplikasi.</small>`;
+        el.innerHTML = `<span class="badge bg-danger" title="${esc(data.last_error || '')}">⚠ Instagram needs reconnect</span> <small class="text-danger ms-1" style="font-size:0.75rem;">Generate new token in Meta dashboard, update IG_ACCESS_TOKEN in .env, then restart app.</small>`;
       } else if (data.status === 'not_configured') {
-        el.innerHTML = `<small class="text-muted" style="font-size:0.8rem;">Instagram belum dikonfigurasi (isi IG_* di .env)</small>`;
+        el.innerHTML = `<small class="text-muted" style="font-size:0.8rem;">Instagram not configured (set IG_* in .env)</small>`;
       }
     } catch (e) {}
   }
@@ -299,7 +299,7 @@ function initUploadPage() {
     const statusBadge = `<span class="badge bg-${v.status==='ready'?'success':(v.status==='uploading'?'warning':'secondary')}">${esc(v.status)}</span>`;
     const actions = v.status==='uploading'
       ? `<button class="btn btn-sm btn-outline-secondary process-btn" data-video-id="${v.id}" data-uploading="1" disabled><span class="spinner-border spinner-border-sm me-1"></span>{{ t("upload.uploading") }}</button>`
-      : `<button class="btn btn-sm btn-success process-btn" data-video-id="${v.id}">Proses</button>`;
+      : `<button class="btn btn-sm btn-success process-btn" data-video-id="${v.id}">{{ t("cand.process") }}</button>`;
     const archiveBtn = v.is_archived
       ? `<span class="badge bg-warning text-dark">📦 Archived</span>`
       : ``;
@@ -317,7 +317,7 @@ function initUploadPage() {
   function setProcessing(btn, jobId) {
     btn.disabled = true; btn.classList.remove('btn-success'); btn.classList.add('btn-outline-success');
     btn.dataset.jobId = jobId;
-    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Proses: memulai...';
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Processing: starting...';
     const cell = btn.parentNode;
     let cancelBtn = cell.querySelector('.cancel-btn');
     if (!cancelBtn) {
@@ -399,7 +399,7 @@ function initUploadPage() {
       .then((v) => {
         btn.disabled = false;
         progressContainer.classList.add('d-none');
-        showAlert(succDiv, `File berhasil diunggah! ID Video: ${v.id}`, true);
+        showAlert(succDiv, `File uploaded successfully! Video ID: ${v.id}`, true);
         const row = document.getElementById(`video-row-${v.id}`);
         if (row) {
           row.outerHTML = rowHtml(v);
@@ -442,7 +442,7 @@ function initUploadPage() {
       const procBtn = row.querySelector('.process-btn');
       const videoId = procBtn?.dataset.videoId;
       btn.outerHTML = '';
-      if (procBtn) { procBtn.disabled = false; procBtn.classList.remove('btn-outline-success'); procBtn.classList.add('btn-success'); procBtn.innerHTML = 'Proses'; delete procBtn.dataset.jobId; }
+      if (procBtn) { procBtn.disabled = false; procBtn.classList.remove('btn-outline-success'); procBtn.classList.add('btn-success'); procBtn.innerHTML = 'Process'; delete procBtn.dataset.jobId; }
       // Fetch status video aktual dari server — jangan hardcode 'uploaded'
       const badge = row.querySelector('td:nth-child(3) .badge');
       if (badge && videoId) {
@@ -522,16 +522,16 @@ function initUploadPage() {
         alert(errMsg); btn.disabled=false; btn.textContent=oldText; return;
       }
       const jobId = data.job_id; setProcessing(btn, jobId);
-      const done = await pollJob(jobId, (step, pct) => { btn.innerHTML=`<span class="spinner-border spinner-border-sm me-1"></span>Proses: ${step}${pct!=null?` (${pct}%)`:''}`;  btn.title=`Proses: ${step}`; });
+      const done = await pollJob(jobId, (step, pct) => { btn.innerHTML=`<span class="spinner-border spinner-border-sm me-1"></span>Processing: ${step}${pct!=null?` (${pct}%)`:''}`;  btn.title=`Processing: ${step}`; });
       const rowEl = document.getElementById(`video-row-${videoId}`);
       const cancelBtn = rowEl?.querySelector('.cancel-btn');
       if (done === 'completed') {
-        cancelBtn?.remove(); btn.disabled=false; btn.classList.remove('btn-outline-success'); btn.classList.add('btn-success'); btn.textContent='Proses'; delete btn.dataset.jobId;
+        cancelBtn?.remove(); btn.disabled=false; btn.classList.remove('btn-outline-success'); btn.classList.add('btn-success'); btn.textContent='Process'; delete btn.dataset.jobId;
         const b = rowEl?.querySelector('td:nth-child(3) .badge'); if(b){b.textContent='ready';b.classList.remove('bg-warning','bg-secondary');b.classList.add('bg-success');}
       } else if (done === 'cancelled') {
         cancelBtn?.remove(); btn.disabled=false; btn.classList.remove('btn-outline-success'); btn.classList.add('btn-success'); btn.textContent=oldText; delete btn.dataset.jobId;
         const b = rowEl?.querySelector('td:nth-child(3) .badge'); if(b){b.textContent='uploaded';b.classList.remove('bg-warning','bg-success');b.classList.add('bg-secondary');}
-      } else { cancelBtn?.remove(); alert(`Proses gagal. ${done}`); btn.disabled=false; btn.classList.remove('btn-outline-success'); btn.classList.add('btn-success'); btn.textContent=oldText; }
+      } else { cancelBtn?.remove(); alert(`Process failed. ${done}`); btn.disabled=false; btn.classList.remove('btn-outline-success'); btn.classList.add('btn-success'); btn.textContent=oldText; }
     } catch(e) { btn.disabled=false; btn.textContent=oldText; alert(__t('upload.jsSystemError')); }
   }
 
@@ -549,7 +549,7 @@ function initUploadPage() {
 
   async function hardDeleteVideo(btn) {
     const videoId = btn.dataset.videoId;
-    if (!confirm(`⚠️ DELETE ALL: Video ID ${videoId} beserta SEMUA data terkait dihapus permanen.\nTIDAK BISA di-undo. Lanjutkan?`)) return;
+    if (!confirm(`⚠️ DELETE ALL: Video ID ${videoId} along with ALL associated data will be permanently deleted.\nCANNOT be undone. Continue?`)) return;
     btn.disabled=true; btn.textContent='...';
     const res = await fetch(`/upload/videos/${videoId}/hard`, { method:'DELETE' });
     if (res.ok) {
@@ -572,7 +572,7 @@ function initUploadPage() {
       if(!res.ok){btn.disabled=false;spinner.classList.add('d-none');showAlert(errDiv,data.detail||__t('upload.jsFailDownload'),false);return;}
       sessionStorage.setItem('activeDownloadId', data.download_id);
       await _runDownloadPolling(data.download_id);
-    } catch(e){btn.disabled=false;spinner.classList.add('d-none');showAlert(errDiv,'Kesalahan sistem.',false);}
+    } catch(e){btn.disabled=false;spinner.classList.add('d-none');showAlert(errDiv,__t('upload.jsSystemError'),false);}
   });
 
   // Resume polling kalau ada download aktif saat halaman dimuat ulang
@@ -600,7 +600,7 @@ function initUploadPage() {
           bar.style.width='100%'; pctEl.textContent='100%';
           btn.disabled=false; btn.textContent='Download & Import';
           spinner.classList.add('d-none');
-          showAlert(succDiv,`Video berhasil di-download! ID: ${pd.video.id}`,true);
+          showAlert(succDiv,`Video downloaded successfully! ID: ${pd.video.id}`,true);
           addRow(pd.video); if(urlInput) urlInput.value='';
           sessionStorage.removeItem('activeDownloadId');
           return;
@@ -608,7 +608,7 @@ function initUploadPage() {
         if(pd.status==='error'){
           btn.disabled=false; btn.textContent='Download & Import';
           spinner.classList.add('d-none');
-          showAlert(errDiv,pd.error||'Gagal.',false);
+          showAlert(errDiv,pd.error||'Failed.',false);
           sessionStorage.removeItem('activeDownloadId');
           return;
         }

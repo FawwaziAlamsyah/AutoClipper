@@ -14,54 +14,54 @@
   <div class="panel p-4 p-md-5">
     <h2 class="mt-0">About Daboclip</h2>
     <p>
-      {{ app_name }} (Daboclip) adalah aplikasi <strong>personal-use</strong>
-      video processing tool. Aplikasi disediakan untuk penggunaan
-      pribadi/development oleh developer-nya. Ini bukan layanan publik dan
-      tidak melayani pengguna umum secara komersial.
+      {{ app_name }} (Daboclip) is a <strong>personal-use</strong>
+      video processing tool. The application is provided for personal
+      and development use by its developer. It is not a public commercial service
+      and does not serve the general public commercially.
     </p>
 
-    <h2>Tanggung Jawab Pengguna</h2>
-    <p>Dengan menggunakan aplikasi ini, Anda bertanggung jawab untuk:</p>
+    <h2>User Responsibilities</h2>
+    <p>By using this application, you are responsible for:</p>
     <ul>
-      <li>Video yang diproses dan/atau di-upload &mdash; termasuk memastikan Anda
-        <strong>memiliki hak atau izin</strong> untuk menggunakan konten yang
-        diproses.</li>
-      <li>Mematuhi aturan platform pihak ketiga yang Anda gunakan, seperti
-        <strong>TikTok</strong> (dan platform lain) saat mengunggah video.</li>
-      <li>Tidak menggunakan aplikasi untuk konten yang melanggar hukum atau
-        melanggar hak orang lain.</li>
+      <li>Videos processed and/or published &mdash; including ensuring you
+        <strong>have the rights or permissions</strong> to use and distribute
+        the content processed.</li>
+      <li>Complying with rules and policies of third-party platforms you use, such as
+        <strong>TikTok</strong> or <strong>Instagram</strong> when uploading videos.</li>
+      <li>Not using the application for content that violates applicable laws or
+        infringes upon the rights of others.</li>
     </ul>
 
-    <h2>Hasil AI dan Analisis</h2>
+    <h2>AI Results and Analysis</h2>
     <p>
-      Aplikasi ini menggunakan model AI untuk menganalisis video, audio, dan
-      transcript serta menghasilkan candidate clips (Auto Clipper). Kami
-      <strong>tidak memberikan jaminan bahwa semua hasil AI selalu akurat</strong>.
+      This application uses AI models to analyze video, audio, and
+      transcripts to generate candidate clips (Auto Clipper). We
+      <strong>do not guarantee that all AI results are error-free or perfectly accurate</strong>.
     </p>
     <p>
-      Hasil dan analisis AI <strong>harus tetap dapat direview oleh Anda</strong>
-      sebelum digunakan &mdash; termasuk sebelum video di-upload ke platform mana pun.
+      AI outputs and analysis <strong>must be reviewed by you</strong>
+      before being used &mdash; including before any video is published to any platform.
     </p>
 
-    <h2>Lingkup Penggunaan</h2>
+    <h2>Scope of Use</h2>
     <p>
-      Perangkat lunak ini disediakan <strong>sebagaimana adanya</strong>
-      (as-is) untuk penggunaan pribadi/development. Tidak ada jaminan mengenai
-      ketersediaan, akurasi, atau kelayakan untuk tujuan tertentu.
+      This software is provided <strong>as-is</strong>
+      for personal / development use. No warranties are made regarding
+      availability, accuracy, or fitness for a particular purpose.
     </p>
 
     <h2>Contact</h2>
     {% if contact_email %}
-    <p>Untuk pertanyaan soal ketentuan layanan, hubungi:
+    <p>For questions regarding these terms of service, please contact:
       <a href="mailto:{{ contact_email }}" class="text-danger text-decoration-none">{{ contact_email }}</a>.
     </p>
     {% else %}
-    <p>Kontak belum dikonfigurasi. Developer aplikasi ini dapat dihubungi langsung
-      melalui jejaring lokal / repository project.</p>
+    <p>Contact is not yet configured. The developer of this application can be reached directly
+      via the local network or project repository.</p>
     {% endif %}
 
     <div class="mt-4 pt-3 border-top border-secondary-subtle border-opacity-25 text-muted small">
-      URL halaman ini: <code>{{ legal_base_url }}/terms-of-service</code>
+      URL of this page: <code>{{ legal_base_url }}/terms-of-service</code>
     </div>
   </div>
 </div>

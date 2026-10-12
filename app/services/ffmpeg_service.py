@@ -2,7 +2,9 @@
 
 import json
 import logging
+import os
 import subprocess
+import uuid
 from pathlib import Path
 
 from app.core.config.settings import settings
@@ -92,18 +94,21 @@ class FFmpegService:
             raise ExternalToolException(f"Gagal mengekstrak metadata video: {str(e)}")
 
     def extract_preview_clip(self, video_path: str, start: float, end: float, output_path: str) -> str:
-        """Potong cepat segmen video jadi file preview kecil (stream copy, tanpa re-encode).
+        """Potong cepat segmen video jadi file preview kecil (stream copy, nyaris instan ~0.05s).
 
-        Pakai -c copy supaya nyaris instan bahkan untuk source video berjam-jam —
-        ini BUKAN untuk kualitas final (potongan bisa meleset ke keyframe terdekat,
-        bukan frame presisi), cukup untuk preview cepat di UI. Untuk hasil final
-        yang presisi & reframe, tetap pakai ClipService.generate_clip().
+        Menggunakan -c copy dan -avoid_negative_ts make_zero agar preview 20 kandidat
+        bisa dibuat dalam hitungan detik tanpa membebani CPU sistem.
+        Menggunakan file sementara (.tmp) dan os.replace atomik agar tidak meninggalkan
+        file korup jika terjadi interupsi.
         """
         if not Path(video_path).exists():
             raise FileNotFoundError(f"Video file not found at: {video_path}")
 
-        Path(output_path).parent.mkdir(parents=True, exist_ok=True)
+        out_path = Path(output_path)
+        out_path.parent.mkdir(parents=True, exist_ok=True)
         duration = max(end - start, 0.1)
+
+        temp_path = out_path.with_suffix(f".tmp_{uuid.uuid4().hex[:6]}.mp4")
 
         cmd = [
             self.ffmpeg_path,
@@ -113,16 +118,29 @@ class FFmpegService:
             "-t", str(duration),
             "-c", "copy",
             "-avoid_negative_ts", "make_zero",
-            output_path,
+            "-movflags", "+faststart",
+            str(temp_path),
         ]
 
         try:
-            logger.info("Trimming preview clip: %s [%s-%s]", video_path, start, end)
+            logger.info("Trimming preview clip (stream copy): %s [%s-%s]", video_path, start, end)
             subprocess.run(cmd, check=True, **_SUBPROCESS_KW)
-            return output_path
-        except subprocess.SubprocessError as e:
+            if temp_path.exists():
+                os.replace(str(temp_path), str(out_path))
+            return str(out_path)
+        except Exception as e:
+            if temp_path.exists():
+                try:
+                    temp_path.unlink()
+                except Exception:
+                    pass
+            if out_path.exists():
+                try:
+                    out_path.unlink()
+                except Exception:
+                    pass
             logger.error("Preview trim failed for: %s", video_path, exc_info=e)
-            raise ExternalToolException(f"Gagal membuat preview clip: {str(e)}")
+            raise ExternalToolException(f"Gagal membuat preview clip: {str(e)}") from e
 
     def extract_audio(self, video_path: str, output_wav_path: str) -> str:
         """Extract audio stream to a 16kHz mono 16-bit PCM WAV file."""

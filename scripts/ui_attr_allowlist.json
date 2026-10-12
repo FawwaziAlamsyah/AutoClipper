@@ -10,5 +10,25 @@
     "t:candDetail.weight",
     "t:candDetail.contribution",
     "t:candDetail.reason"
+  ],
+  "settings.html": [
+    "id:lang-en",
+    "id:lang-id",
+    "id:theme-dark",
+    "id:theme-light",
+    "name:lang",
+    "name:theme",
+    "for:lang-en",
+    "for:lang-id",
+    "for:theme-dark",
+    "for:theme-light",
+    "t:nav.dark",
+    "t:nav.light",
+    "t:settings.english",
+    "t:settings.indonesian",
+    "t:settings.language",
+    "t:settings.languageDesc",
+    "t:settings.theme",
+    "t:settings.themeDesc"
   ]
 }

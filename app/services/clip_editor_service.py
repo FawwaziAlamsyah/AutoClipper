@@ -7,13 +7,16 @@ clips.edited_file_path, supaya "Reset ke Original" tidak perlu render ulang.
 import json
 import logging
 import subprocess
+import time
 from pathlib import Path
 
 from sqlalchemy.orm import Session
 
 from app.core.config.settings import settings
 from app.core.exceptions.base import NotFoundException, ValidationException
+from app.repositories.candidate_repository import CandidateRepository
 from app.repositories.clip_repository import ClipRepository
+from app.services.clip_history_manager import ClipHistoryManager
 from app.services.ffmpeg_service import FFmpegService
 
 try:
@@ -30,19 +33,58 @@ class ClipEditorService:
     def __init__(self, db: Session) -> None:
         self.db = db
         self.clip_repo = ClipRepository(db)
+        self.candidate_repo = CandidateRepository(db)
         self.ffmpeg = FFmpegService()
 
+    def _history_manager(self, clip_id: int) -> ClipHistoryManager:
+        return ClipHistoryManager(clip_id)
+
     def _current_source(self, clip) -> Path:
-        """Sumber untuk edit berikutnya: hasil edit sebelumnya kalau ada, else file asli."""
-        path = Path(clip.edited_file_path) if clip.edited_file_path else Path(clip.file_path)
-        if not path.exists():
-            raise ValidationException(f"File clip tidak ditemukan di disk: {path}")
-        return path
+        """Sumber untuk edit berikutnya: hasil aktif dari riwayat stack atau fallback file asli."""
+        try:
+            return self._history_manager(clip.id).get_current_source(clip)
+        except Exception:
+            path = Path(clip.edited_file_path) if clip.edited_file_path else Path(clip.file_path)
+            if not path.exists():
+                raise ValidationException(f"File clip tidak ditemukan di disk: {path}")
+            return path
+
+    def _temp_output_path(self, clip_id: int, action: str) -> Path:
+        settings.TEMP_DIR.mkdir(parents=True, exist_ok=True)
+        ts = int(time.time() * 1000)
+        return settings.TEMP_DIR / f"edit_{clip_id}_{action}_{ts}.mp4"
 
     def _edited_output_path(self, clip_id: int) -> Path:
         edited_dir = settings.OUTPUT_DIR / "edited"
         edited_dir.mkdir(parents=True, exist_ok=True)
         return edited_dir / f"clip_{clip_id}_edited.mp4"
+
+    def get_history(self, clip_id: int) -> dict:
+        """Ambil metadata riwayat langkah edit untuk clip."""
+        clip = self.clip_repo.get(clip_id)
+        if clip is None:
+            raise NotFoundException(f"Clip {clip_id} tidak ditemukan")
+        return self._history_manager(clip_id).get_status(clip)
+
+    def undo(self, clip_id: int):
+        """Mundur 1 langkah edit (rollback)."""
+        clip = self.clip_repo.get(clip_id)
+        if clip is None:
+            raise NotFoundException(f"Clip {clip_id} tidak ditemukan")
+        self._history_manager(clip_id).undo(clip)
+        self.db.commit()
+        logger.info("Clip %d berhasil di-undo 1 langkah", clip_id)
+        return clip
+
+    def redo(self, clip_id: int):
+        """Maju 1 langkah edit."""
+        clip = self.clip_repo.get(clip_id)
+        if clip is None:
+            raise NotFoundException(f"Clip {clip_id} tidak ditemukan")
+        self._history_manager(clip_id).redo(clip)
+        self.db.commit()
+        logger.info("Clip %d berhasil di-redo 1 langkah", clip_id)
+        return clip
 
     def add_text(
         self,
@@ -60,7 +102,7 @@ class ClipEditorService:
             raise ValidationException("Text tidak boleh kosong")
 
         source = self._current_source(clip)
-        output_path = self._edited_output_path(clip_id)
+        temp_path = self._temp_output_path(clip_id, "text")
 
         y_expr = {"top": "h*0.08", "middle": "(h-text_h)/2", "bottom": "h*0.85"}.get(position, "h*0.85")
         # Escape karakter yang sensitif buat FFmpeg drawtext (: dan ')
@@ -75,8 +117,6 @@ class ClipEditorService:
             f"x=(w-text_w)/2:y={y_expr}:borderw=6:bordercolor=black"
         )
 
-        # Tulis ke temp dulu karena source bisa == output_path saat sudah ada edit sebelumnya
-        temp_path = output_path.with_suffix(".tmp.mp4")
         cmd = [
             self.ffmpeg.ffmpeg_path, "-y",
             "-i", str(source),
@@ -95,11 +135,12 @@ class ClipEditorService:
             logger.error("Gagal tambah text overlay clip %d", clip_id, exc_info=e)
             raise ValidationException(f"Gagal tambah text: {str(e)}")
 
-        if output_path.exists():
-            output_path.unlink()
-        temp_path.rename(output_path)
-
-        clip.edited_file_path = str(output_path)
+        self._history_manager(clip_id).push_step(
+            clip=clip,
+            action="text",
+            label=f"Teks: {text[:20]}",
+            temp_file_path=temp_path,
+        )
         self.db.commit()
         logger.info("Text overlay ditambahkan ke clip %d", clip_id)
         return clip
@@ -115,11 +156,9 @@ class ClipEditorService:
             raise ValidationException("end_time harus lebih besar dari start_time")
 
         source = self._current_source(clip)
-        output_path = self._edited_output_path(clip_id)
+        temp_path = self._temp_output_path(clip_id, "trim")
 
         duration = end_time - start_time
-        # Tulis ke file temp dulu karena source bisa == output_path (saat sudah ada edit sebelumnya)
-        temp_path = output_path.with_suffix(".tmp.mp4")
         # Re-encode video supaya keyframe baru dibuat tepat di titik start.
         # -c:v copy menyebabkan video frozen di awal karena keyframe alignment tidak tepat.
         # -crf 18 menjaga kualitas tinggi (visually lossless), -preset fast untuk kecepatan.
@@ -144,17 +183,28 @@ class ClipEditorService:
             logger.error("Gagal trim clip %d", clip_id, exc_info=e)
             raise ValidationException(f"Gagal trim: {str(e)}")
 
-        # Atomic replace: hapus output lama lalu rename temp → final
-        if output_path.exists():
-            output_path.unlink()
-        temp_path.rename(output_path)
-
-        clip.edited_file_path = str(output_path)
-        # Track posisi trim di video ASLI (kumulatif) supaya subtitle & content
-        # filter timing ikut sinkron dengan video yang sudah di-potong.
         new_start = clip.start_time + start_time
-        clip.start_time = new_start
-        clip.end_time = new_start + duration
+        new_end = new_start + duration
+        self._history_manager(clip_id).push_step(
+            clip=clip,
+            action="trim",
+            label=f"Trim {start_time:.1f}s - {end_time:.1f}s",
+            temp_file_path=temp_path,
+            new_start_time=new_start,
+            new_end_time=new_end,
+            hook_applied=False,
+        )
+        if clip.candidate_id:
+            candidate = self.candidate_repo.get(clip.candidate_id)
+            if candidate and candidate.hook_moment_start is not None:
+                # Jika momen hook sebelumnya berada di luar rentang hasil trim, reset hook candidate
+                if candidate.hook_moment_start < new_start or (candidate.hook_moment_end and candidate.hook_moment_end > new_end):
+                    candidate.hook_moment_start = None
+                    candidate.hook_moment_end = None
+                    candidate.hook_type = None
+                    candidate.hook_confidence = None
+                    candidate.hook_caption = None
+                    clip.hook_applied = False
         self.db.commit()
         logger.info("Clip %d di-trim: mulai=%s (offset asli %s)", clip_id, clip.start_time, clip.end_time)
         return clip
@@ -206,8 +256,7 @@ class ClipEditorService:
         duck_end = audio_start + audio_duration
 
         source = self._current_source(clip)
-        output_path = self._edited_output_path(clip_id)
-        temp_path = output_path.with_suffix(".tmp.mp4")
+        temp_path = self._temp_output_path(clip_id, "sound")
 
         # Volume suara asli: duck_volume saat audio tambahan bermain, video_volume di luar itu
         delay_ms = int(audio_start * 1000)
@@ -238,11 +287,12 @@ class ClipEditorService:
             logger.error("Gagal mix suara clip %d", clip_id, exc_info=e)
             raise ValidationException(f"Gagal mix suara: {str(e)}")
 
-        if output_path.exists():
-            output_path.unlink()
-        temp_path.rename(output_path)
-
-        clip.edited_file_path = str(output_path)
+        self._history_manager(clip_id).push_step(
+            clip=clip,
+            action="sound",
+            label="Mix Musik / Suara",
+            temp_file_path=temp_path,
+        )
         self.db.commit()
         logger.info(
             "Audio clip %d di-mix: file=%s start=%.1fs duck=%.1f vol_audio=%.1f",
@@ -259,8 +309,7 @@ class ClipEditorService:
             raise ValidationException("video_volume harus antara 0.0–2.0")
 
         source = self._current_source(clip)
-        output_path = self._edited_output_path(clip_id)
-        temp_path = output_path.with_suffix(".tmp.mp4")
+        temp_path = self._temp_output_path(clip_id, "volume")
 
         cmd = [
             self.ffmpeg.ffmpeg_path, "-y",
@@ -279,11 +328,12 @@ class ClipEditorService:
             logger.error("Gagal adjust volume clip %d", clip_id, exc_info=e)
             raise ValidationException(f"Gagal adjust volume: {str(e)}")
 
-        if output_path.exists():
-            output_path.unlink()
-        temp_path.rename(output_path)
-
-        clip.edited_file_path = str(output_path)
+        self._history_manager(clip_id).push_step(
+            clip=clip,
+            action="volume",
+            label=f"Volume {int(video_volume * 100)}%",
+            temp_file_path=temp_path,
+        )
         self.db.commit()
         logger.info("Volume clip %d diubah ke %.1f", clip_id, video_volume)
         return clip
@@ -294,13 +344,17 @@ class ClipEditorService:
         if clip is None:
             raise NotFoundException(f"Clip {clip_id} tidak ditemukan")
 
-        if clip.edited_file_path:
-            edited_path = Path(clip.edited_file_path)
-            if edited_path.exists():
-                edited_path.unlink()
-            clip.edited_file_path = None
-            self.db.commit()
-            logger.info("Clip %d direset ke file asli", clip_id)
+        candidate = self.candidate_repo.get(clip.candidate_id) if clip.candidate_id else None
+        orig_start = float(candidate.start_time) if candidate and candidate.start_time is not None else None
+        orig_end = float(candidate.end_time) if candidate and candidate.end_time is not None else None
+
+        self._history_manager(clip_id).reset(
+            clip=clip,
+            original_start_time=orig_start,
+            original_end_time=orig_end,
+        )
+        self.db.commit()
+        logger.info("Clip %d direset ke file asli", clip_id)
         return clip
 
     def add_watermark(
@@ -341,8 +395,7 @@ class ClipEditorService:
             raise ValidationException("opacity harus antara 0.0–1.0")
 
         source = self._current_source(clip)
-        output_path = self._edited_output_path(clip_id)
-        temp_path = output_path.with_suffix(".tmp.mp4")
+        temp_path = self._temp_output_path(clip_id, "watermark")
 
         # Cari lebar video buat hitung ukuran watermark relatif (pakai method
         # extract_metadata yang sudah ada di FFmpegService, tidak perlu ffprobe manual lagi).
@@ -420,11 +473,12 @@ class ClipEditorService:
             logger.error("Gagal tambah watermark clip %d", clip_id, exc_info=e)
             raise ValidationException(f"Gagal tambah watermark: {str(e)}")
 
-        if output_path.exists():
-            output_path.unlink()
-        temp_path.rename(output_path)
-
-        clip.edited_file_path = str(output_path)
+        self._history_manager(clip_id).push_step(
+            clip=clip,
+            action="watermark",
+            label="Watermark",
+            temp_file_path=temp_path,
+        )
         clip.has_watermark = True
         self.db.commit()
 
@@ -572,8 +626,7 @@ class ClipEditorService:
             raise NotFoundException(f"Clip {clip_id} tidak ditemukan")
 
         source = self._current_source(clip)
-        output_path = self._edited_output_path(clip_id)
-        temp_path = output_path.with_suffix(".tmp.mp4")
+        temp_path = self._temp_output_path(clip_id, "subtitle")
 
         # Kelompokkan drawtext per cue pakai filter enable between(t,start,end).
         # Timing relatif ke clip (cue timestamps berdasar video asli).
@@ -619,11 +672,12 @@ class ClipEditorService:
             logger.error("Gagal burn subtitle clip %d", clip_id, exc_info=e)
             raise ValidationException(f"Gagal burn subtitle: {str(e)}")
 
-        if output_path.exists():
-            output_path.unlink()
-        temp_path.rename(output_path)
-
-        clip.edited_file_path = str(output_path)
+        self._history_manager(clip_id).push_step(
+            clip=clip,
+            action="subtitle",
+            label="Burn Subtitle",
+            temp_file_path=temp_path,
+        )
         clip.has_subtitle = True
         self.db.commit()
         logger.info("Subtitle di-burn ke clip %d (%d cues)", clip_id, len(vf_parts))
@@ -684,8 +738,7 @@ class ClipEditorService:
                 f"Area crop melampaui tinggi video ({y}+{height}={y+height} > {vid_h})"
             )
 
-        output_path = self._edited_output_path(clip_id)
-        temp_path = output_path.with_suffix(".tmp.mp4")
+        temp_path = self._temp_output_path(clip_id, "crop_frame")
 
         # FFmpeg filter crop=w:h:x:y — sesuai requirement di prompt
         # -g 60 = keyframe tiap 2 detik (30fps × 2) supaya browser bisa seek
@@ -713,11 +766,12 @@ class ClipEditorService:
             logger.error("Gagal crop frame clip %d", clip_id, exc_info=e)
             raise ValidationException(f"Gagal crop frame: {str(e)}")
 
-        if output_path.exists():
-            output_path.unlink()
-        temp_path.rename(output_path)
-
-        clip.edited_file_path = str(output_path)
+        self._history_manager(clip_id).push_step(
+            clip=clip,
+            action="crop_frame",
+            label=f"Crop Frame {width}x{height}",
+            temp_file_path=temp_path,
+        )
         self.db.commit()
         logger.info(
             "Clip %d di-crop frame: x=%d y=%d w=%d h=%d", clip_id, x, y, width, height

@@ -1,9 +1,9 @@
 <div class="d-flex align-items-center gap-3 mb-4">
-  <a href="/history"
-     hx-get="/history"
+  <a href="/upload"
+     hx-get="/upload"
      hx-target="#main-content"
      hx-push-url="true"
-     class="btn btn-outline-secondary btn-sm"><i class="bi bi-arrow-left me-1"></i> Kembali ke Riwayat</a>
+     class="btn btn-outline-secondary btn-sm"><i class="bi bi-arrow-left me-1"></i> Back to Upload</a>
 </div>
 
 <div class="panel mb-4">
@@ -16,8 +16,8 @@
         </span>
       </div>
       <div class="d-flex flex-wrap gap-2 align-items-center mt-2">
-        {% if status.current_step %}<span class="badge bg-dark border border-secondary-subtle"><i class="bi bi-play-circle me-1 text-danger"></i>Step aktif: {{ status.current_step }}</span>{% endif %}
-        <span class="text-muted small"><i class="bi bi-check2-circle me-1 text-success"></i>{{ status.completed_steps }} / {{ status.total_steps }} step selesai</span>
+        {% if status.current_step %}<span class="badge bg-dark border border-secondary-subtle"><i class="bi bi-play-circle me-1 text-danger"></i>Active step: {{ status.current_step }}</span>{% endif %}
+        <span class="text-muted small"><i class="bi bi-check2-circle me-1 text-success"></i>{{ status.completed_steps }} / {{ status.total_steps }} steps completed</span>
       </div>
       {% if status.error_message %}<div class="alert alert-danger mt-3 mb-0">{{ status.error_message }}</div>{% endif %}
     </div>
@@ -35,7 +35,7 @@
            style="width: {{ status.progress_percent }}%"></div>
     </div>
     <div class="d-flex justify-content-between align-items-center mt-2">
-      <small class="text-muted">{{ status.completed_steps }} / {{ status.total_steps }} step selesai</small>
+      <small class="text-muted">{{ status.completed_steps }} / {{ status.total_steps }} steps completed</small>
       <span class="fw-bold small">{{ status.progress_percent }}%</span>
     </div>
   </div>
@@ -48,7 +48,7 @@
       <h4 class="mb-0 fs-5">Pipeline Progress</h4>
     </div>
     <span class="badge bg-dark border border-secondary-subtle">
-      {{ status.completed_steps }} / {{ status.total_steps }} Selesai
+      {{ status.completed_steps }} / {{ status.total_steps }} Completed
     </span>
   </div>
 
@@ -71,13 +71,13 @@
           <strong class="d-block text-white">{{ s.step_name }}</strong>
           <span class="text-muted small">
             {% if s.status == 'running' %}
-            Sedang berjalan...
+            Running...
             {% elif s.status == 'success' %}
-            Selesai{% if s.duration_ms is not none %} ({{ '%d ms'|format(s.duration_ms) }}){% endif %}
+            Completed{% if s.duration_ms is not none %} ({{ '%d ms'|format(s.duration_ms) }}){% endif %}
             {% elif s.status == 'failed' %}
-            Gagal: {{ s.error_message or 'Error tidak diketahui' }}
+            Failed: {{ s.error_message or 'Unknown error' }}
             {% else %}
-            Menunggu antrian
+            Queued
             {% endif %}
           </span>
         </div>
@@ -133,24 +133,24 @@
 
 <script>
 async function cancelJob(btn, jobId) {
-  if (!confirm('Batalkan job ' + jobId + '?')) return;
+  if (!confirm('Cancel job #' + jobId + '?')) return;
   btn.disabled = true;
-  btn.textContent = 'Membatalkan...';
+  btn.textContent = 'Cancelling...';
   try {
     const res = await fetch(`/jobs/${jobId}/cancel`, { method: 'POST' });
     if (res.ok) {
-      // Reload halaman job detail dengan konten terbaru
+      // Reload job detail page with fresh content
       const pageRes = await fetch(`/jobs/${jobId}/ui`, { headers: { 'HX-Request': 'true' } });
       if (pageRes.ok) {
         document.getElementById('main-content').innerHTML = await pageRes.text();
       }
     } else {
-      alert('Gagal cancel job.');
+      alert('Failed to cancel job.');
       btn.disabled = false;
       btn.textContent = '{{ t("job.cancel") }}';
     }
   } catch (e) {
-    alert('Terjadi kesalahan.');
+    alert('An error occurred.');
     btn.disabled = false;
     btn.textContent = '{{ t("job.cancel") }}';
   }

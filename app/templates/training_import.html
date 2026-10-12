@@ -4,13 +4,13 @@
       <a href="/training/dashboard"
          hx-get="/training/dashboard"
          hx-target="#main-content" hx-push-url="true"
-         class="text-muted text-decoration-none"><i class="bi bi-arrow-left me-1"></i>Kembali ke Training Dashboard</a>
+         class="text-muted text-decoration-none"><i class="bi bi-arrow-left me-1"></i>Back to Training Dashboard</a>
     </div>
     <h2 class="mb-1">{{ t("trainImport.title") }}</h2>
     <p class="text-muted mb-0">
-      Upload file CSV berisi daftar clip video beserta skor performanya.
-      Setiap baris akan diproses sebagai <code>training_ingest</code> job di background &mdash;
-      video di-download/di-analisis lalu dijadikan data training untuk model scoring.
+      Upload CSV file containing list of video clips and their performance scores.
+      Each row will be processed as a <code>training_ingest</code> job in background &mdash;
+      videos will be downloaded/analyzed and added as training data for the scoring model.
     </p>
   </div>
   <div>
@@ -31,8 +31,8 @@
         <h5 class="mb-0">{{ t("trainImport.formatCsv") }}</h5>
       </div>
       <p class="text-muted small mb-3">
-        2 kolom wajib: <code>source</code> dan <code>actual_score</code>.<br>
-        Baris header <strong>boleh ada atau tidak</strong> — sistem otomatis detect.
+        2 required columns: <code>source</code> and <code>actual_score</code>.<br>
+        Header row is <strong>optional</strong> — system automatically detects it.
       </p>
 
       <div class="table-responsive mb-3">
@@ -47,13 +47,13 @@
           <tbody>
             <tr>
               <td><code>source</code></td>
-              <td>Path file lokal <strong>atau</strong> URL video (YouTube, TikTok, dll)</td>
+              <td>Local file path <strong>or</strong> video URL (YouTube, TikTok, etc.)</td>
               <td class="text-muted small">C:\clips\video1.mp4<br>https://youtu.be/abc123</td>
             </tr>
             <tr>
               <td><code>actual_score</code></td>
-              <td>Skor performa nyata <strong>0–10</strong> berdasarkan views/likes/engagement</td>
-              <td class="text-muted small">8.5 → viral<br>4.0 → biasa<br>1.0 → flop</td>
+              <td>Actual performance score <strong>0–10</strong> based on views/likes/engagement</td>
+              <td class="text-muted small">8.5 → viral<br>4.0 → average<br>1.0 → flop</td>
             </tr>
           </tbody>
         </table>
@@ -61,15 +61,15 @@
 
       <p class="text-muted small mb-1"><strong>{{ t("trainImport.exampleContent") }}</strong></p>
       <pre class="p-3 rounded small mb-3" style="background: var(--surface-2); color: var(--text); border: 1px solid var(--line);">source,actual_score
-C:\Users\Anda\Videos\gaming_highlight.mp4,9.2
-C:\Users\Anda\Videos\reaction_clip.mp4,6.5
+C:\Users\You\Videos\gaming_highlight.mp4,9.2
+C:\Users\You\Videos\reaction_clip.mp4,6.5
 https://youtu.be/xxxxxxxxxxx,8.0
 https://www.tiktok.com/@user/video/123,7.5</pre>
 
       <div class="alert alert-info small py-2 mb-3">
-        <i class="bi bi-lightbulb-fill me-1"></i><strong>{{ t("trainImport.tips") }}</strong> Skor 8–10 = konten yang sangat viral/bagus.
-        Skor 4–7 = performa sedang. Skor 0–3 = konten yang tidak perform.
-        Semakin banyak data, semakin akurat model scoring-nya.
+        <i class="bi bi-lightbulb-fill me-1"></i><strong>{{ t("trainImport.tips") }}</strong> Scores 8–10 = highly viral/top content.
+        Scores 4–7 = moderate performance. Scores 0–3 = poor performance.
+        More data yields higher model scoring accuracy.
       </div>
 
       <!-- Form Upload -->
@@ -90,7 +90,7 @@ https://www.tiktok.com/@user/video/123,7.5</pre>
         </div>
         <div class="d-flex gap-2 align-items-center flex-wrap pt-1">
           <button type="submit" class="btn btn-primary" id="importBtn">
-            <i class="bi bi-upload me-1"></i>Upload &amp; Mulai Import
+            <i class="bi bi-upload me-1"></i>Upload &amp; Start Import
           </button>
           <a href="/training/template.csv" download class="btn btn-outline-secondary btn-sm">
             <i class="bi bi-download me-1"></i>Download Template
@@ -183,7 +183,7 @@ https://www.tiktok.com/@user/video/123,7.5</pre>
       if (info && info.status !== 'finished') startImportPoll(savedImportId);
     } catch {
       saveImportId(null);
-      progressPanel.innerHTML = '<div class="card shadow-sm p-4 text-center text-danger">Progress lama tidak ditemukan. Silakan upload ulang CSV.</div>';
+      progressPanel.innerHTML = '<div class="card shadow-sm p-4 text-center text-danger">Previous progress not found. Please re-upload CSV.</div>';
     }
   }
 
@@ -204,7 +204,7 @@ https://www.tiktok.com/@user/video/123,7.5</pre>
     }
 
     if (!fileInput.files.length) {
-      alert('Pilih file CSV terlebih dahulu.');
+      alert('Please select a CSV file first.');
       return;
     }
 
@@ -212,7 +212,7 @@ https://www.tiktok.com/@user/video/123,7.5</pre>
     saveImportId(null);
 
     btn.disabled = true;
-    btn.textContent = 'Mengupload...';
+    btn.textContent = 'Uploading...';
     progressPanel.innerHTML = '<div class="card shadow-sm p-4 text-center text-muted"><div class="spinner-border spinner-border-sm me-2"></div>{{ t("trainImport.processing") }}</div>';
 
     try {
@@ -231,13 +231,13 @@ https://www.tiktok.com/@user/video/123,7.5</pre>
         if (info && info.status !== 'finished') startImportPoll(info.importId);
       } else {
         const data = await res.json().catch(() => ({}));
-        progressPanel.innerHTML = `<div class="card shadow-sm p-4"><div class="alert alert-danger mb-0">${data.detail || 'Gagal memulai import. Coba lagi.'}</div></div>`;
+        progressPanel.innerHTML = `<div class="card shadow-sm p-4"><div class="alert alert-danger mb-0">${data.detail || 'Failed to start import. Please try again.'}</div></div>`;
       }
     } catch (err) {
-      progressPanel.innerHTML = `<div class="card shadow-sm p-4"><div class="alert alert-danger mb-0">Terjadi kesalahan jaringan. Coba lagi.</div></div>`;
+      progressPanel.innerHTML = `<div class="card shadow-sm p-4"><div class="alert alert-danger mb-0">Network error occurred. Please try again.</div></div>`;
     } finally {
       btn.disabled = false;
-      btn.textContent = '⬆ Upload & Mulai Import';
+      btn.textContent = '⬆ Upload & Start Import';
     }
   });
 

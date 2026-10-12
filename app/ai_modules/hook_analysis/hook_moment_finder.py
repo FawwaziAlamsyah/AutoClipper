@@ -168,11 +168,16 @@ class HookMomentFinder:
             return None, "low_confidence"
 
         # Guard: momen hook tidak boleh terlalu dekat ke awal window.
-        # Cek dua kondisi: index < 3 ATAU waktu < 5 detik dari awal window.
+        # Untuk klip pendek/hasil trim (< 8 segment), beri batas lebih fleksibel (idx >= 1 dan delta >= 2.0s)
         window_start_time = float(segments[0].start_time)
         hook_start_time = float(segments[best_idx].start_time)
-        too_close_by_index = best_idx < 3
-        too_close_by_time = (hook_start_time - window_start_time) < 5.0
+        if len(segments) < 8:
+            too_close_by_index = best_idx < 1
+            too_close_by_time = (hook_start_time - window_start_time) < 2.0
+        else:
+            too_close_by_index = best_idx < 3
+            too_close_by_time = (hook_start_time - window_start_time) < 5.0
+
         if too_close_by_index or too_close_by_time:
             logger.debug(
                 "HookMomentFinder skip: momen terlalu dekat ke awal window "
@@ -244,6 +249,11 @@ class HookMomentFinder:
             f"Kategori konten: {category_name}." if category_name else "Konten umum."
         )
         segs_json = json.dumps(seg_list, ensure_ascii=False, indent=2)
+        if len(seg_list) < 8:
+            start_rule = "- JANGAN pilih segmen paling awal (idx 0) — cold open membutuhkan momen yang berbeda dari pembuka klip."
+        else:
+            start_rule = "- JANGAN pilih segmen di awal daftar (idx 0, 1, atau 2) — cold open hanya bermakna kalau momen tersebut jauh dari awal klip."
+
         return f"""Kamu adalah editor video viral untuk platform TikTok/Reels.
 {category_ctx}
 
@@ -257,7 +267,7 @@ Tugasmu:
 
 Aturan:
 - Pilih segmen yang mengandung kejutan, klaim mengejutkan, pertanyaan retorik, konflik, atau fakta menarik.
-- JANGAN pilih segmen di awal daftar (idx 0, 1, atau 2) — cold open hanya bermakna kalau momen tersebut jauh dari awal klip.
+{start_rule}
 - hook_type harus salah satu: question, shock, stat, conflict, curiosity_gap.
 - confidence: 0.0–1.0 seberapa yakin momen ini akan membuat penonton tertarik.
 - CAPTION WAJIB JUJUR: hanya boleh memakai ulang fakta/angka yang benar-benar ada di transkrip. DILARANG mengubah, menambah, atau melebih-lebihkan angka maupun klaim (contoh salah: transkrip bilang 6 juta tapi caption bilang 100 juta). Dilarang klikbait palsu — kalimat provokatif boleh, tapi isi faktual harus sama persis dengan transkrip.
@@ -281,15 +291,31 @@ Balas HANYA dengan JSON valid (tidak ada teks lain):
             response = self.client.post(f"{self.base_url}/chat/completions", json=payload)
             response.raise_for_status()
         except httpx.HTTPStatusError as e:
-            # Jika 404 Not Found atau 503 Service Unavailable pada model tertentu, fallback ke gemini-flash-latest
-            if self.provider == "gemini" and self.model != "gemini-flash-latest" and e.response.status_code in (404, 503):
-                logger.info(
-                    "Model '%s' mengalami HTTP %d, fallback otomatis ke 'gemini-flash-latest'",
-                    self.model, e.response.status_code,
-                )
-                payload["model"] = "gemini-flash-latest"
-                response = self.client.post(f"{self.base_url}/chat/completions", json=payload)
-                response.raise_for_status()
+            # Jika 404 Not Found, 429 Quota Exceeded, atau 503 Service Unavailable, fallback otomatis
+            if self.provider == "gemini" and e.response.status_code in (404, 429, 503):
+                fallback_models = ["gemini-flash-lite-latest", "gemini-3.5-flash-lite", "gemini-flash-latest"]
+                fallback_resp = None
+                for fb_model in fallback_models:
+                    if fb_model == self.model:
+                        continue
+                    logger.info(
+                        "Model '%s' mengalami HTTP %d, mencoba fallback otomatis ke '%s'",
+                        self.model, e.response.status_code, fb_model,
+                    )
+                    payload["model"] = fb_model
+                    try:
+                        fb_call = self.client.post(f"{self.base_url}/chat/completions", json=payload)
+                        fb_call.raise_for_status()
+                        fallback_resp = fb_call
+                        break
+                    except httpx.HTTPStatusError as fb_err:
+                        logger.warning("Fallback model '%s' gagal dengan HTTP %d", fb_model, fb_err.response.status_code)
+                        continue
+
+                if fallback_resp is not None:
+                    response = fallback_resp
+                else:
+                    raise
             else:
                 raise
 

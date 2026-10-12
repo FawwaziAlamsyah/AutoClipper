@@ -32,7 +32,7 @@ from app.db.session import SessionLocal
 from app.services.dashboard_service import DashboardService
 from app.services.job_service import JobService
 from app.services.video_service import VideoService
-from app.routers import health_router, video_router, history_router, transcript_router, candidate_router, category_router, clip_router, preview_router, subtitle_router, job_router, legal_router, settings_router
+from app.routers import health_router, video_router, transcript_router, candidate_router, category_router, clip_router, preview_router, subtitle_router, job_router, legal_router, settings_router
 from app.routers import training_router
 from app.routers import storage_router
 from app.routers import tiktok_router
@@ -55,7 +55,6 @@ templates = AppTemplates(directory="app/templates")
 
 app.include_router(health_router.router)
 app.include_router(video_router.router)
-app.include_router(history_router.router)
 app.include_router(transcript_router.router)
 app.include_router(candidate_router.router)
 app.include_router(category_router.router)

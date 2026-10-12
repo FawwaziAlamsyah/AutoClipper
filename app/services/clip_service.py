@@ -128,7 +128,10 @@ class ClipService:
             from app.ai_modules.hook_analysis.hook_moment_finder import HookMomentFinder
             from app.services.hook_composer_service import HookComposerService
 
-            window_duration = candidate.end_time - candidate.start_time
+            # Ambil rentang waktu aktif klip (memperhitungkan hasil trim jika klip sudah diedit)
+            effective_start = float(clip.start_time if clip.start_time is not None else candidate.start_time)
+            effective_end = float(clip.end_time if clip.end_time is not None else candidate.end_time)
+            window_duration = max(0.0, effective_end - effective_start)
 
             # Ambil segments transcript
             transcript = self.transcript_repo.get_by_video(video.id)
@@ -139,10 +142,10 @@ class ClipService:
                 return
 
             segments = self.segment_repo.get_by_transcript(transcript.id)
-            # Filter ke window candidate saja
+            # Filter ke window klip aktif saja (hanya segmen di dalam hasil trim)
             segs_in_window = [
                 s for s in segments
-                if s.end_time > candidate.start_time and s.start_time < candidate.end_time
+                if s.end_time > effective_start and s.start_time < effective_end
             ]
 
             # Cari nama kategori untuk konteks LLM
@@ -224,20 +227,37 @@ class ClipService:
         Dipakai tombol "Generate Ulang Hook" di UI saat render sebelumnya gagal
         (hook_skip_reason=render_failed) atau user coba lagi. Re-uses momen hook
         yang sudah tersimpan di candidate; langsung compose tanpa LLM call.
+        Jika klip telah di-trim sehingga hook lama berada di luar batas klip aktif,
+        otomatis panggil pencarian hook baru via LLM.
         """
         clip = self.clip_repo.get(clip_id)
         if clip is None:
             raise ValidationException(f"Clip {clip_id} not found")
 
         candidate = self.candidate_repo.get(clip.candidate_id)
-        if candidate is None or candidate.hook_moment_start is None:
-            raise ValidationException(
-                "Tidak ada momen hook tersimpan untuk clip ini — generate ulang via 'Generate Clip'."
-            )
+        if candidate is None:
+            raise ValidationException(f"Candidate untuk clip {clip_id} tidak ditemukan")
 
         video = self.video_repo.get(candidate.video_id)
         if video is None or not Path(video.file_path).exists():
             raise ValidationException("Video sumber sudah tidak ada.")
+
+        effective_start = float(clip.start_time if clip.start_time is not None else candidate.start_time)
+        effective_end = float(clip.end_time if clip.end_time is not None else candidate.end_time)
+        window_duration = max(0.0, effective_end - effective_start)
+
+        # Jika candidate belum punya momen hook atau momen hook lama berada di luar rentang klip aktif (akibat trim),
+        # jalankan pencarian hook otomatis pada klip aktif ini.
+        if (
+            candidate.hook_moment_start is None
+            or candidate.hook_moment_start < effective_start
+            or (candidate.hook_moment_end is not None and candidate.hook_moment_end > effective_end)
+        ):
+            clip.hook_skip_reason = None
+            self.db.commit()
+            self._run_auto_hook(clip, candidate, video)
+            clip = self.clip_repo.get(clip_id)
+            return clip
 
         # Baca hook_caption langsung dari DB via query fresh — bypass identity map
         # sepenuhnya supaya perubahan dari request Simpan Caption sebelumnya
@@ -264,7 +284,6 @@ class ClipService:
         )
 
         composer = HookComposerService(self.db)
-        window_duration = candidate.end_time - candidate.start_time
         composer.regenerate_from_candidate(
             clip_id=clip.id,
             video_source_path=video.file_path,

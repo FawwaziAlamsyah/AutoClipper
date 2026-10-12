@@ -1,14 +1,4 @@
 <div class="mb-4">
-  <div class="text-muted small mb-2 d-flex align-items-center gap-1">
-    <a href="/candidates"
-       hx-get="/candidates"
-       hx-target="#main-content"
-       hx-push-url="true"
-       class="text-muted text-decoration-none"><i class="bi bi-arrow-left me-1"></i> Semua Video</a>
-    <span class="opacity-50">/</span>
-    <span class="text-white text-truncate" style="max-width: 400px;">{{ video.original_filename }}</span>
-  </div>
-
   <div class="d-flex justify-content-between align-items-center flex-wrap gap-3">
     <div>
       <h2 class="mb-1 text-truncate fw-bold" style="max-width:700px" title="{{ video.original_filename }}">
@@ -27,7 +17,7 @@
          hx-get="/candidates"
          hx-target="#main-content"
          hx-push-url="true"
-         class="btn btn-outline-secondary btn-sm"><i class="bi bi-arrow-left me-1"></i> Kembali ke daftar video</a>
+         class="btn btn-outline-secondary btn-sm"><i class="bi bi-arrow-left me-1"></i> Back to videos</a>
     </div>
   </div>
 </div>
@@ -47,7 +37,7 @@
 <div class="panel text-center py-5">
   <div class="text-muted">
     <i class="bi bi-inbox fs-1 d-block mb-3 text-secondary opacity-50"></i>
-    <p class="fs-5 mb-0">Belum ada candidates untuk video ini.</p>
+    <p class="fs-5 mb-0">No candidates generated yet for this video.</p>
   </div>
 </div>
 {% endif %}
@@ -57,7 +47,7 @@ function submitCategorize(candidateId) {
   const select = document.getElementById('category-select-' + candidateId);
   const categoryId = select.value;
   if (!categoryId) {
-    alert('Pilih kategori dulu.');
+    alert('Please select a category first.');
     return;
   }
   doRatingAction(candidateId, `/candidates/${candidateId}/categorize?category_id=${categoryId}`, 'POST');
@@ -69,12 +59,12 @@ async function doRatingAction(candidateId, url, method) {
     const html = await res.text();
     document.getElementById('like-status-' + candidateId).innerHTML = html;
   } else {
-    alert('Gagal. Coba lagi.');
+    alert('Failed. Please try again.');
   }
 }
 
 async function deleteCandidate(btn, candidateId) {
-  if (!confirm('Yakin hapus candidate #' + candidateId + '?')) return;
+  if (!confirm('Delete candidate #' + candidateId + '?')) return;
   btn.disabled = true;
   btn.textContent = '...';
   try {
@@ -83,14 +73,14 @@ async function deleteCandidate(btn, candidateId) {
       const row = document.getElementById('row-' + candidateId);
       if (row) row.remove();
     } else {
-      alert('Gagal hapus candidate.');
+      alert('Failed to delete candidate.');
       btn.disabled = false;
-      btn.textContent = 'Hapus';
+      btn.textContent = 'Delete';
     }
   } catch (e) {
-    alert('Terjadi kesalahan.');
+    alert('An error occurred.');
     btn.disabled = false;
-    btn.textContent = 'Hapus';
+    btn.textContent = 'Delete';
   }
 }
 </script>

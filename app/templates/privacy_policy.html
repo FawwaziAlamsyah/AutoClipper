@@ -14,60 +14,58 @@
   <div class="panel p-4 p-md-5">
     <h2 class="mt-0">About Daboclip</h2>
     <p>
-      {{ app_name }} (Daboclip) adalah aplikasi <strong>personal / lokal video
-      processing tool</strong>. Aplikasi digunakan terutama oleh developer-nya
-      untuk penggunaan pribadi &mdash; aplikasi ini bukan marketplace, bukan SaaS
-      publik, tidak memiliki sistem iklan, dan tidak menjual data pengguna.
+      {{ app_name }} (Daboclip) is a <strong>personal / local video
+      processing tool</strong>. The application is used primarily by its developer
+      for personal use &mdash; it is not a marketplace, not a public SaaS,
+      has no advertising system, and does not sell user data.
     </p>
 
-    <h2>Data yang Diproses</h2>
+    <h2>Data Processed</h2>
     <p>
-      Video, audio, dan transcript yang Anda masukkan <strong>diproses terutama
-      secara lokal</strong> di komputer tempat aplikasi berjalan. Hasil analisis,
-      candidate clips, dan video pendek juga diproses dan disimpan secara lokal.
+      Video, audio, and transcripts you provide are <strong>processed primarily
+      locally</strong> on the computer running the application. Analysis results,
+      candidate clips, and short videos are also processed and stored locally.
     </p>
     <p>
-      Beberapa fitur (misalnya analisis berbasis Large Language Model) dapat
-      mengirim sebagian data &mdash; seperti teks transcript &mdash; ke penyedia AI pihak
-      ketiga bila diaktifkan, sesuai konfigurasi yang Anda pilih sendiri.
+      Certain features (such as Large Language Model analysis) may
+      send portions of data &mdash; such as transcript text &mdash; to third-party
+      AI providers when enabled, according to your configured preferences.
     </p>
 
-    <h2>Data yang Tidak Kami Lakukan</h2>
+    <h2>What We Do Not Do With Your Data</h2>
     <ul>
-      <li>Daboclip <strong>tidak menjual data pengguna</strong> kepada pihak ketiga.</li>
-      <li>Daboclip <strong>tidak menggunakan data untuk advertising</strong> atau penargetan iklan.</li>
-      <li>Daboclip <strong>tidak mengumpulkan data Anda untuk tujuan komersial</strong>.</li>
-      <li>Tanpa izin Anda, tidak ada data video/audio yang diunggah ke layanan publik oleh aplikasi itu sendiri.</li>
+      <li>Daboclip <strong>does not sell user data</strong> to third parties.</li>
+      <li>Daboclip <strong>does not use data for advertising</strong> or ad targeting.</li>
+      <li>Daboclip <strong>does not collect data for commercial purposes</strong>.</li>
+      <li>Without your explicit instruction, no video/audio data is uploaded to any public service by the app.</li>
     </ul>
 
-    <h2>Integrasi Pihak Ketiga</h2>
+    <h2>Third-Party Integrations</h2>
     <p>
-      Integrasi pihak ketiga &mdash; seperti API TikTok untuk membantu proses upload &mdash;
-      hanya digunakan untuk fitur yang <strong>secara eksplisit dipilih oleh
-      pengguna</strong>. Aplikasi tidak mengaktifkan integrasi tersebut tanpa
-      tindakan Anda.
+      Third-party integrations &mdash; such as TikTok or Instagram APIs to assist publishing &mdash;
+      are only used for features <strong>explicitly triggered by the user</strong>.
+      The application does not activate these integrations without your action.
     </p>
     <ul>
-      <li>Data TikTok digunakan <strong>hanya untuk fitur integrasi yang Anda izinkan</strong> (misalnya mengunggah video atas perintah Anda).</li>
-      <li>Token atau authorization credentials harus <strong>diperlakukan secara
-        aman</strong> &mdash; disimpan secara lokal, tidak dibagikan, dan tidak digunakan
-        di luar keperluan fitur integrasi yang Anda aktifkan.</li>
-      <li>Praktik data platform pihak ketiga (TikTok dsb.) diatur oleh kebijakan
-        privasi masing-masing platform, bukan kebijakan ini.</li>
+      <li>Platform data is used <strong>only for integrations you authorize</strong> (such as publishing videos on your request).</li>
+      <li>Tokens or authorization credentials are <strong>handled securely</strong> &mdash;
+        stored locally, never shared, and never used outside the authorized integration features.</li>
+      <li>Third-party platform data practices (TikTok, Meta, etc.) are governed by their respective
+        privacy policies, not this policy.</li>
     </ul>
 
     <h2>Contact</h2>
     {% if contact_email %}
-    <p>Untuk pertanyaan soal kebijakan privasi, hubungi:
+    <p>For questions regarding this privacy policy, please contact:
       <a href="mailto:{{ contact_email }}" class="text-danger text-decoration-none">{{ contact_email }}</a>.
     </p>
     {% else %}
-    <p>Kontak belum dikonfigurasi. Developer aplikasi ini dapat dihubungi langsung
-      melalui jejaring lokal / repository project.</p>
+    <p>Contact is not yet configured. The developer of this application can be reached directly
+      via the local network or project repository.</p>
     {% endif %}
 
     <div class="mt-4 pt-3 border-top border-secondary-subtle border-opacity-25 text-muted small">
-      URL halaman ini: <code>{{ legal_base_url }}/privacy-policy</code>
+      URL of this page: <code>{{ legal_base_url }}/privacy-policy</code>
     </div>
   </div>
 </div>

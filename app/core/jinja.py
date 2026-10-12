@@ -18,20 +18,8 @@ PREF_COOKIE = "daboclip_pref"  # JSON: {"lang":"en","theme":"light"}
 
 
 def parse_pref(request: Request) -> tuple[str, str]:
-    """Baca cookie preferences → (lang, theme). Invalid → default settings."""
-    try:
-        import json
-
-        pref = json.loads(request.cookies.get(PREF_COOKIE) or "{}")
-    except (ValueError, TypeError):
-        pref = {}
-    lang = pref.get("lang") or settings.APP_DEFAULT_LANGUAGE
-    theme = pref.get("theme") or settings.APP_DEFAULT_THEME
-    if lang not in ("en", "id"):
-        lang = settings.APP_DEFAULT_LANGUAGE
-    if theme not in ("light", "dark"):
-        theme = settings.APP_DEFAULT_THEME
-    return lang, theme
+    """App preferences are locked permanently to English ('en') and Cinema Dark ('dark')."""
+    return "en", "dark"
 
 
 def _cachebust(path: str) -> str:

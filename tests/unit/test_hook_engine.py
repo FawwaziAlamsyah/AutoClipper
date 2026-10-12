@@ -362,3 +362,31 @@ def test_call_llm_strips_sse_done_trailing() -> None:
 
     # Pastikan tidak butuh response.json() (yang akan gagal karena Extra data)
     mock_response.json.assert_not_called()
+
+
+def test_short_trimmed_window_allows_idx_1() -> None:
+    """Pada klip pendek hasil trim (< 8 segmen), best_idx=1 (delta >= 2.0s) harus diterima,
+    bukan ditolak sebagai moment_too_close_to_start."""
+    finder = HookMomentFinder()
+    finder.api_key = "dummy-key"
+
+    # Buat 5 segment (klip durasi ~15 detik hasil trim)
+    segs = _make_segments(5, start_offset=10.0)
+    # segs[0]: 10.0 -> 12.5
+    # segs[1]: 13.0 -> 15.5 (delta_t = 3.0s dari window_start)
+
+    llm_response = json.dumps({
+        "best_idx": 1,
+        "hook_type": "curiosity_gap",
+        "confidence": 0.85,
+        "reason": "momen menarik di klip pendek",
+        "caption": "Momen ini menarik!",
+    })
+
+    with patch.object(finder, "_call_llm", return_value=llm_response):
+        moment, reason = finder.find(segs)
+
+    assert reason is None
+    assert moment is not None
+    assert moment.best_idx == 1
+    assert moment.hook_moment_start == 13.0

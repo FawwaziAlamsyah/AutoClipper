@@ -24,6 +24,8 @@ USER_GOOGLE_ACCOUNT = getattr(settings, "GOOGLE_ACCOUNT_EMAIL", "")
 
 # Daftar model Gemini yang didukung
 SUPPORTED_GEMINI_MODELS = [
+    "gemini-flash-lite-latest",
+    "gemini-3.5-flash-lite",
     "gemini-flash-latest",
     "gemini-3.5-flash",
     "gemini-3.1-flash-lite",
@@ -199,22 +201,28 @@ def ping_llm_connection(
             elif response.status_code in (401, 403):
                 return False, f"Autentikasi gagal (HTTP {response.status_code}): API Key tidak valid. Pastikan API Key benar dan akun aktif."
             elif response.status_code == 404:
-                return False, f"Model '{model}' tidak tersedia (HTTP 404). Silakan pilih model 'gemini-flash-latest'."
+                return False, f"Model '{model}' tidak tersedia (HTTP 404). Silakan pilih model 'gemini-flash-lite-latest'."
+            elif response.status_code == 429:
+                return False, (
+                    f"Kuota harian Google untuk model '{model}' telah habis (HTTP 429 - 20/20 requests/day). "
+                    f"Namun API Key Anda valid dan kuota model lain di akun Anda masih ada! "
+                    f"Silakan pilih model 'gemini-flash-lite-latest' atau 'gemini-3.5-flash-lite' di dropdown."
+                )
             elif response.status_code == 503:
-                # Coba uji fallback ke gemini-flash-latest jika model yang diuji bukan gemini-flash-latest
-                if provider == "gemini" and model != "gemini-flash-latest":
-                    fb_payload = dict(payload, model="gemini-flash-latest")
+                # Coba uji fallback ke gemini-flash-lite-latest jika model yang diuji bukan gemini-flash-lite-latest
+                if provider == "gemini" and model != "gemini-flash-lite-latest":
+                    fb_payload = dict(payload, model="gemini-flash-lite-latest")
                     try:
                         fb_resp = client.post(f"{clean_url}/chat/completions", headers=headers, json=fb_payload)
                         if fb_resp.status_code == 200:
                             return True, (
                                 f"Model '{model}' sedang padat trafik di Google (HTTP 503). "
-                                f"Namun API Key Anda valid dan sukses terhubung via 'gemini-flash-latest'! "
-                                f"Pilih model 'gemini-flash-latest' di dropdown agar proses lancar."
+                                f"Namun API Key Anda valid dan sukses terhubung via 'gemini-flash-lite-latest'! "
+                                f"Pilih model 'gemini-flash-lite-latest' di dropdown agar proses lancar."
                             )
                     except Exception:
                         pass
-                return False, f"Server Google sedang sibuk/antre (HTTP 503). Silakan pilih model 'gemini-flash-latest' yang lebih stabil."
+                return False, f"Server Google sedang sibuk/antre (HTTP 503). Silakan pilih model 'gemini-flash-lite-latest' yang lebih stabil."
             else:
                 err_text = response.text[:200]
                 return False, f"HTTP {response.status_code}: {err_text}"

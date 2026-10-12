@@ -140,6 +140,63 @@
     initUI();
   }
 
+  // Handle click on center play/stop button on candidate preview thumbnails
+  document.addEventListener('click', (e) => {
+    const playBtn = e.target.closest('.thumb .play');
+    if (playBtn) {
+      e.preventDefault();
+      e.stopPropagation();
+      const thumb = playBtn.closest('.thumb');
+      if (!thumb) return;
+      const video = thumb.querySelector('video');
+      if (!video) return;
+
+      if (video.paused) {
+        // Pause any other playing video previews on the page
+        document.querySelectorAll('.thumb video').forEach((v) => {
+          if (v !== video && !v.paused) v.pause();
+        });
+        video.play().catch(() => {});
+      } else {
+        video.pause();
+      }
+    }
+  });
+
+  // Sync play/pause icons and classes
+  document.addEventListener('play', (e) => {
+    if (e.target && e.target.tagName && e.target.tagName.toLowerCase() === 'video') {
+      const thumb = e.target.closest('.thumb');
+      if (thumb) {
+        thumb.classList.add('is-playing');
+        const b = thumb.querySelector('.play b');
+        if (b) b.textContent = '❚❚';
+      }
+    }
+  }, true);
+
+  document.addEventListener('pause', (e) => {
+    if (e.target && e.target.tagName && e.target.tagName.toLowerCase() === 'video') {
+      const thumb = e.target.closest('.thumb');
+      if (thumb) {
+        thumb.classList.remove('is-playing');
+        const b = thumb.querySelector('.play b');
+        if (b) b.textContent = '▶';
+      }
+    }
+  }, true);
+
+  document.addEventListener('ended', (e) => {
+    if (e.target && e.target.tagName && e.target.tagName.toLowerCase() === 'video') {
+      const thumb = e.target.closest('.thumb');
+      if (thumb) {
+        thumb.classList.remove('is-playing');
+        const b = thumb.querySelector('.play b');
+        if (b) b.textContent = '▶';
+      }
+    }
+  }, true);
+
   window.addEventListener('scroll', updateNavScroll, { passive: true });
   document.addEventListener('htmx:pushedIntoHistory', updateActiveNavLink);
   document.addEventListener('htmx:afterSettle', initUI);

@@ -265,3 +265,65 @@ def activate_training_run(
         "val_mae": activated.val_mae,
         "val_r2": activated.val_r2,
     }
+
+
+@router.delete("/runs/{run_id}")
+def delete_training_run(
+    run_id: int,
+    repo: TrainingRunRepository = Depends(get_training_run_repo),
+):
+    """Hapus satu riwayat training run dan file modelnya jika ada."""
+    run = repo.get(run_id)
+    if run is None:
+        raise NotFoundException(f"Training run {run_id} tidak ditemukan")
+
+    from pathlib import Path
+    if run.model_file_path:
+        try:
+            mp = Path(run.model_file_path)
+            if mp.exists():
+                mp.unlink()
+        except Exception as e:
+            logger.warning("Gagal hapus file model %s: %s", run.model_file_path, e)
+
+    if run.is_active:
+        active_path = Path(f"data/models/category_{run.category_id}/score_model.pkl")
+        if active_path.exists():
+            try:
+                active_path.unlink()
+            except Exception as e:
+                logger.warning("Gagal hapus active model %s: %s", active_path, e)
+
+    repo.delete(run_id)
+    logger.info("Training run %d dihapus", run_id)
+    return {"ok": True, "deleted_id": run_id}
+
+
+@router.delete("/runs")
+def clear_training_runs(
+    category_id: int,
+    repo: TrainingRunRepository = Depends(get_training_run_repo),
+):
+    """Hapus semua riwayat training run untuk satu kategori."""
+    runs = repo.get_all(category_id)
+    from pathlib import Path
+    for run in runs:
+        if run.model_file_path:
+            try:
+                mp = Path(run.model_file_path)
+                if mp.exists():
+                    mp.unlink()
+            except Exception:
+                pass
+        repo.delete(run.id)
+
+    active_path = Path(f"data/models/category_{category_id}/score_model.pkl")
+    if active_path.exists():
+        try:
+            active_path.unlink()
+        except Exception:
+            pass
+
+    logger.info("Semua training run untuk kategori %d berhasil dihapus (%d runs)", category_id, len(runs))
+    return {"ok": True, "count": len(runs)}
+
