@@ -131,6 +131,8 @@ class InstagramVideoPrepService:
 
         cmd.extend([
             "-c:v", "libx264",
+            "-profile:v", "main",
+            "-level", "4.1",
             "-preset", settings.IG_FIT_PRESET,
             "-crf", str(settings.IG_FIT_CRF),
             "-pix_fmt", "yuv420p",

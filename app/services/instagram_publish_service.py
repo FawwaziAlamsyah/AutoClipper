@@ -361,29 +361,53 @@ class InstagramPublishService:
             if not container_id or not upload_uri:
                 raise ValidationException("Response container Instagram tidak memuat container ID atau upload URI.")
 
-            # 5. Langkah 2: Upload Resumable (Streaming langsung dari disk, hindari chunked transfer-encoding)
+            # 5. Langkah 2: Upload Resumable (Gunakan binary raw octet-stream untuk rupload endpoint)
             _report("uploading", 35)
-            content_type = "video/mp4" if upload_path.suffix.lower() == ".mp4" else "application/octet-stream"
             upload_headers = {
                 "Authorization": f"OAuth {access_token}",
                 "offset": "0",
                 "file_size": str(file_size),
                 "Content-Length": str(file_size),
-                "Content-Type": content_type,
+                "Content-Type": "application/octet-stream",
             }
 
-            try:
-                with open(upload_path, "rb") as f:
+            resp_upload: httpx.Response | None = None
+            last_upload_err: Exception | None = None
+
+            # Retry hingga 2x untuk mengatasi transient glitch pada gateway rupload Meta
+            for attempt in range(1, 3):
+                try:
+                    with open(upload_path, "rb") as f:
+                        video_bytes = f.read()
                     resp_upload = httpx.post(
                         upload_uri,
                         headers=upload_headers,
-                        content=f,
+                        content=video_bytes,
                         timeout=httpx.Timeout(300.0, connect=30.0),
                     )
-            except httpx.TimeoutException as e:
-                raise ValidationException(f"Timeout saat mengunggah file video ke Instagram: {e}") from e
-            except httpx.RequestError as e:
-                raise ValidationException(f"Koneksi terputus saat mengunggah video ke Instagram: {e}") from e
+                    if resp_upload.status_code in (200, 201):
+                        break
+                    logger.warning(
+                        "Upload video ke Instagram rupload gagal (attempt %d/2, status %d): %s",
+                        attempt,
+                        resp_upload.status_code,
+                        resp_upload.text[:200],
+                    )
+                    if attempt < 2:
+                        time.sleep(2.0)
+                except httpx.TimeoutException as e:
+                    last_upload_err = e
+                    if attempt < 2:
+                        time.sleep(2.0)
+                except httpx.RequestError as e:
+                    last_upload_err = e
+                    if attempt < 2:
+                        time.sleep(2.0)
+
+            if resp_upload is None:
+                if isinstance(last_upload_err, httpx.TimeoutException):
+                    raise ValidationException(f"Timeout saat mengunggah file video ke Instagram: {last_upload_err}")
+                raise ValidationException(f"Koneksi terputus saat mengunggah video ke Instagram: {last_upload_err}")
 
             if resp_upload.status_code not in (200, 201):
                 self._handle_graph_error(resp_upload, "Gagal mengunggah file video ke Instagram")
