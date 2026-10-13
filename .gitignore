@@ -5,11 +5,14 @@ __pycache__/
 .venv/
 venv/
 
-# Env
-.env
+# Environment files (abaikan seluruh varian .env kecuali .env.example)
+.env*
+!.env.example
 
 # Database
 *.db
+*.sqlite
+*.sqlite3
 
 # Runtime data (struktur folder dipertahankan lewat .gitkeep)
 data/uploads/*
@@ -18,7 +21,11 @@ data/cache/*
 data/history/*
 data/temp/*
 data/models/*
-# Cookies export — rahasia, jangan pernah ke git
+
+# Cookies & sessions — rahasia, jangan pernah ke git
+*cookies*.txt
+*.cookies
+*.session
 data/cookies.txt
 data/llm_config.json
 
@@ -31,14 +38,24 @@ data/assets/watermark_position.json
 
 !data/**/.gitkeep
 
+# Logs & crash dumps
 logs/*
 !logs/.gitkeep
+*.log
+
+# Certificates, keys & secrets
+*.pem
+*.key
+*.pfx
+*.p12
 
 # Test & tooling
 .pytest_cache/
 .coverage
 htmlcov/
 
-# IDE
+# IDE & AI tools local files
 .vscode/
 .idea/
+.claude/settings.local.json
+.claude/worktrees/
