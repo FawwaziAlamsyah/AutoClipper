@@ -35,7 +35,13 @@ def generate_clip(
     service: ClipService = Depends(get_clip_service),
 ) -> HTMLResponse:
     """Generate a final clip from a candidate using FFmpeg."""
-    clip = service.generate_clip(req.candidate_id, req.aspect_ratio, req.subtitle_enabled, req.subtitle_style)
+    clip = service.generate_clip(
+        req.candidate_id,
+        req.aspect_ratio,
+        req.subtitle_enabled,
+        req.subtitle_style,
+        layout=req.layout,
+    )
     
     # Return HTML for htmx requests, JSON for API requests
     if request.headers.get("HX-Request"):
@@ -68,14 +74,21 @@ def generate_clip(
 def generate_clip_htmx(
     request: Request,
     candidate_id: int = Query(...),
-    aspect_ratio: str = Query("16:9"),
+    aspect_ratio: str = Query("9:16"),
+    layout: str = Query("stacked_split"),
     subtitle_enabled: bool = Query(False),
     subtitle_style: str = Query("minimal"),
     service: ClipService = Depends(get_clip_service),
     candidate_service: CandidateService = Depends(get_candidate_service),
 ) -> HTMLResponse:
     """Generate clip dari htmx — return partial baris tabel candidate."""
-    clip = service.generate_clip(candidate_id, aspect_ratio, subtitle_enabled, subtitle_style)
+    clip = service.generate_clip(
+        candidate_id,
+        aspect_ratio,
+        subtitle_enabled,
+        subtitle_style,
+        layout=layout,
+    )
     # Fetch candidate untuk get semua data (include clip_filename)
     candidate_obj = candidate_service.get_candidate(candidate_id)
     clip_by_candidate = candidate_service.get_completed_clips([candidate_id])
@@ -117,14 +130,21 @@ def generate_clip_htmx(
 def generate_clip_detail(
     request: Request,
     candidate_id: int = Query(...),
-    aspect_ratio: str = Query("16:9"),
+    aspect_ratio: str = Query("9:16"),
+    layout: str = Query("stacked_split"),
     subtitle_enabled: bool = Query(False),
     subtitle_style: str = Query("minimal"),
     service: ClipService = Depends(get_clip_service),
 ) -> HTMLResponse:
     """Generate clip dan return HTML untuk halaman candidate detail."""
     import os
-    clip = service.generate_clip(candidate_id, aspect_ratio, subtitle_enabled, subtitle_style)
+    clip = service.generate_clip(
+        candidate_id,
+        aspect_ratio,
+        subtitle_enabled,
+        subtitle_style,
+        layout=layout,
+    )
     filename = os.path.basename(clip.file_path)
     show_path = clip.edited_file_path or clip.file_path
     return templates.TemplateResponse(

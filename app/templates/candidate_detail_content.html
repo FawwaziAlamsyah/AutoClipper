@@ -451,6 +451,18 @@
       </div>
       {% else %}
       <div id="clip-action">
+        <div class="mb-3">
+          <label class="form-label small text-muted mb-1"><i class="bi bi-aspect-ratio me-1"></i>Format / Layout</label>
+          <select id="clipLayoutSelect" class="form-select form-select-sm bg-dark text-white border-secondary">
+            <option value="9:16_stacked_split" selected>9:16 TikTok Stacked (Facecam + Game) 🔥</option>
+            <option value="9:16_blurred_fit">9:16 TikTok Blurred Background</option>
+            <option value="9:16_center_crop">9:16 TikTok Center Crop</option>
+            <option value="16:9_default">16:9 Landscape (Original)</option>
+          </select>
+          <div class="form-text text-muted" style="font-size: 0.72rem;">
+            Rekomendasi TikTok: <strong>9:16 Stacked</strong> (Muka Windah di atas, Gameplay di bawah).
+          </div>
+        </div>
         <button class="btn btn-primary w-100 py-2 fw-semibold" id="generateClipBtn" onclick="doGenerateClip(this, {{ candidate.id }})">
           <i class="bi bi-play-circle-fill me-2"></i>Generate Clip
         </button>
@@ -1729,9 +1741,17 @@ async function submitCropFrame(event, clipId) {
 
 async function doGenerateClip(btn, candidateId) {
   _startGenerateProgress(btn);
+  const layoutSelect = document.getElementById('clipLayoutSelect');
+  let aspectRatio = '9:16';
+  let layout = 'stacked_split';
+  if (layoutSelect && layoutSelect.value) {
+    const parts = layoutSelect.value.split('_');
+    aspectRatio = parts[0];
+    layout = parts.slice(1).join('_');
+  }
   try {
     const res = await fetch(
-      `/clips/generate-detail?candidate_id=${candidateId}&aspect_ratio=16:9&subtitle_enabled=false&subtitle_style=minimal`,
+      `/clips/generate-detail?candidate_id=${candidateId}&aspect_ratio=${encodeURIComponent(aspectRatio)}&layout=${encodeURIComponent(layout)}&subtitle_enabled=false&subtitle_style=minimal`,
       { method: 'POST' }
     );
     if (res.ok) {

@@ -27,6 +27,7 @@ class ClipGenerateRequest(BaseModel):
     """Request to generate a clip from a candidate."""
 
     candidate_id: int
-    aspect_ratio: str = "16:9"
+    aspect_ratio: str = "9:16"
+    layout: str = "stacked_split"
     subtitle_enabled: bool = False
     subtitle_style: str = "minimal"

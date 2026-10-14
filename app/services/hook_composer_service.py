@@ -51,6 +51,7 @@ class HookComposerService:
         aspect_ratio: str,
         hook_moment: HookMoment,
         window_duration: float,
+        layout: str = "stacked_split",
     ) -> bool:
         """Terapkan cold-open hook ke clip.
 
@@ -60,6 +61,7 @@ class HookComposerService:
             aspect_ratio: "9:16" | "16:9" | "1:1" — harus sama dengan clip utuh.
             hook_moment: hasil HookMomentFinder.find().
             window_duration: durasi window candidate (detik) — untuk guard min window.
+            layout: "stacked_split" | "blurred_fit" | "center_crop"
 
         Returns:
             True  → hook berhasil diterapkan, clip.edited_file_path diupdate.
@@ -92,7 +94,8 @@ class HookComposerService:
             history_mgr = ClipHistoryManager(clip_id)
             base_clip_path = history_mgr.get_base_for_hook(clip)
             result_path = self._render_hook(
-                clip, video_source_path, aspect_ratio, hook_moment, base_clip_path=base_clip_path
+                clip, video_source_path, aspect_ratio, hook_moment,
+                base_clip_path=base_clip_path, layout=layout,
             )
             history_mgr.push_step(
                 clip=clip,
@@ -126,6 +129,7 @@ class HookComposerService:
         aspect_ratio: str,
         hook_moment: HookMoment,
         window_duration: float,
+        layout: str = "stacked_split",
     ) -> bool:
         """Render ulang hook dari momen yang sudah tersimpan di candidate.
 
@@ -144,7 +148,8 @@ class HookComposerService:
             history_mgr = ClipHistoryManager(clip_id)
             base_clip_path = history_mgr.get_base_for_hook(clip)
             result_path = self._render_hook(
-                clip, video_source_path, aspect_ratio, hook_moment, base_clip_path=base_clip_path
+                clip, video_source_path, aspect_ratio, hook_moment,
+                base_clip_path=base_clip_path, layout=layout,
             )
             history_mgr.push_step(
                 clip=clip,
@@ -179,6 +184,7 @@ class HookComposerService:
         aspect_ratio: str,
         hook_moment: HookMoment,
         base_clip_path: str | Path | None = None,
+        layout: str = "stacked_split",
     ) -> Path:
         """Render seluruh pipeline hook, return path file akhir."""
         if base_clip_path is not None:
@@ -204,7 +210,7 @@ class HookComposerService:
             self._extract_teaser(
                 video_source_path, str(teaser_raw),
                 hook_moment.hook_moment_start, hook_moment.hook_moment_end,
-                aspect_ratio,
+                aspect_ratio, layout=layout,
             )
 
             # Step 2 — Zoom-punch (crop 85% tengah → scale balik)
@@ -234,6 +240,23 @@ class HookComposerService:
 
         return output_path
 
+    @staticmethod
+    def _resolve_aspect_and_layout(aspect_ratio: str, layout: str = "stacked_split") -> tuple[str, str]:
+        if "_" in aspect_ratio:
+            parts = aspect_ratio.split("_", 1)
+            base = parts[0]
+            sub = parts[1]
+            if sub in ("split", "stacked_split"):
+                return base, "stacked_split"
+            elif sub in ("blur", "blurred_fit"):
+                return base, "blurred_fit"
+            elif sub in ("crop", "center_crop"):
+                return base, "center_crop"
+            return base, sub
+        if aspect_ratio == "9:16":
+            return "9:16", layout or "stacked_split"
+        return aspect_ratio, "default" if layout == "stacked_split" else (layout or "default")
+
     def _extract_teaser(
         self,
         source: str,
@@ -241,27 +264,49 @@ class HookComposerService:
         start: float,
         end: float,
         aspect_ratio: str,
+        layout: str = "stacked_split",
     ) -> None:
         """Extract 2 detik teaser dari video sumber, terapkan crop/scale identik _extract_clip."""
+        norm_ratio, norm_layout = self._resolve_aspect_and_layout(aspect_ratio, layout)
         duration = end - start
-        width, height = self._parse_aspect_ratio(aspect_ratio)
+        width, height = self._parse_aspect_ratio(norm_ratio)
 
-        if aspect_ratio == "9:16":
-            vf = (
-                f"crop=min(iw\\,ih*9/16):min(ih\\,iw*16/9):"
-                f"(iw-min(iw\\,ih*9/16))/2:(ih-min(ih\\,iw*16/9))/2,"
-                f"scale={width}:{height}:flags=lanczos"
-            )
+        filter_args: list[str] = []
+        if norm_ratio == "9:16":
+            if norm_layout == "stacked_split":
+                fc = (
+                    "[0:v]split=2[vface][vgame];"
+                    "[vface]crop=w=iw*0.30:h=ih*0.38:x=iw-iw*0.31:y=ih-ih*0.39,scale=1080:800:flags=lanczos[top];"
+                    "[vgame]crop=w=min(iw\\,ih*1080/1120):h=ih:x=(iw-min(iw\\,ih*1080/1120))/2:y=0,scale=1080:1120:flags=lanczos[bot];"
+                    "[top][bot]vstack=inputs=2[vout]"
+                )
+                filter_args = ["-filter_complex", fc, "-map", "[vout]", "-map", "0:a?"]
+            elif norm_layout == "blurred_fit":
+                fc = (
+                    f"[0:v]scale={width}:{height}:force_original_aspect_ratio=increase,"
+                    f"crop={width}:{height},boxblur=25:5[bg];"
+                    f"[0:v]scale={width}:{height}:force_original_aspect_ratio=decrease[fg];"
+                    f"[bg][fg]overlay=(W-w)/2:(H-h)/2[vout]"
+                )
+                filter_args = ["-filter_complex", fc, "-map", "[vout]", "-map", "0:a?"]
+            else:  # "center_crop"
+                vf = (
+                    f"crop=min(iw\\,ih*9/16):min(ih\\,iw*16/9):"
+                    f"(iw-min(iw\\,ih*9/16))/2:(ih-min(ih\\,iw*16/9))/2,"
+                    f"scale={width}:{height}:flags=lanczos"
+                )
+                filter_args = ["-vf", vf, "-map", "0:v:0", "-map", "0:a?"]
         else:
             vf = (
                 f"scale={width}:{height}:force_original_aspect_ratio=decrease:flags=lanczos,"
                 f"pad={width}:{height}:(ow-iw)/2:(oh-ih)/2:black"
             )
+            filter_args = ["-vf", vf, "-map", "0:v:0", "-map", "0:a?"]
 
         cmd = [
             self.ffmpeg.ffmpeg_path, "-y",
             "-ss", str(start), "-i", source, "-t", str(duration),
-            "-vf", vf,
+            *filter_args,
             "-c:v", "libx264", "-crf", "18", "-preset", "fast",
             "-c:a", "aac", "-b:a", "192k",
             "-movflags", "+faststart",

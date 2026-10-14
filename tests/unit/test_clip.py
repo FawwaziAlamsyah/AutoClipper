@@ -535,3 +535,82 @@ def test_regenerate_hook_reruns_if_hook_outside_trimmed_bounds() -> None:
         res = service.regenerate_hook(mock_clip.id)
         mock_auto_hook.assert_called_once_with(mock_clip, mock_candidate, mock_video)
         assert res == mock_clip
+
+
+def test_resolve_aspect_and_layout() -> None:
+    """_resolve_aspect_and_layout should parse both combined format and separate args."""
+    service = ClipService(MagicMock())
+    assert service._resolve_aspect_and_layout("9:16", "stacked_split") == ("9:16", "stacked_split")
+    assert service._resolve_aspect_and_layout("9:16_stacked_split") == ("9:16", "stacked_split")
+    assert service._resolve_aspect_and_layout("9:16_blurred_fit") == ("9:16", "blurred_fit")
+    assert service._resolve_aspect_and_layout("16:9") == ("16:9", "default")
+    assert service._resolve_aspect_and_layout("1:1") == ("1:1", "default")
+
+
+def test_generate_clip_stacked_split_ffmpeg_cmd() -> None:
+    """Stacked split layout should generate dual crop with vstack filter in ffmpeg cmd."""
+    mock_db = MagicMock()
+    mock_candidate = MagicMock()
+    mock_candidate.id = 1
+    mock_candidate.video_id = 1
+    mock_candidate.job_id = 1
+    mock_candidate.start_time = 5.0
+    mock_candidate.end_time = 25.0
+    mock_candidate.status = "selected"
+
+    mock_clip = ClipModel(
+        id=10,
+        video_id=1,
+        candidate_id=1,
+        file_path="C:/output/clip_split.mp4",
+        start_time=5.0,
+        end_time=25.0,
+        aspect_ratio="9:16",
+        has_subtitle=False,
+        status="completed",
+        created_at=datetime.now(UTC),
+    )
+
+    mock_video = MagicMock()
+    mock_video.id = 1
+    mock_video.file_path = "C:/input/video.mp4"
+    mock_video.is_archived = False
+
+    mock_repo = MagicMock()
+    mock_repo.get.return_value = mock_candidate
+    mock_repo.add.return_value = mock_clip
+
+    mock_video_repo = MagicMock()
+    mock_video_repo.get.return_value = mock_video
+
+    completed = MagicMock()
+    completed.returncode = 0
+    completed.stderr = ""
+
+    with patch("pathlib.Path.mkdir"), \
+         patch("pathlib.Path.exists", return_value=True), \
+         patch("app.services.clip_service.subprocess.run", return_value=completed) as mock_run:
+        service = ClipService(mock_db)
+        service.clip_repo = mock_repo
+        service.candidate_repo = mock_repo
+        service.video_repo = mock_video_repo
+        service.job_service = MagicMock()
+
+        clip = service.generate_clip(
+            1,
+            aspect_ratio="9:16",
+            subtitle_enabled=False,
+            subtitle_style="minimal",
+            layout="stacked_split",
+        )
+
+        assert clip.id == 10
+        # Check ffmpeg call arguments
+        assert mock_run.called
+        cmd = mock_run.call_args[0][0]
+        cmd_str = " ".join(cmd)
+        assert "-filter_complex" in cmd_str
+        assert "vstack=inputs=2" in cmd_str
+        assert "scale=1080:800" in cmd_str
+        assert "scale=1080:1120" in cmd_str
+

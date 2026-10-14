@@ -42,9 +42,10 @@ class ClipService:
     def generate_clip(
         self,
         candidate_id: int,
-        aspect_ratio: str = "16:9",
+        aspect_ratio: str = "9:16",
         subtitle_enabled: bool = False,
         subtitle_style: str = "minimal",
+        layout: str = "stacked_split",
     ) -> ClipModel:
         """Generate a final clip using FFmpeg from a candidate.
 
@@ -75,14 +76,16 @@ class ClipService:
         output_dir.mkdir(parents=True, exist_ok=True)
         output_path = output_dir / f"clip_{video.id}_{candidate.id}_{unique_id}.mp4"
 
+        norm_ratio, norm_layout = self._resolve_aspect_and_layout(aspect_ratio, layout)
         job_id = candidate.job_id
-        logger.debug("Generate process: render clip untuk candidate %d (%s)", candidate_id, aspect_ratio)
+        logger.debug("Generate process: render clip untuk candidate %d (%s, %s)", candidate_id, norm_ratio, norm_layout)
         self.job_service.start_optional_step(job_id, "generate")
         try:
             self._extract_clip(
                 video.file_path, str(output_path),
                 candidate.start_time, candidate.end_time,
-                aspect_ratio,
+                norm_ratio,
+                layout=norm_layout,
             )
         except Exception:
             self.job_service.finish_optional_step(job_id, "generate", success=False, error="FFmpeg render gagal")
@@ -105,7 +108,7 @@ class ClipService:
 
         # ── Auto Hook Engine (best-effort, TIDAK boleh raise) ─────────────────
         if settings.USE_AUTO_HOOK:
-            self._run_auto_hook(clip, candidate, video)
+            self._run_auto_hook(clip, candidate, video, layout=norm_layout)
 
         # ── Update candidate + history ────────────────────────────────────────
         self.candidate_repo.update_status(candidate_id, "selected")
@@ -119,7 +122,7 @@ class ClipService:
         logger.info("Generated clip %d for candidate %d", clip.id, candidate_id)
         return clip
 
-    def _run_auto_hook(self, clip: ClipModel, candidate, video) -> None:
+    def _run_auto_hook(self, clip: ClipModel, candidate, video, layout: str = "stacked_split") -> None:
         """Cari momen hook via LLM, simpan ke candidate, lalu compose clip.
 
         Semua exception di-catch di sini — generate_clip tidak boleh gagal karena hook.
@@ -172,13 +175,15 @@ class ClipService:
             self.db.commit()
 
             # Compose cold-open
+            norm_ratio, norm_layout = self._resolve_aspect_and_layout(clip.aspect_ratio, layout)
             composer = HookComposerService(self.db)
             composer.compose(
                 clip_id=clip.id,
                 video_source_path=video.file_path,
-                aspect_ratio=clip.aspect_ratio,
+                aspect_ratio=norm_ratio,
                 hook_moment=hook_moment,
                 window_duration=window_duration,
+                layout=norm_layout,
             )
 
         except Exception as e:
@@ -283,42 +288,99 @@ class ClipService:
             best_idx=0,
         )
 
+        norm_ratio, norm_layout = self._resolve_aspect_and_layout(clip.aspect_ratio)
         composer = HookComposerService(self.db)
         composer.regenerate_from_candidate(
             clip_id=clip.id,
             video_source_path=video.file_path,
-            aspect_ratio=clip.aspect_ratio,
+            aspect_ratio=norm_ratio,
             hook_moment=hook_moment,
             window_duration=window_duration,
+            layout=norm_layout,
         )
         clip = self.clip_repo.get(clip_id)
         return clip
 
-    def _extract_clip(self, input_path: str, output_path: str, start: float, end: float, aspect_ratio: str) -> None:
+    @staticmethod
+    def _resolve_aspect_and_layout(aspect_ratio: str, layout: str = "stacked_split") -> tuple[str, str]:
+        """Normalize aspect_ratio and layout.
+        Examples:
+        - "9:16_split" -> ("9:16", "stacked_split")
+        - "9:16_blur"  -> ("9:16", "blurred_fit")
+        - "9:16_crop"  -> ("9:16", "center_crop")
+        - ("9:16", "stacked_split") -> ("9:16", "stacked_split")
+        - ("16:9", ...) -> ("16:9", "default")
+        """
+        if "_" in aspect_ratio:
+            parts = aspect_ratio.split("_", 1)
+            base = parts[0]
+            sub = parts[1]
+            if sub in ("split", "stacked_split"):
+                return base, "stacked_split"
+            elif sub in ("blur", "blurred_fit"):
+                return base, "blurred_fit"
+            elif sub in ("crop", "center_crop"):
+                return base, "center_crop"
+            return base, sub
+        if aspect_ratio == "9:16":
+            return "9:16", layout or "stacked_split"
+        return aspect_ratio, "default" if layout == "stacked_split" else (layout or "default")
+
+    def _extract_clip(
+        self,
+        input_path: str,
+        output_path: str,
+        start: float,
+        end: float,
+        aspect_ratio: str,
+        layout: str = "stacked_split",
+    ) -> None:
         """Extract clip using FFmpeg with reframing for social media output.
 
-        Untuk 9:16 (TikTok/Reels/Shorts): crop tengah dari video sumber supaya
-        gambar penuh tanpa pillar-box hitam — standar sosmed.
+        Untuk 9:16 (TikTok/Reels/Shorts):
+        - stacked_split (default): Facecam streamer di atas (1080x800) + Gameplay di bawah (1080x1120).
+        - blurred_fit: Gameplay utuh di tengah dengan background blur dinamis di atas/bawah.
+        - center_crop: Crop tengah standar dari video sumber.
         Untuk 16:9 dan 1:1: tetap pakai scale+pad (lebih aman untuk konten landscape).
         """
-        width, height = self._parse_aspect_ratio(aspect_ratio)
+        norm_ratio, norm_layout = self._resolve_aspect_and_layout(aspect_ratio, layout)
+        width, height = self._parse_aspect_ratio(norm_ratio)
         duration = end - start
 
-        # Video filter: crop tengah untuk 9:16, scale+pad untuk rasio lain
-        if aspect_ratio == "9:16":
-            # Crop bagian tengah video sumber ke rasio 9:16, lalu scale ke 1080x1920.
-            # crop=ih*9/16:ih ambil lebar = tinggi×(9/16), tinggi penuh, dari tengah horizontal.
-            # Kalau video sumber sudah portrait atau lebih sempit dari 9:16,
-            # fallback ke scale+pad supaya tidak error.
-            vf = (
-                f"crop=min(iw\\,ih*9/16):min(ih\\,iw*16/9):(iw-min(iw\\,ih*9/16))/2:(ih-min(ih\\,iw*16/9))/2,"
-                f"scale={width}:{height}:flags=lanczos"
-            )
+        filter_args: list[str] = []
+        if norm_ratio == "9:16":
+            if norm_layout == "stacked_split":
+                # Stacked Split: Facecam (Top) + Gameplay (Bottom)
+                # Facecam: crop pojok kanan bawah (webcam streamer) -> scale ke 1080x800
+                # Gameplay: crop horizontal centered -> scale ke 1080x1120
+                # Vstack menyatukan kedua panel menjadi 1080x1920
+                fc = (
+                    "[0:v]split=2[vface][vgame];"
+                    "[vface]crop=w=iw*0.30:h=ih*0.38:x=iw-iw*0.31:y=ih-ih*0.39,scale=1080:800:flags=lanczos[top];"
+                    "[vgame]crop=w=min(iw\\,ih*1080/1120):h=ih:x=(iw-min(iw\\,ih*1080/1120))/2:y=0,scale=1080:1120:flags=lanczos[bot];"
+                    "[top][bot]vstack=inputs=2[vout]"
+                )
+                filter_args = ["-filter_complex", fc, "-map", "[vout]", "-map", "0:a?"]
+            elif norm_layout == "blurred_fit":
+                fc = (
+                    f"[0:v]scale={width}:{height}:force_original_aspect_ratio=increase,"
+                    f"crop={width}:{height},boxblur=25:5[bg];"
+                    f"[0:v]scale={width}:{height}:force_original_aspect_ratio=decrease[fg];"
+                    f"[bg][fg]overlay=(W-w)/2:(H-h)/2[vout]"
+                )
+                filter_args = ["-filter_complex", fc, "-map", "[vout]", "-map", "0:a?"]
+            else:  # "center_crop"
+                vf = (
+                    f"crop=min(iw\\,ih*9/16):min(ih\\,iw*16/9):(iw-min(iw\\,ih*9/16))/2:(ih-min(ih\\,iw*16/9))/2,"
+                    f"scale={width}:{height}:flags=lanczos"
+                )
+                filter_args = ["-vf", vf, "-map", "0:v:0", "-map", "0:a?"]
         else:
             vf = (
                 f"scale={width}:{height}:force_original_aspect_ratio=decrease:flags=lanczos,"
                 f"pad={width}:{height}:(ow-iw)/2:(oh-ih)/2:black"
             )
+            filter_args = ["-vf", vf, "-map", "0:v:0", "-map", "0:a?"]
 
         cmd = [
             self.ffmpeg.ffmpeg_path,
@@ -326,7 +388,7 @@ class ClipService:
             "-ss", str(start),
             "-i", input_path,
             "-t", str(duration),
-            "-vf", vf,
+            *filter_args,
             "-c:v", "libx264",
             "-preset", "slow",   # slow = kualitas lebih baik, ukuran lebih kecil vs fast
             "-crf", "18",        # 18 = kualitas tinggi (visually lossless), sosmed-ready
@@ -346,11 +408,12 @@ class ClipService:
 
     def _parse_aspect_ratio(self, ratio: str) -> tuple[int, int]:
         """Parse aspect ratio string to (width, height)."""
-        if ratio == "9:16":
+        if ratio.startswith("9:16"):
             return (1080, 1920)
-        if ratio == "16:9":
+        if ratio.startswith("16:9"):
             return (1920, 1080)
-        if ratio == "1:1":
+        if ratio.startswith("1:1"):
             return (1080, 1080)
         # Default: 16:9
         return (1920, 1080)
+
