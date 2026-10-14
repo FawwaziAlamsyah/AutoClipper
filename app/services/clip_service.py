@@ -94,21 +94,62 @@ class ClipService:
         self.job_service.finish_optional_step(job_id, "generate", success=True)
         logger.debug("Generate process: success - clip %s", output_path.name)
 
-        clip = ClipModel(
-            candidate_id=candidate_id,
-            video_id=candidate.video_id,
-            file_path=str(output_path),
-            start_time=candidate.start_time,
-            end_time=candidate.end_time,
-            aspect_ratio=aspect_ratio,
-            has_subtitle=subtitle_enabled,
-            status="completed",
-        )
-        clip = self.clip_repo.add(clip)
+        existing_clip = None
+        try:
+            res = (
+                self.db.query(ClipModel)
+                .filter(ClipModel.candidate_id == candidate_id)
+                .first()
+            )
+            if isinstance(res, ClipModel):
+                existing_clip = res
+        except Exception:
+            existing_clip = None
+
+        if existing_clip:
+            try:
+                if existing_clip.file_path and existing_clip.file_path != str(output_path):
+                    Path(existing_clip.file_path).unlink(missing_ok=True)
+                if existing_clip.edited_file_path:
+                    Path(existing_clip.edited_file_path).unlink(missing_ok=True)
+            except Exception:
+                pass
+            existing_clip.file_path = str(output_path)
+            existing_clip.edited_file_path = None
+            existing_clip.aspect_ratio = aspect_ratio
+            existing_clip.has_subtitle = subtitle_enabled
+            existing_clip.status = "completed"
+            clip = self.clip_repo.save(existing_clip)
+        else:
+            clip = ClipModel(
+                candidate_id=candidate_id,
+                video_id=candidate.video_id,
+                file_path=str(output_path),
+                start_time=candidate.start_time,
+                end_time=candidate.end_time,
+                aspect_ratio=aspect_ratio,
+                has_subtitle=subtitle_enabled,
+                status="completed",
+            )
+            clip = self.clip_repo.add(clip)
 
         # ── Auto Hook Engine (best-effort, TIDAK boleh raise) ─────────────────
         if settings.USE_AUTO_HOOK:
             self._run_auto_hook(clip, candidate, video, layout=norm_layout)
+
+        # ── Auto Subtitle Engine (jika diaktifkan) ───────────────────────────
+        if subtitle_enabled:
+            try:
+                from app.services.subtitle_service import SubtitleService
+                sub_srv = SubtitleService(self.db)
+                sub_srv.generate_subtitle(
+                    clip.id,
+                    format="ass",
+                    style=subtitle_style or "tiktok",
+                    burn=True,
+                )
+            except Exception as e:
+                logger.warning("Gagal auto-burn subtitle untuk clip %d: %s", clip.id, e)
 
         # ── Update candidate + history ────────────────────────────────────────
         self.candidate_repo.update_status(candidate_id, "selected")

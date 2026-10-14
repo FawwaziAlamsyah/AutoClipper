@@ -614,3 +614,72 @@ def test_generate_clip_stacked_split_ffmpeg_cmd() -> None:
         assert "scale=1080:800" in cmd_str
         assert "scale=1080:1120" in cmd_str
 
+
+def test_generate_clip_normal_center_crop_and_update_existing() -> None:
+    """Normal mode center crop should use center crop filter and update existing clip record."""
+    mock_db = MagicMock()
+    mock_candidate = MagicMock()
+    mock_candidate.id = 2
+    mock_candidate.video_id = 1
+    mock_candidate.job_id = 1
+    mock_candidate.start_time = 10.0
+    mock_candidate.end_time = 30.0
+    mock_candidate.status = "selected"
+
+    # Simulasikan clip lama sudah ada
+    existing_clip = ClipModel(
+        id=77,
+        video_id=1,
+        candidate_id=2,
+        file_path="C:/output/old_clip.mp4",
+        start_time=10.0,
+        end_time=30.0,
+        aspect_ratio="9:16",
+        has_subtitle=False,
+        status="completed",
+        created_at=datetime.now(UTC),
+    )
+
+    mock_db.query.return_value.filter.return_value.first.return_value = existing_clip
+
+    mock_video = MagicMock()
+    mock_video.id = 1
+    mock_video.file_path = "C:/input/podcast.mp4"
+    mock_video.is_archived = False
+
+    mock_repo = MagicMock()
+    mock_repo.get.return_value = mock_candidate
+    mock_repo.save.side_effect = lambda c: c
+
+    mock_video_repo = MagicMock()
+    mock_video_repo.get.return_value = mock_video
+
+    completed = MagicMock()
+    completed.returncode = 0
+    completed.stderr = ""
+
+    with patch("pathlib.Path.mkdir"), \
+         patch("pathlib.Path.exists", return_value=True), \
+         patch("app.services.clip_service.subprocess.run", return_value=completed) as mock_run:
+        service = ClipService(mock_db)
+        service.clip_repo = mock_repo
+        service.candidate_repo = mock_repo
+        service.video_repo = mock_video_repo
+        service.job_service = MagicMock()
+
+        clip = service.generate_clip(
+            2,
+            aspect_ratio="9:16",
+            subtitle_enabled=False,
+            subtitle_style="minimal",
+            layout="center_crop",
+        )
+
+        assert clip.id == 77
+        assert mock_repo.save.called
+        assert mock_run.called
+        cmd_str = " ".join(mock_run.call_args[0][0])
+        assert "crop=min(iw\\,ih*9/16):min(ih\\,iw*16/9)" in cmd_str
+        assert "scale=1080:1920" in cmd_str
+
+

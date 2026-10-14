@@ -56,9 +56,9 @@ class Settings(BaseSettings):
     ALLOWED_VIDEO_EXTENSIONS: list[str] = [".mp4", ".mov", ".mkv", ".avi"]
     MAX_UPLOAD_SIZE_MB: int = 2048
 
-    # Clip defaults
-    DEFAULT_MIN_CLIP_DURATION: int = 30
-    DEFAULT_MAX_CLIP_DURATION: int = 60
+    # Clip defaults (Sweet Spot Viral TikTok: 18–35 detik untuk retensi maksimal)
+    DEFAULT_MIN_CLIP_DURATION: int = 18
+    DEFAULT_MAX_CLIP_DURATION: int = 35
     DEFAULT_NUM_CLIPS: int = 5
 
     # FFmpeg

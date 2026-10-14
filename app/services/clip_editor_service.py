@@ -209,6 +209,20 @@ class ClipEditorService:
         logger.info("Clip %d di-trim: mulai=%s (offset asli %s)", clip_id, clip.start_time, clip.end_time)
         return clip
 
+    def strip_silence(
+        self,
+        clip_id: int,
+        min_silence_duration: float = 1.2,
+        padding: float = 0.25,
+    ):
+        """Pangkas dead-air / jeda hening agar video padat aksi (Sweet spot 18-35s)."""
+        from app.services.silence_stripper_service import SilenceStripperService
+        return SilenceStripperService(self.db).strip_silence(
+            clip_id,
+            min_silence_duration=min_silence_duration,
+            padding=padding,
+        )
+
     def mix_sound(
         self,
         clip_id: int,
@@ -613,13 +627,18 @@ class ClipEditorService:
         except Exception:
             return default
 
-    def burn_subtitle(self, clip_id: int, cues: list[dict]):
-        """Burn (hardcode) subtitle ke video clip.
+    def burn_subtitle(
+        self,
+        clip_id: int,
+        cues: list[dict],
+        style: str = "tiktok",
+        font_style: str = "impact",
+        position: str = "center_low",
+    ):
+        """Burn (hardcode) subtitle ke video clip dengan ASS libass (TikTok Kinetic) atau drawtext.
 
-        Satu drawtext per cue, timing RELATIF ke clip (dikurangi clip.start_time)
-        supaya sinkron dengan video yang sudah di-trim. Ikut pola edit lain:
-        tulis temp → atomic rename → update edited_file_path → commit. Reset()
-        otomatis buang subtitle (edited_file_path = None).
+        Timing RELATIF ke clip (dikurangi clip.start_time) supaya sinkron.
+        Menggunakan font bundel Anton/Poppins/Bangers dengan outline tebal & highlight.
         """
         clip = self.clip_repo.get(clip_id)
         if clip is None:
@@ -628,49 +647,143 @@ class ClipEditorService:
         source = self._current_source(clip)
         temp_path = self._temp_output_path(clip_id, "subtitle")
 
-        # Kelompokkan drawtext per cue pakai filter enable between(t,start,end).
-        # Timing relatif ke clip (cue timestamps berdasar video asli).
-        fontfile = "C\\:/Windows/Fonts/arial.ttf"
-        vf_parts: list[str] = []
-        for cue in cues:
-            text = cue["text"].strip()
-            if not text:
-                continue
-            start = max(cue["start"] - clip.start_time, 0.0)
-            end = max(cue["end"] - clip.start_time, start + 0.1)
-            # FFmpeg drawtext: apostrophe ' di text MENUTUP quote pembungkus text='...'
-            # dan pecahkan parsing multi-filter chain. Ganti ke RIGHT SINGLE QUOTE (U+2019)
-            # — visual sama, tak tabrakan dgn option quote. Colon di-escape (\:), koma
-            # aman polos di dalam '...'. Urut: backslash dulu biar tak double-escape.
-            safe_text = (
-                text.replace("\\", "\\\\")
-                .replace(":", "\\:")
-                .replace("'", "’")
-            )
-            # enable pakai gte/lte (bukan between) — setara a<=t<=b, hungry of commas.
-            vf_parts.append(
-                f"drawtext=fontfile='{fontfile}':text='{safe_text}':fontcolor=white:fontsize=48:"
-                f"x=(w-text_w)/2:y=h*0.85:enable='(gte(t,{start:.3f}))*(lte(t,{end:.3f}))'"
-            )
-        vf = ",".join(vf_parts)
-
-        cmd = [
-            self.ffmpeg.ffmpeg_path, "-y",
-            "-i", str(source),
-            "-vf", vf,
-            "-c:v", "libx264", "-crf", "18", "-preset", "fast",
-            "-g", "60", "-keyint_min", "60", "-sc_threshold", "0",
-            "-c:a", "copy",
-            "-movflags", "+faststart",
-            str(temp_path),
-        ]
-
+        # Cek dimensi video (default 1080x1920 untuk 9:16)
+        width, height = (1080, 1920) if clip.aspect_ratio == "9:16" else (1920, 1080)
         try:
-            subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace", check=True)
-        except subprocess.SubprocessError as e:
-            temp_path.unlink(missing_ok=True)
-            logger.error("Gagal burn subtitle clip %d", clip_id, exc_info=e)
-            raise ValidationException(f"Gagal burn subtitle: {str(e)}")
+            probe = self.ffmpeg.probe(str(source))
+            if probe and "streams" in probe:
+                for s in probe["streams"]:
+                    if s.get("codec_type") == "video":
+                        width = int(s.get("width", width))
+                        height = int(s.get("height", height))
+                        break
+        except Exception:
+            pass
+
+        # Hitung posisi Y subtitle
+        if position == "middle":
+            pos_y = int(height * 0.50)
+        else:  # "center_low" (di atas zona UI caption TikTok)
+            pos_y = int(height * 0.67)
+
+        # Ubah timestamps cue agar relatif terhadap start_time klip.
+        # Jika klip memiliki teaser hook di awal, geser waktu subtitle agar sinkron
+        # dengan video utama yang dimulai tepat setelah teaser berakhir.
+        hook_offset = 0.0
+        if getattr(clip, "hook_applied", False):
+            try:
+                meta = self.ffmpeg.extract_metadata(str(source))
+                vid_dur = float(meta.get("duration_seconds") or 0.0)
+                clip_dur = float(clip.end_time - clip.start_time)
+                diff = vid_dur - clip_dur
+                if diff >= 0.5:
+                    hook_offset = diff
+            except Exception as e:
+                logger.debug("Gagal hitung hook offset durasi video (%s), pakai fallback 0.0", e)
+
+        rel_cues = []
+        for cue in cues:
+            # Jika cue["start"] >= clip.start_time - 1.0, berarti timestamp absolut video asli
+            if cue["start"] >= clip.start_time - 1.0:
+                start_rel = max(cue["start"] - clip.start_time, 0.0) + hook_offset
+                end_rel = max(cue["end"] - clip.start_time, start_rel + 0.1) + hook_offset
+            else:
+                # Timestamp sudah relatif terhadap video klip (misal hasil direct STT klip)
+                start_rel = max(cue["start"], 0.0)
+                end_rel = max(cue["end"], start_rel + 0.1)
+
+            rel_cues.append({
+                **cue,
+                "start": start_rel,
+                "end": end_rel,
+            })
+
+        # Anti-overlap clamp mutlak pada rel_cues (mencegah teks bertabrakan / saling timpa)
+        for i in range(len(rel_cues) - 1):
+            if rel_cues[i]["end"] > rel_cues[i + 1]["start"]:
+                rel_cues[i]["end"] = max(rel_cues[i]["start"] + 0.1, rel_cues[i + 1]["start"] - 0.02)
+
+        use_ass = style in ("tiktok", "kinetic", "capcut", "ass")
+        rendered_with_ass = False
+
+        if use_ass:
+            try:
+                from app.services.subtitle_service import SubtitleService
+                sub_srv = SubtitleService(self.db)
+                ass_content = sub_srv._render_ass(
+                    rel_cues,
+                    width=width,
+                    height=height,
+                    font_style=font_style,
+                    position_y=pos_y,
+                )
+                ass_file = temp_path.with_suffix(".ass")
+                ass_file.write_text(ass_content, encoding="utf-8")
+
+                ass_posix = ass_file.resolve().as_posix().replace(":", "\\:")
+                fonts_dir = Path("data/assets/fonts").resolve().as_posix().replace(":", "\\:")
+                vf = f"subtitles='{ass_posix}':fontsdir='{fonts_dir}'"
+
+                cmd = [
+                    self.ffmpeg.ffmpeg_path, "-y",
+                    "-i", str(source),
+                    "-vf", vf,
+                    "-c:v", "libx264", "-crf", "18", "-preset", "fast",
+                    "-g", "60", "-keyint_min", "60", "-sc_threshold", "0",
+                    "-c:a", "copy",
+                    "-movflags", "+faststart",
+                    str(temp_path),
+                ]
+                subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace", check=True)
+                ass_file.unlink(missing_ok=True)
+                rendered_with_ass = True
+            except Exception as e:
+                logger.warning("Gagal burn subtitle ASS (%s), beralih ke fallback drawtext", e)
+                temp_path.unlink(missing_ok=True)
+                rendered_with_ass = False
+
+        if not rendered_with_ass:
+            # Fallback Drawtext dengan font Anton bundel & outline hitam tebal
+            anton_font = Path("data/assets/fonts/Anton-Regular.ttf").resolve()
+            if anton_font.exists():
+                fontfile = anton_font.as_posix().replace(":", "\\:")
+            else:
+                fontfile = "C\\:/Windows/Fonts/arial.ttf"
+
+            vf_parts: list[str] = []
+            fontsize = 64 if height >= 1920 else 44
+            for cue in rel_cues:
+                text = cue["text"].strip()
+                if not text:
+                    continue
+                safe_text = (
+                    text.replace("\\", "\\\\")
+                    .replace(":", "\\:")
+                    .replace("'", "’")
+                )
+                vf_parts.append(
+                    f"drawtext=fontfile='{fontfile}':text='{safe_text}':fontcolor=white:fontsize={fontsize}:"
+                    f"bordercolor=black:borderw=6:x=(w-text_w)/2:y={pos_y}:"
+                    f"enable='(gte(t,{cue['start']:.3f}))*(lte(t,{cue['end']:.3f}))'"
+                )
+            vf = ",".join(vf_parts)
+
+            cmd = [
+                self.ffmpeg.ffmpeg_path, "-y",
+                "-i", str(source),
+                "-vf", vf,
+                "-c:v", "libx264", "-crf", "18", "-preset", "fast",
+                "-g", "60", "-keyint_min", "60", "-sc_threshold", "0",
+                "-c:a", "copy",
+                "-movflags", "+faststart",
+                str(temp_path),
+            ]
+            try:
+                subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace", check=True)
+            except subprocess.SubprocessError as e:
+                temp_path.unlink(missing_ok=True)
+                logger.error("Gagal burn subtitle clip %d", clip_id, exc_info=e)
+                raise ValidationException(f"Gagal burn subtitle: {str(e)}")
 
         self._history_manager(clip_id).push_step(
             clip=clip,
@@ -680,7 +793,7 @@ class ClipEditorService:
         )
         clip.has_subtitle = True
         self.db.commit()
-        logger.info("Subtitle di-burn ke clip %d (%d cues)", clip_id, len(vf_parts))
+        logger.info("Subtitle di-burn ke clip %d (%d cues, style=%s)", clip_id, len(rel_cues), style)
         return clip
 
     def crop_frame(

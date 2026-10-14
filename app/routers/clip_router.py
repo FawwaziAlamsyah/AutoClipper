@@ -302,6 +302,19 @@ def edit_crop(
     return _preview_response(request, clip, service)
 
 
+@router.post("/{clip_id}/edit/strip-silence", response_class=HTMLResponse)
+def edit_strip_silence(
+    request: Request,
+    clip_id: int,
+    min_silence_duration: float = Form(1.2),
+    padding: float = Form(0.25),
+    service: ClipEditorService = Depends(get_clip_editor_service),
+):
+    """Pangkas dead-air / jeda hening agar video padat aksi (Sweet spot TikTok 18-35s)."""
+    clip = service.strip_silence(clip_id, min_silence_duration=min_silence_duration, padding=padding)
+    return _preview_response(request, clip, service)
+
+
 @router.post("/{clip_id}/edit/crop-frame", response_class=HTMLResponse)
 def edit_crop_frame(
     request: Request,

@@ -21,18 +21,28 @@ templates = AppTemplates(directory="app/templates")
 def generate_subtitle(
     request: Request,
     clip_id: int,
-    format: str = Form("srt"),
+    format: str = Form("ass"),
     language: str = Form("id"),
-    style: str = Form("minimal"),
+    style: str = Form("tiktok"),
+    font_style: str = Form("impact"),
+    position: str = Form("center_low"),
     burn: bool = Form(True),
     db: Session = Depends(get_db),
     service: SubtitleService = Depends(get_subtitle_service),
 ) -> HTMLResponse:
-    """Generate subtitle — burn langsung ke klip (default) atau cuma file SRT/VTT."""
+    """Generate subtitle — burn langsung ke klip (default) atau file ASS/SRT/VTT."""
     from fastapi import HTTPException
 
     try:
-        result = service.generate_subtitle(clip_id, format, language, style, burn=burn)
+        result = service.generate_subtitle(
+            clip_id,
+            format=format,
+            language=language,
+            style=style,
+            burn=burn,
+            font_style=font_style,
+            position=position,
+        )
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e))
 

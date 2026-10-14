@@ -13,8 +13,8 @@ class ProcessRequest(BaseModel):
         None, description="ID kategori clip style (dari tabel categories). None = scoring default/weighted-sum."
     )
     clip_objective: str | None = Field(None, description="Instruksi bebas, mis. cari bagian tentang investasi")
-    min_clip_duration: int = Field(30, ge=5, le=600, description="Durasi minimum klip (detik)")
-    max_clip_duration: int = Field(60, ge=10, le=900, description="Durasi maksimum klip (detik)")
+    min_clip_duration: int = Field(18, ge=5, le=600, description="Durasi minimum klip (detik) — Sweet Spot TikTok: 18-35s")
+    max_clip_duration: int = Field(35, ge=10, le=900, description="Durasi maksimum klip (detik) — Sweet Spot TikTok: 18-35s")
     num_clips: int = Field(5, ge=1, le=100, description="Jumlah candidate clip yang dibuat")
     keyword_boost: list[str] = Field(default_factory=list, description="Keyword yang menaikkan score")
     skip_keywords: list[str] = Field(default_factory=list, description="Keyword yang memicu penalty (sponsor, subscribe, dll)")

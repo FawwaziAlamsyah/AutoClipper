@@ -87,6 +87,7 @@
       <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-sound"><i class="bi bi-volume-up me-1"></i>{{ t("candDetail.sound") }}</button></li>
       <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-watermark" onclick="initWatermarkTab({{ clip.id }})"><i class="bi bi-image me-1"></i>{{ t("candDetail.watermark") }}</button></li>
       <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-hook">🪝 {{ t("candDetail.hookTab") }}</button></li>
+      <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-silence"><i class="bi bi-lightning-charge-fill text-warning me-1"></i>Silence Stripper</button></li>
     </ul>
   </div>
 
@@ -417,6 +418,55 @@
       </div>
     </div>
 
+    <!-- Tab Silence Stripper -->
+    <div class="tab-pane fade p-2" id="tab-silence">
+      <div class="d-flex align-items-center justify-content-between mb-2">
+        <div class="section-label mb-0"><i class="bi bi-lightning-charge-fill text-warning me-1"></i>Silence Stripper (Dead-Air Remover)</div>
+        <span class="badge bg-warning-subtle text-warning border border-warning-subtle">
+          Sweet Spot 18–35s
+        </span>
+      </div>
+      <p class="text-muted small mb-3">
+        Mendeteksi jeda hening / diam pembicara secara otomatis dan memotong bagian dead-air agar video klip padat aksi, mempertahankan retensi penonton TikTok maksimal.
+      </p>
+
+      <form onsubmit="return submitEditForm(event, '/clips/{{ clip.id }}/edit/strip-silence')">
+        <div class="row g-2 mb-3">
+          <div class="col-sm-6">
+            <label class="form-label small text-muted">Ambang Jeda Diam (Detik)</label>
+            <input type="number" id="minSilenceInput" name="min_silence_duration" class="form-control form-control-sm" value="1.2" min="0.5" max="5.0" step="0.1">
+            <div class="form-text text-muted" style="font-size: 0.72rem;">
+              Jeda diam di atas durasi ini akan dipotong.
+            </div>
+          </div>
+          <div class="col-sm-6">
+            <label class="form-label small text-muted">Padding Keamanan Suara (Detik)</label>
+            <input type="number" name="padding" class="form-control form-control-sm" value="0.25" min="0.1" max="1.0" step="0.05">
+            <div class="form-text text-muted" style="font-size: 0.72rem;">
+              Jarak aman sebelum/sesudah bicara agar kata tidak terpotong.
+            </div>
+          </div>
+        </div>
+
+        <div class="mb-3 d-flex flex-wrap gap-1 align-items-center">
+          <span class="small text-muted me-2" style="font-size: 0.75rem;">Preset Cepat:</span>
+          <button type="button" class="btn btn-xs btn-outline-secondary py-0 px-2" style="font-size: 0.75rem;" onclick="document.getElementById('minSilenceInput').value = '0.8'">
+            🔥 Agresif (0.8s)
+          </button>
+          <button type="button" class="btn btn-xs btn-outline-warning py-0 px-2" style="font-size: 0.75rem;" onclick="document.getElementById('minSilenceInput').value = '1.2'">
+            ⭐ Optimal (1.2s)
+          </button>
+          <button type="button" class="btn btn-xs btn-outline-secondary py-0 px-2" style="font-size: 0.75rem;" onclick="document.getElementById('minSilenceInput').value = '1.8'">
+            🍃 Santai (1.8s)
+          </button>
+        </div>
+
+        <button type="submit" class="btn btn-sm btn-warning text-dark fw-semibold d-inline-flex align-items-center gap-1">
+          <i class="bi bi-lightning-charge-fill"></i>Pangkas Jeda Hening Sekarang
+        </button>
+      </form>
+    </div>
+
   </div>
 
   <button class="btn btn-sm btn-outline-secondary mt-3" onclick="resetClipEdit({{ clip.id }})">
@@ -437,11 +487,11 @@
 
       {% if clip %}
       {% set clip_show_path = (clip.edited_file_path or clip.file_path).replace('\\', '/') %}
-      <div class="alert alert-success d-flex align-items-center justify-content-between p-3 mb-0">
+      <div class="alert alert-success d-flex align-items-center justify-content-between p-3 mb-2">
         <div class="d-flex align-items-center gap-2">
           <i class="bi bi-check-circle-fill text-success fs-5"></i>
           <div>
-            <div class="fw-semibold text-white">Clip generated</div>
+            <div class="fw-semibold text-white">Clip Aktif ({{ clip.aspect_ratio }})</div>
             <div class="text-white-50 text-xsmall">{{ clip_show_path.split('/')[-1] }}</div>
           </div>
         </div>
@@ -449,19 +499,119 @@
           <i class="bi bi-box-arrow-up-right me-1"></i>{{ t("candDetail.openClip") }}
         </a>
       </div>
+
+      <!-- Tombol & Form Ganti Mode / Generate Ulang -->
+      <div class="mb-3">
+        <button class="btn btn-sm btn-outline-secondary w-100 py-1 mb-2" type="button" data-bs-toggle="collapse" data-bs-target="#reGenerateBox" aria-expanded="false">
+          <i class="bi bi-arrow-repeat me-1"></i>Ganti Mode / Render Ulang Clip
+        </button>
+        <div class="collapse" id="reGenerateBox">
+          <div class="p-3 border rounded border-secondary border-opacity-50 bg-dark bg-opacity-50" id="clip-action-regen">
+            <div class="mb-3">
+              <label class="form-label small fw-semibold text-white mb-2"><i class="bi bi-sliders me-1"></i>Pilih Mode Baru:</label>
+              <div class="d-flex flex-column gap-2">
+                <!-- Mode 1: Gaming Split -->
+                <div class="p-2 px-3 rounded border border-primary border-opacity-75 bg-dark" style="cursor:pointer;" onclick="document.getElementById('modeSplit').checked = true; onModeSelectChanged();">
+                  <div class="form-check m-0">
+                    <input class="form-check-input" type="radio" name="clipModeRadio" id="modeSplit" value="split" checked onchange="onModeSelectChanged()">
+                    <label class="form-check-label fw-bold text-white cursor-pointer ms-1 d-flex justify-content-between align-items-center" for="modeSplit">
+                      <span>🎮 Mode Split (Gaming)</span>
+                      <span class="badge bg-primary text-white">9:16 TikTok</span>
+                    </label>
+                    <div class="text-white-50 small mt-1" style="font-size: 0.75rem; line-height: 1.3;">
+                      Atas: Webcam Streamer (1080x800)<br>
+                      Bawah: Layar Gameplay (1080x1120)<br>
+                      <span class="text-info">Rekomendasi gaming / Windah Basudara.</span>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Mode 2: Normal / Podcast -->
+                <div class="p-2 px-3 rounded border border-secondary border-opacity-50 bg-dark" style="cursor:pointer;" onclick="document.getElementById('modeNormal').checked = true; onModeSelectChanged();">
+                  <div class="form-check m-0">
+                    <input class="form-check-input" type="radio" name="clipModeRadio" id="modeNormal" value="normal" onchange="onModeSelectChanged()">
+                    <label class="form-check-label fw-bold text-white cursor-pointer ms-1 d-flex justify-content-between align-items-center" for="modeNormal">
+                      <span>🎙️ Mode Normal (Podcast / Talkshow)</span>
+                      <span class="badge bg-secondary text-white">Non-Gaming</span>
+                    </label>
+                    <div class="text-white-50 small mt-1" style="font-size: 0.75rem; line-height: 1.3;">
+                      Satu frame utuh (tanpa webcam terpisah).
+                    </div>
+
+                    <div id="normalSubOptions" class="mt-2 pt-2 border-top border-secondary border-opacity-50 d-none" onclick="event.stopPropagation();">
+                      <label class="form-label small text-muted mb-1" style="font-size: 0.72rem;">Format Normal:</label>
+                      <select id="normalLayoutSelect" class="form-select form-select-sm bg-dark text-white border-secondary">
+                        <option value="9:16_center_crop" selected>📱 9:16 Fullscreen (Center Crop - Podcast)</option>
+                        <option value="9:16_blurred_fit">🎬 9:16 Blurred Fit (Video Utuh di Tengah)</option>
+                        <option value="16:9_default">🖥️ 16:9 Landscape (Original Horizontal)</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="form-check form-switch mb-3">
+              <input class="form-check-input" type="checkbox" id="autoSubCheckboxRegen" checked>
+              <label class="form-check-label small text-white cursor-pointer" for="autoSubCheckboxRegen">
+                🔥 Pasang Subtitle Kinetik Otomatis (CapCut Style)
+              </label>
+            </div>
+            <button class="btn btn-warning w-100 py-2 fw-semibold text-dark" id="reGenerateClipBtn" onclick="doGenerateClip(this, {{ candidate.id }})">
+              <i class="bi bi-arrow-repeat me-1"></i>Render Ulang dengan Mode Ini
+            </button>
+          </div>
+        </div>
+      </div>
       {% else %}
       <div id="clip-action">
         <div class="mb-3">
-          <label class="form-label small text-muted mb-1"><i class="bi bi-aspect-ratio me-1"></i>Format / Layout</label>
-          <select id="clipLayoutSelect" class="form-select form-select-sm bg-dark text-white border-secondary">
-            <option value="9:16_stacked_split" selected>9:16 TikTok Stacked (Facecam + Game) 🔥</option>
-            <option value="9:16_blurred_fit">9:16 TikTok Blurred Background</option>
-            <option value="9:16_center_crop">9:16 TikTok Center Crop</option>
-            <option value="16:9_default">16:9 Landscape (Original)</option>
-          </select>
-          <div class="form-text text-muted" style="font-size: 0.72rem;">
-            Rekomendasi TikTok: <strong>9:16 Stacked</strong> (Muka Windah di atas, Gameplay di bawah).
+          <label class="form-label small fw-semibold text-white mb-2"><i class="bi bi-sliders me-1"></i>Pilih Mode Video:</label>
+          <div class="d-flex flex-column gap-2 mb-2">
+            <!-- Mode 1: Gaming Split -->
+            <div class="p-2 px-3 rounded border border-primary border-opacity-75 bg-dark" style="cursor:pointer;" onclick="document.getElementById('modeSplit').checked = true; onModeSelectChanged();">
+              <div class="form-check m-0">
+                <input class="form-check-input" type="radio" name="clipModeRadio" id="modeSplit" value="split" checked onchange="onModeSelectChanged()">
+                <label class="form-check-label fw-bold text-white cursor-pointer ms-1 d-flex justify-content-between align-items-center" for="modeSplit">
+                  <span>🎮 Mode Split (Gaming)</span>
+                  <span class="badge bg-primary text-white">9:16 TikTok</span>
+                </label>
+                <div class="text-white-50 small mt-1" style="font-size: 0.75rem; line-height: 1.3;">
+                  Atas: Webcam Streamer (1080x800)<br>
+                  Bawah: Layar Gameplay (1080x1120)<br>
+                  <span class="text-info">Rekomendasi gaming / Windah Basudara.</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Mode 2: Normal / Podcast -->
+            <div class="p-2 px-3 rounded border border-secondary border-opacity-50 bg-dark" style="cursor:pointer;" onclick="document.getElementById('modeNormal').checked = true; onModeSelectChanged();">
+              <div class="form-check m-0">
+                <input class="form-check-input" type="radio" name="clipModeRadio" id="modeNormal" value="normal" onchange="onModeSelectChanged()">
+                <label class="form-check-label fw-bold text-white cursor-pointer ms-1 d-flex justify-content-between align-items-center" for="modeNormal">
+                  <span>🎙️ Mode Normal (Podcast / Talkshow)</span>
+                  <span class="badge bg-secondary text-white">Non-Gaming</span>
+                </label>
+                <div class="text-white-50 small mt-1" style="font-size: 0.75rem; line-height: 1.3;">
+                  Satu frame utuh (tanpa webcam terpisah).
+                </div>
+
+                <div id="normalSubOptions" class="mt-2 pt-2 border-top border-secondary border-opacity-50 d-none" onclick="event.stopPropagation();">
+                  <label class="form-label small text-muted mb-1" style="font-size: 0.72rem;">Format Normal:</label>
+                  <select id="normalLayoutSelect" class="form-select form-select-sm bg-dark text-white border-secondary">
+                    <option value="9:16_center_crop" selected>📱 9:16 Fullscreen (Center Crop - Podcast)</option>
+                    <option value="9:16_blurred_fit">🎬 9:16 Blurred Fit (Video Utuh di Tengah)</option>
+                    <option value="16:9_default">🖥️ 16:9 Landscape (Original Horizontal)</option>
+                  </select>
+                </div>
+              </div>
+            </div>
           </div>
+        </div>
+        <div class="form-check form-switch mb-3">
+          <input class="form-check-input" type="checkbox" id="autoSubCheckbox" checked>
+          <label class="form-check-label small text-white cursor-pointer" for="autoSubCheckbox">
+            🔥 Pasang Subtitle Kinetik Otomatis (CapCut Style)
+          </label>
         </div>
         <button class="btn btn-primary w-100 py-2 fw-semibold" id="generateClipBtn" onclick="doGenerateClip(this, {{ candidate.id }})">
           <i class="bi bi-play-circle-fill me-2"></i>Generate Clip
@@ -550,23 +700,32 @@
       <div class="row g-2 align-items-end">
         <div class="col-6 col-sm-auto">
           <label class="form-label small text-muted">{{ t("candDetail.format") }}</label>
-          <select class="form-select form-select-sm" id="subFormat">
+          <select class="form-select form-select-sm bg-dark text-white border-secondary" id="subFormat">
+            <option value="ass" selected>ASS (TikTok Animated)</option>
             <option value="srt">{{ t("candDetail.srt") }}</option>
             <option value="vtt">{{ t("candDetail.vtt") }}</option>
           </select>
         </div>
         <div class="col-6 col-sm-auto">
           <label class="form-label small text-muted">Style</label>
-          <select class="form-select form-select-sm" id="subStyle">
-            <option value="minimal">{{ t("candDetail.minimal") }}</option>
-            <option value="tiktok">{{ t("candDetail.tiktok") }}</option>
+          <select class="form-select form-select-sm bg-dark text-white border-secondary" id="subStyle">
+            <option value="tiktok" selected>🔥 TikTok Kinetic (Word Highlight)</option>
+            <option value="minimal">{{ t("candDetail.minimal") }} (White Simple)</option>
             <option value="youtube">{{ t("candDetail.youtube") }}</option>
           </select>
         </div>
-        <div class="col-12 col-sm-auto">
+        <div class="col-6 col-sm-auto" id="subFontGroup">
+          <label class="form-label small text-muted">Font</label>
+          <select class="form-select form-select-sm bg-dark text-white border-secondary" id="subFont">
+            <option value="impact" selected>Anton (Impact)</option>
+            <option value="clean">Poppins Black</option>
+            <option value="fun">Bangers</option>
+          </select>
+        </div>
+        <div class="col-6 col-sm-auto">
           <label class="form-label small text-muted">{{ t("candDetail.langLabel") }}</label>
-          <select class="form-select form-select-sm" id="subLanguage">
-            <option value="id">Indonesian</option>
+          <select class="form-select form-select-sm bg-dark text-white border-secondary" id="subLanguage">
+            <option value="id" selected>Indonesian</option>
             <option value="en">English</option>
           </select>
         </div>
@@ -1013,9 +1172,11 @@ async function generateSubtitle(btn, clipId) {
   _startEditProgress(btn);
 
   try {
+    const font = document.getElementById('subFont')?.value || 'impact';
     const formData = new FormData();
     formData.append('format', format);
     formData.append('style', style);
+    formData.append('font_style', font);
     formData.append('language', language);
 
     const res = await fetch(`/subtitle/clips/${clipId}`, {
@@ -1312,7 +1473,7 @@ initInstagramCaptionCounter();
 function _startGenerateProgress(btn) {
   btn.disabled = true;
   btn.dataset.origText = btn.textContent;
-  const action = document.getElementById('clip-action');
+  const action = document.getElementById('clip-action') || document.getElementById('clip-action-regen') || btn.parentElement;
   let bar = document.getElementById('generate-progress-bar');
   if (!bar && action) {
     const div = document.createElement('div');
@@ -1739,19 +1900,41 @@ async function submitCropFrame(event, clipId) {
 }
 // ── End Crop Frame Tab ────────────────────────────────────────────────────────
 
+function onModeSelectChanged() {
+  const isNormal = document.getElementById('modeNormal') && document.getElementById('modeNormal').checked;
+  const subOptions = document.getElementById('normalSubOptions');
+  if (subOptions) {
+    if (isNormal) {
+      subOptions.classList.remove('d-none');
+    } else {
+      subOptions.classList.add('d-none');
+    }
+  }
+}
+
 async function doGenerateClip(btn, candidateId) {
   _startGenerateProgress(btn);
-  const layoutSelect = document.getElementById('clipLayoutSelect');
+  const isNormal = document.getElementById('modeNormal') && document.getElementById('modeNormal').checked;
   let aspectRatio = '9:16';
   let layout = 'stacked_split';
-  if (layoutSelect && layoutSelect.value) {
-    const parts = layoutSelect.value.split('_');
+
+  if (isNormal) {
+    const normalSelect = document.getElementById('normalLayoutSelect');
+    const val = (normalSelect && normalSelect.value) ? normalSelect.value : '9:16_center_crop';
+    const parts = val.split('_');
     aspectRatio = parts[0];
     layout = parts.slice(1).join('_');
+  } else {
+    aspectRatio = '9:16';
+    layout = 'stacked_split';
   }
+  const autoSubEl = document.getElementById('autoSubCheckbox') || document.getElementById('autoSubCheckboxRegen');
+  const autoSub = autoSubEl ? autoSubEl.checked : true;
+  const subStyle = autoSub ? 'tiktok' : 'minimal';
+
   try {
     const res = await fetch(
-      `/clips/generate-detail?candidate_id=${candidateId}&aspect_ratio=${encodeURIComponent(aspectRatio)}&layout=${encodeURIComponent(layout)}&subtitle_enabled=false&subtitle_style=minimal`,
+      `/clips/generate-detail?candidate_id=${candidateId}&aspect_ratio=${encodeURIComponent(aspectRatio)}&layout=${encodeURIComponent(layout)}&subtitle_enabled=${autoSub}&subtitle_style=${subStyle}`,
       { method: 'POST' }
     );
     if (res.ok) {
