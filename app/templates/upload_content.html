@@ -263,7 +263,7 @@ function initUploadPage() {
       if (data.connected) {
         el.innerHTML = `<span class="badge bg-success">✓ TikTok connected</span>`;
       } else {
-        el.innerHTML = `<a href="/tiktok/oauth/login" class="btn btn-sm btn-dark">🔗 Connect TikTok Account</a>`;
+        el.innerHTML = `<a href="/settings" class="badge bg-secondary text-decoration-none">+ Connect TikTok</a>`;
       }
     } catch (e) {}
   }

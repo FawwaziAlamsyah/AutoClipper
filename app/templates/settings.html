@@ -169,6 +169,104 @@
         <div id="test-llm-result" class="mt-2"></div>
       </div>
 
+      <!-- Panel 3: Akun Sosial Media (TikTok & Instagram) -->
+      <div class="panel p-4 mb-4">
+        <div class="d-flex align-items-center gap-2 mb-1">
+          <i class="bi bi-share text-danger fs-5"></i>
+          <h5 class="mb-0">Integrasi Akun Sosial Media</h5>
+        </div>
+        <p class="text-muted small mb-3">Kelola koneksi akun media sosial untuk keperluan auto-upload klip video.</p>
+
+        <div class="row g-4">
+          <!-- Card TikTok -->
+          <div class="col-md-6">
+            <div class="card p-3 h-100 border border-secondary-subtle" style="background-color: var(--surface-2);">
+              <div class="d-flex align-items-center justify-content-between mb-2">
+                <div class="d-flex align-items-center gap-2">
+                  <i class="bi bi-tiktok fs-4 text-white"></i>
+                  <div>
+                    <h6 class="mb-0 fw-semibold text-white">TikTok</h6>
+                    <small class="text-muted" style="font-size: 0.75rem;">Content Posting API (Inbox/Draft)</small>
+                  </div>
+                </div>
+                {% if tiktok_status and tiktok_status.connected %}
+                <span class="badge bg-success">✓ Terhubung</span>
+                {% else %}
+                <span class="badge bg-secondary-subtle text-secondary">Belum Terhubung</span>
+                {% endif %}
+              </div>
+
+              <div class="mt-2 text-muted small d-flex flex-column justify-content-between">
+                {% if tiktok_status and tiktok_status.connected %}
+                <div>
+                  <div class="mb-1"><span class="fw-semibold text-light">Open ID:</span> <code>{{ tiktok_status.open_id }}</code></div>
+                  {% if tiktok_status.expires_at %}
+                  <div class="mb-3"><span class="fw-semibold text-light">Token Expired:</span> {{ tiktok_status.expires_at }}</div>
+                  {% endif %}
+                </div>
+                <div class="d-flex gap-2 pt-2">
+                  <a href="/tiktok/oauth/login" class="btn btn-primary btn-sm flex-grow-1">
+                    <i class="bi bi-arrow-repeat me-1"></i>Login Ulang / Reconnect
+                  </a>
+                  <button type="button" class="btn btn-outline-danger btn-sm" onclick="disconnectTikTok()">
+                    Disconnect
+                  </button>
+                </div>
+                {% else %}
+                <div>
+                  <p class="mb-3">Hubungkan akun TikTok Anda untuk mengirim klip ke Inbox notifikasi TikTok di HP Anda (aman untuk akun publik).</p>
+                </div>
+                <a href="/tiktok/oauth/login" class="btn btn-dark btn-sm w-100 py-2 fw-semibold">
+                  <i class="bi bi-tiktok me-1"></i>Hubungkan Akun TikTok (OAuth)
+                </a>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+
+          <!-- Card Instagram -->
+          <div class="col-md-6">
+            <div class="card p-3 h-100 border border-secondary-subtle" style="background-color: var(--surface-2);">
+              <div class="d-flex align-items-center justify-content-between mb-2">
+                <div class="d-flex align-items-center gap-2">
+                  <i class="bi bi-instagram fs-4 text-danger"></i>
+                  <div>
+                    <h6 class="mb-0 fw-semibold text-white">Instagram Reels</h6>
+                    <small class="text-muted" style="font-size: 0.75rem;">Graph API Publishing</small>
+                  </div>
+                </div>
+                {% if ig_status and ig_status.connected %}
+                <span class="badge bg-success">✓ Terhubung</span>
+                {% elif ig_status and ig_status.status == 'needs_reconnect' %}
+                <span class="badge bg-warning text-dark">⚠ Perlu Reconnect</span>
+                {% else %}
+                <span class="badge bg-secondary-subtle text-secondary">Belum Dikonfigurasi</span>
+                {% endif %}
+              </div>
+
+              <div class="mt-2 text-muted small d-flex flex-column justify-content-between">
+                {% if ig_status and ig_status.connected %}
+                <div>
+                  <div class="mb-1"><span class="fw-semibold text-light">Akun:</span> @{{ ig_status.username or 'Connected' }}</div>
+                  <div class="mb-3"><span class="fw-semibold text-light">Masa Aktif:</span> {{ ig_status.days_left }} hari tersisa</div>
+                </div>
+                <a href="/upload" class="btn btn-outline-secondary btn-sm w-100">
+                  <i class="bi bi-gear me-1"></i>Kelola di Halaman Upload
+                </a>
+                {% else %}
+                <div>
+                  <p class="mb-2">Akun Instagram Reels dikonfigurasi melalui token di file <code>.env</code> atau tombol connect di halaman upload.</p>
+                </div>
+                <a href="/upload" class="btn btn-outline-secondary btn-sm w-100">
+                  <i class="bi bi-box-arrow-up-right me-1"></i>Buka Halaman Upload
+                </a>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <div class="mt-4 pt-2">
         <button type="submit" class="btn btn-primary px-4 py-2 fw-semibold">
           <i class="bi bi-check-circle me-1"></i>{{ t("settings.save") }}
@@ -273,6 +371,20 @@ async function runTestConnection() {
   } finally {
     if (spinner) spinner.style.display = 'none';
     if (btn) btn.disabled = false;
+  }
+}
+
+async function disconnectTikTok() {
+  if (!confirm("Yakin ingin memutuskan koneksi akun TikTok?")) return;
+  try {
+    const res = await fetch('/tiktok/disconnect', { method: 'POST' });
+    if (res.ok) {
+      window.location.reload();
+    } else {
+      alert("Gagal memutuskan koneksi TikTok.");
+    }
+  } catch (e) {
+    alert("Terjadi kesalahan: " + e.message);
   }
 }
 

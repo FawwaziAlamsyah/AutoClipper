@@ -110,13 +110,17 @@
           if (data.connected) {
             pillTikTok.className = 'pill';
             pillTikTok.innerHTML = `<span class="dot"></span>TikTok`;
-            pillTikTok.title = 'TikTok terhubung';
+            pillTikTok.title = 'TikTok terhubung (buka Settings)';
             pillTikTok.style.display = 'inline-flex';
+            pillTikTok.style.cursor = 'pointer';
+            pillTikTok.onclick = () => { window.location.href = '/settings'; };
           } else {
             pillTikTok.className = 'pill';
             pillTikTok.innerHTML = `<i class="bi bi-tiktok me-1"></i>TikTok`;
-            pillTikTok.title = 'TikTok belum terhubung';
+            pillTikTok.title = 'TikTok belum terhubung (buka Settings)';
             pillTikTok.style.display = 'inline-flex';
+            pillTikTok.style.cursor = 'pointer';
+            pillTikTok.onclick = () => { window.location.href = '/settings'; };
           }
         } else {
           pillTikTok.style.display = 'none';

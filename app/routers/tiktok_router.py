@@ -40,13 +40,31 @@ def tiktok_connection_status(
     return {"connected": account is not None, "open_id": account.open_id if account else None}
 
 
+@router.post("/disconnect")
+def tiktok_disconnect(
+    repo: TikTokAccountRepository = Depends(get_tiktok_account_repo),
+) -> dict:
+    """Putus koneksi akun TikTok (hapus token dari database)."""
+    repo.delete_all()
+    return {"status": "disconnected"}
+
+
+from pydantic import BaseModel
+
+
+class TikTokPublishRequest(BaseModel):
+    title: str | None = None
+
+
 @router.post("/publish/{clip_id}")
 def publish_clip_to_tiktok(
     clip_id: int,
+    payload: TikTokPublishRequest | None = None,
     service: TikTokUploadService = Depends(get_tiktok_upload_service),
 ) -> dict:
-    """Mulai proses publish clip ke TikTok (mode draft/SELF_ONLY), return local_id buat polling."""
-    local_id = service.start_publish(clip_id)
+    """Mulai proses publish clip ke TikTok (mode Direct Post: SELF_ONLY), return local_id buat polling."""
+    title = payload.title if payload else None
+    local_id = service.start_publish(clip_id, title=title)
     return {"local_id": local_id, "status": "uploading"}
 
 

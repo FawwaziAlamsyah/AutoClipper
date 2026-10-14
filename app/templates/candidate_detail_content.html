@@ -461,11 +461,14 @@
       <div class="mt-4 pt-3 border-top border-secondary-subtle border-opacity-25">
         <div class="section-label mb-2"><i class="bi bi-tiktok me-1"></i>TikTok Publisher</div>
         {% if clip.tiktok_uploaded %}
-        <span class="badge bg-info text-dark mb-2 d-inline-block" title="Clip uploaded to TikTok inbox">TikTok ✓ Uploaded</span>
+        <span class="badge bg-info text-dark mb-2 d-inline-block" title="Clip uploaded to TikTok inbox">TikTok ✓ Uploaded (Inbox)</span>
         {% endif %}
         <button class="btn btn-light text-dark fw-semibold w-100 d-flex align-items-center justify-content-center gap-2" id="tiktokPublishBtn" onclick="publishToTikTok({{ clip.id }})">
-          <i class="bi bi-tiktok"></i> Upload to TikTok (Draft/Private)
+          <i class="bi bi-tiktok"></i> Upload to TikTok (Inbox/Draft)
         </button>
+        <div class="form-text text-muted small mt-1" style="font-size: 0.75rem;">
+          <i class="bi bi-info-circle me-1"></i>Video akan dikirim ke <strong>Inbox / Notifikasi</strong> aplikasi TikTok di HP Anda. Buka notifikasi di HP untuk review dan klik Post secara publik ke FYP.
+        </div>
         <div id="tiktok-publish-status" class="mt-2"></div>
       </div>
 
@@ -1054,6 +1057,7 @@ async function publishToTikTok(clipId) {
   const btn = document.getElementById('tiktokPublishBtn');
   const statusEl = document.getElementById('tiktok-publish-status');
   if (!btn || !statusEl) return;
+
   btn.disabled = true;
   statusEl.innerHTML = renderTikTokBar('uploading', 5);
 
@@ -1092,7 +1096,7 @@ async function pollTikTokStatus(localId, btn, statusEl) {
         + `<div class="text-danger mt-1">Failed: ${data.error || 'timeout, check TikTok Studio manually'}</div>`;
     if (data.status === 'complete') {
       btn.disabled = true;
-      btn.textContent = 'Uploaded to TikTok';
+      btn.textContent = 'Uploaded to TikTok (Inbox)';
       btn.title = 'Uploaded to TikTok inbox';
     } else {
       btn.disabled = false;

@@ -26,10 +26,8 @@ AUTHORIZE_URL = "https://www.tiktok.com/v2/auth/authorize/"
 TOKEN_URL = "https://open.tiktokapis.com/v2/oauth/token/"
 
 # Scope video.upload = upload ke inbox/draft user (endpoint
-# /post/publish/inbox/video/init/). Video jadi draft private di inbox user,
-# mereka selesaikan post manual dari app TikTok (mode unaudited, sesuai
-# tiktokSetup.md poin 5). video.publish (Direct Post) butuh audit app —
-# jangan dipakai sampai lolos review.
+# /post/publish/inbox/video/init/). Video jadi draft di inbox user,
+# mereka selesaikan post manual dari app TikTok (mode resmi yang aman untuk akun publik).
 SCOPES = "video.upload"
 
 # CSRF + PKCE protection — state → code_verifier disimpan in-memory, cukup

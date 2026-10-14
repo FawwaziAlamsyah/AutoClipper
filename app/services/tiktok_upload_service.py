@@ -30,8 +30,8 @@ class TikTokUploadService:
         self.clip_repo = ClipRepository(db)
         self.auth_service = TikTokAuthService(db)
 
-    def init_and_upload(self, clip_id: int) -> str:
-        """Init publish + kirim file video. Return publish_id buat di-poll statusnya."""
+    def init_and_upload(self, clip_id: int, title: str | None = None) -> str:
+        """Init publish (mode Inbox/Draft) + kirim file video. Return publish_id buat di-poll statusnya."""
         clip = self.clip_repo.get(clip_id)
         if clip is None:
             raise ValidationException(f"Clip {clip_id} tidak ditemukan")
@@ -43,24 +43,14 @@ class TikTokUploadService:
         access_token = self.auth_service.get_valid_access_token()
         video_size = video_path.stat().st_size
 
-        # --- Langkah 1: Init ---
+        # --- Langkah 1: Init Inbox ---
         # Endpoint inbox/draft: body HANYA source_info, TIDAK ada post_info
         # (endpoint ini tak menerima field itu). Video otomatis jadi draft
-        # private di inbox user sampai mereka post manual dari app TikTok.
-        #
-        # Aturan chunk TikTok (docs resmi — Media Transfer Guide):
-        # - Video <= 64 MB -> upload whole: chunk_size = video_size, total = 1
-        # - Video > 64 MB  -> wajib multi-chunk, chunk_size = 64 MB, minimal 2 chunk
-        #   (lihat catatan di _calculate_chunks soal kasus tepian 64-128MB)
-        # - Chunk terakhir menampung SISA bytes (trailing), boleh lebih besar
-        #   dari chunk_size (maks 128 MB) — bukan dipotong sama rata.
+        # di inbox user sampai mereka post manual dari app TikTok.
         chunk_size, total_chunks = self._calculate_chunks(video_size)
 
-        # Log SEBELUM request dikirim (bukan cuma setelah sukses) — supaya kalau
-        # init gagal/ditolak TikTok, angka video_size/chunk_size/total_chunks
-        # yang sebenarnya dikirim tetap kelihatan di log untuk debug.
         logger.info(
-            "TikTok init request: clip %d, video_size=%d (%.1fMB), chunk_size=%d (%.1fMB), total_chunks=%d",
+            "TikTok inbox init request: clip %d, video_size=%d (%.1fMB), chunk_size=%d (%.1fMB), total_chunks=%d",
             clip_id, video_size, video_size / 1024 / 1024,
             chunk_size, chunk_size / 1024 / 1024, total_chunks,
         )
@@ -240,7 +230,7 @@ class TikTokUploadService:
             "fail_reason": data.get("fail_reason"),
         }
 
-    def start_publish(self, clip_id: int) -> str:
+    def start_publish(self, clip_id: int, title: str | None = None) -> str:
         """Mulai publish di background thread, return local_id buat polling UI.
 
         Beda dari publish_id TikTok (baru didapat SETELAH init selesai) — ini
@@ -255,7 +245,7 @@ class TikTokUploadService:
             db = SessionLocal()
             try:
                 service = TikTokUploadService(db)
-                tiktok_publish_id = service.init_and_upload(clip_id)
+                tiktok_publish_id = service.init_and_upload(clip_id, title=title)
                 _TIKTOK_PUBLISHES[local_id]["tiktok_publish_id"] = tiktok_publish_id
                 _TIKTOK_PUBLISHES[local_id]["status"] = "processing"
                 _TIKTOK_PUBLISHES[local_id]["progress"] = 90

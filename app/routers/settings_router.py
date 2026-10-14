@@ -9,8 +9,9 @@ oleh AppTemplates (app/core/jinja.py). Tanpa DB, tanpa user account.
 
 import json
 
-from fastapi import APIRouter, Form, Request, Response
+from fastapi import APIRouter, Depends, Form, Request, Response
 from fastapi.responses import HTMLResponse, RedirectResponse
+from sqlalchemy.orm import Session
 
 from app.core.config.settings import settings
 from app.core.config.score_blend import get_blend, save_blend
@@ -21,7 +22,10 @@ from app.core.config.llm_config import (
     SUPPORTED_GEMINI_MODELS,
     USER_GOOGLE_ACCOUNT,
 )
+from app.core.di.dependencies import get_db
 from app.core.jinja import PREF_COOKIE, AppTemplates
+from app.repositories.tiktok_account_repository import TikTokAccountRepository
+from app.services.token_manager.setup import build_default_manager
 
 router = APIRouter(prefix="/settings", tags=["settings"])
 
@@ -43,10 +47,33 @@ def _cookie(pref: dict) -> dict:
 
 
 @router.get("")
-def settings_page(request: Request):
+def settings_page(request: Request, db: Session = Depends(get_db)):
     """Halaman preferences — full page (bukan partial htmx)."""
     blend = get_blend()
     llm_cfg = get_llm_config()
+
+    # TikTok status
+    tiktok_repo = TikTokAccountRepository(db)
+    tiktok_account = tiktok_repo.get_first()
+    tiktok_status = {
+        "connected": tiktok_account is not None,
+        "open_id": tiktok_account.open_id if tiktok_account else None,
+        "expires_at": tiktok_account.expires_at.strftime("%Y-%m-%d %H:%M UTC") if tiktok_account and tiktok_account.expires_at else None,
+    }
+
+    # Instagram status
+    manager = build_default_manager()
+    tokens = manager.get_status(db)
+    ig_token = next((t for t in tokens if t["platform"] == "instagram"), None)
+    configured = bool(settings.IG_ACCESS_TOKEN and settings.IG_USER_ID)
+    ig_status = {
+        "configured": configured,
+        "connected": ig_token is not None and ig_token.get("status") == "active",
+        "status": ig_token.get("status") if ig_token else ("not_configured" if not configured else "needs_reconnect"),
+        "username": ig_token.get("account_id") if ig_token else (settings.IG_USER_ID or None),
+        "days_left": int(ig_token["days_left"]) if ig_token and ig_token.get("days_left") is not None else None,
+    }
+
     return templates.TemplateResponse(
         request=request,
         name="settings.html",
@@ -58,6 +85,8 @@ def settings_page(request: Request):
             "llm_config": llm_cfg,
             "gemini_models": SUPPORTED_GEMINI_MODELS,
             "user_google_account": USER_GOOGLE_ACCOUNT,
+            "tiktok_status": tiktok_status,
+            "ig_status": ig_status,
         },
     )
 

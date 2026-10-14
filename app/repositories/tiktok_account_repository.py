@@ -31,3 +31,8 @@ class TikTokAccountRepository:
         self.db.commit()
         self.db.refresh(account)
         return account
+
+    def delete_all(self) -> None:
+        """Hapus semua akun TikTok yang tersimpan (disconnect)."""
+        self.db.query(TikTokAccountModel).delete()
+        self.db.commit()
