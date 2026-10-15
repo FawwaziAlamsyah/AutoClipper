@@ -46,6 +46,7 @@ class ClipService:
         subtitle_enabled: bool = False,
         subtitle_style: str = "minimal",
         layout: str = "stacked_split",
+        facecam_position: str = "auto",
     ) -> ClipModel:
         """Generate a final clip using FFmpeg from a candidate.
 
@@ -78,7 +79,7 @@ class ClipService:
 
         norm_ratio, norm_layout = self._resolve_aspect_and_layout(aspect_ratio, layout)
         job_id = candidate.job_id
-        logger.debug("Generate process: render clip untuk candidate %d (%s, %s)", candidate_id, norm_ratio, norm_layout)
+        logger.debug("Generate process: render clip untuk candidate %d (%s, %s, facecam=%s)", candidate_id, norm_ratio, norm_layout, facecam_position)
         self.job_service.start_optional_step(job_id, "generate")
         try:
             self._extract_clip(
@@ -86,6 +87,7 @@ class ClipService:
                 candidate.start_time, candidate.end_time,
                 norm_ratio,
                 layout=norm_layout,
+                facecam_position=facecam_position,
             )
         except Exception:
             self.job_service.finish_optional_step(job_id, "generate", success=False, error="FFmpeg render gagal")
@@ -135,7 +137,7 @@ class ClipService:
 
         # ── Auto Hook Engine (best-effort, TIDAK boleh raise) ─────────────────
         if settings.USE_AUTO_HOOK:
-            self._run_auto_hook(clip, candidate, video, layout=norm_layout)
+            self._run_auto_hook(clip, candidate, video, layout=norm_layout, facecam_position=facecam_position)
 
         # ── Auto Subtitle Engine (jika diaktifkan) ───────────────────────────
         if subtitle_enabled:
@@ -163,7 +165,14 @@ class ClipService:
         logger.info("Generated clip %d for candidate %d", clip.id, candidate_id)
         return clip
 
-    def _run_auto_hook(self, clip: ClipModel, candidate, video, layout: str = "stacked_split") -> None:
+    def _run_auto_hook(
+        self,
+        clip: ClipModel,
+        candidate,
+        video,
+        layout: str = "stacked_split",
+        facecam_position: str = "auto",
+    ) -> None:
         """Cari momen hook via LLM, simpan ke candidate, lalu compose clip.
 
         Semua exception di-catch di sini — generate_clip tidak boleh gagal karena hook.
@@ -225,6 +234,7 @@ class ClipService:
                 hook_moment=hook_moment,
                 window_duration=window_duration,
                 layout=norm_layout,
+                facecam_position=facecam_position,
             )
 
         except Exception as e:
@@ -375,6 +385,7 @@ class ClipService:
         end: float,
         aspect_ratio: str,
         layout: str = "stacked_split",
+        facecam_position: str = "auto",
     ) -> None:
         """Extract clip using FFmpeg with reframing for social media output.
 
@@ -392,12 +403,23 @@ class ClipService:
         if norm_ratio == "9:16":
             if norm_layout == "stacked_split":
                 # Stacked Split: Facecam (Top) + Gameplay (Bottom)
-                # Facecam: crop pojok kanan bawah (webcam streamer) -> scale ke 1080x800
-                # Gameplay: crop horizontal centered -> scale ke 1080x1120
-                # Vstack menyatukan kedua panel menjadi 1080x1920
+                facecam_pos = facecam_position
+                if facecam_pos == "auto":
+                    try:
+                        from app.services.facecam_detector_service import FacecamDetectorService
+                        det = FacecamDetectorService().detect_facecam_position(input_path, start, end)
+                        detected = det.get("position", "bottom_right")
+                        facecam_pos = detected if detected != "none" else "bottom_right"
+                    except Exception as e:
+                        logger.warning("Facecam detection failed, fallback to bottom_right: %s", e)
+                        facecam_pos = "bottom_right"
+
+                from app.services.facecam_detector_service import FacecamDetectorService
+                vface_filter = FacecamDetectorService.get_facecam_crop_filter(facecam_pos)
+
                 fc = (
                     "[0:v]split=2[vface][vgame];"
-                    "[vface]crop=w=iw*0.30:h=ih*0.38:x=iw-iw*0.31:y=ih-ih*0.39,scale=1080:800:flags=lanczos[top];"
+                    f"{vface_filter}"
                     "[vgame]crop=w=min(iw\\,ih*1080/1120):h=ih:x=(iw-min(iw\\,ih*1080/1120))/2:y=0,scale=1080:1120:flags=lanczos[bot];"
                     "[top][bot]vstack=inputs=2[vout]"
                 )

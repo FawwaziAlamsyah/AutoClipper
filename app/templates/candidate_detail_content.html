@@ -81,7 +81,7 @@
 
   <div class="editor-tabs-sticky">
     <ul class="nav nav-tabs" role="tablist">
-      <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tab-text"><i class="bi bi-fonts me-1"></i>{{ t("candDetail.text") }}</button></li>
+      <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tab-subtitle"><i class="bi bi-chat-square-text-fill text-danger me-1"></i>Subtitle</button></li>
       <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-trim"><i class="bi bi-scissors me-1"></i>{{ t("candDetail.crop") }}</button></li>
       <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-crop-frame" onclick="initCropTab({{ clip.id }})"><i class="bi bi-aspect-ratio me-1"></i>{{ t("candDetail.cropFrame") }}</button></li>
       <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-sound"><i class="bi bi-volume-up me-1"></i>{{ t("candDetail.sound") }}</button></li>
@@ -92,33 +92,54 @@
   </div>
 
   <div class="tab-content border border-top-0 p-3">
-    <!-- Tab Text -->
-    <div class="tab-pane fade show active p-2" id="tab-text">
-      <div class="section-label mb-2">{{ t("candDetail.text") }} Overlay</div>
-      <form onsubmit="return submitEditForm(event, '/clips/{{ clip.id }}/edit/text')">
-        <div class="mb-3">
-          <input type="text" name="text" class="form-control" placeholder="Overlay text..." required>
+    <!-- Tab Subtitle (CapCut / Kinetic) -->
+    <div class="tab-pane fade show active p-2" id="tab-subtitle">
+      <div class="d-flex align-items-center gap-2 mb-1">
+        <i class="bi bi-chat-square-text-fill text-danger fs-5"></i>
+        <div class="section-label mb-0">Generate & Burn Subtitle Kinetik</div>
+      </div>
+      <p class="text-muted small mb-3">Transkripsi audio kata-per-kata otomatis gaya TikTok / CapCut dengan highlight dinamis dan timing sinkron.</p>
+
+      <div class="row g-2 align-items-end mb-3">
+        <div class="col-6 col-sm-auto">
+          <label class="form-label small text-muted">{{ t("candDetail.format") }}</label>
+          <select class="form-select form-select-sm bg-dark text-white border-secondary" id="subFormat">
+            <option value="ass" selected>ASS (TikTok Animated)</option>
+            <option value="srt">{{ t("candDetail.srt") }}</option>
+            <option value="vtt">{{ t("candDetail.vtt") }}</option>
+          </select>
         </div>
-        <div class="row g-2 mb-3">
-          <div class="col">
-            <label class="form-label small text-muted">Position</label>
-            <select name="position" class="form-select form-select-sm">
-              <option value="top">{{ t("candDetail.top") }}</option>
-              <option value="middle">{{ t("candDetail.middle") }}</option>
-              <option value="bottom" selected>{{ t("candDetail.bottom") }}</option>
-            </select>
-          </div>
-          <div class="col">
-            <label class="form-label small text-muted">Font Size</label>
-            <input type="number" name="font_size" class="form-control form-control-sm" value="48" min="12" max="120">
-          </div>
-          <div class="col">
-            <label class="form-label small text-muted">Color</label>
-            <input type="color" name="color" class="form-control form-control-sm form-control-color w-100" value="#ffffff">
-          </div>
+        <div class="col-6 col-sm-auto">
+          <label class="form-label small text-muted">Style</label>
+          <select class="form-select form-select-sm bg-dark text-white border-secondary" id="subStyle">
+            <option value="tiktok" selected>🔥 TikTok Kinetic (Word Pop)</option>
+            <option value="minimal">{{ t("candDetail.minimal") }} (White Simple)</option>
+            <option value="youtube">{{ t("candDetail.youtube") }}</option>
+          </select>
         </div>
-        <button type="submit" class="btn btn-sm btn-primary"><i class="bi bi-plus-circle me-1"></i>{{ t("candDetail.addText") }}</button>
-      </form>
+        <div class="col-6 col-sm-auto" id="subFontGroup">
+          <label class="form-label small text-muted">Font</label>
+          <select class="form-select form-select-sm bg-dark text-white border-secondary" id="subFont">
+            <option value="impact" selected>Anton (Impact / Bold)</option>
+            <option value="clean">Poppins Black (Clean)</option>
+            <option value="fun">Bangers (Comic)</option>
+          </select>
+        </div>
+        <div class="col-6 col-sm-auto">
+          <label class="form-label small text-muted">{{ t("candDetail.langLabel") }}</label>
+          <select class="form-select form-select-sm bg-dark text-white border-secondary" id="subLanguage">
+            <option value="id" selected>Indonesian</option>
+            <option value="en">English</option>
+          </select>
+        </div>
+        <div class="col-12 col-sm-auto">
+          <button class="btn btn-primary btn-sm px-3 fw-semibold" onclick="generateSubtitle(this, {{ clip.id }})">
+            <i class="bi bi-magic me-1"></i>{{ t("candDetail.genSub") }}
+          </button>
+        </div>
+      </div>
+
+      <div id="subtitleResult" class="mt-2"></div>
     </div>
 
     <!-- Tab Trim -->
@@ -523,6 +544,20 @@
                       Bawah: Layar Gameplay (1080x1120)<br>
                       <span class="text-info">Rekomendasi gaming / Windah Basudara.</span>
                     </div>
+
+                    <div id="splitSubOptionsRegen" class="mt-2 pt-2 border-top border-secondary border-opacity-50" onclick="event.stopPropagation();">
+                      <label class="form-label small text-muted mb-1 d-flex justify-content-between align-items-center" style="font-size: 0.72rem;">
+                        <span>Posisi Facecam:</span>
+                        <span class="badge bg-success bg-opacity-25 text-success border border-success border-opacity-50">✨ AI Auto-Scan</span>
+                      </label>
+                      <select id="facecamPosSelectRegen" class="form-select form-select-sm bg-dark text-white border-secondary">
+                        <option value="auto" selected>✨ Otomatis Deteksi AI (Scan 4 Sudut)</option>
+                        <option value="bottom_left">↙️ Bawah Kiri (e.g. River Behind Us / Horor)</option>
+                        <option value="bottom_right">↘️ Bawah Kanan (Standard Gaming / PVZ)</option>
+                        <option value="top_left">↖️ Atas Kiri</option>
+                        <option value="top_right">↗️ Atas Kanan</option>
+                      </select>
+                    </div>
                   </div>
                 </div>
 
@@ -579,6 +614,20 @@
                   Atas: Webcam Streamer (1080x800)<br>
                   Bawah: Layar Gameplay (1080x1120)<br>
                   <span class="text-info">Rekomendasi gaming / Windah Basudara.</span>
+                </div>
+
+                <div id="splitSubOptions" class="mt-2 pt-2 border-top border-secondary border-opacity-50" onclick="event.stopPropagation();">
+                  <label class="form-label small text-muted mb-1 d-flex justify-content-between align-items-center" style="font-size: 0.72rem;">
+                    <span>Posisi Facecam:</span>
+                    <span class="badge bg-success bg-opacity-25 text-success border border-success border-opacity-50">✨ AI Auto-Scan</span>
+                  </label>
+                  <select id="facecamPosSelect" class="form-select form-select-sm bg-dark text-white border-secondary">
+                    <option value="auto" selected>✨ Otomatis Deteksi AI (Scan 4 Sudut)</option>
+                    <option value="bottom_left">↙️ Bawah Kiri (e.g. River Behind Us / Horor)</option>
+                    <option value="bottom_right">↘️ Bawah Kanan (Standard Gaming / PVZ)</option>
+                    <option value="top_left">↖️ Atas Kiri</option>
+                    <option value="top_right">↗️ Atas Kanan</option>
+                  </select>
                 </div>
               </div>
             </div>
@@ -689,55 +738,6 @@
       </div>
       {% endif %}
     </div>
-
-    {% if clip %}
-    <div class="panel card shadow-sm p-4 mt-3">
-      <div class="d-flex align-items-center gap-2 mb-1">
-        <i class="bi bi-chat-square-text text-danger fs-5"></i>
-        <h5 class="mb-0">{{ t("candDetail.subtitle") }}</h5>
-      </div>
-      <p class="text-muted small mb-3">Generate and burn automatic subtitles onto clip.</p>
-      <div class="row g-2 align-items-end">
-        <div class="col-6 col-sm-auto">
-          <label class="form-label small text-muted">{{ t("candDetail.format") }}</label>
-          <select class="form-select form-select-sm bg-dark text-white border-secondary" id="subFormat">
-            <option value="ass" selected>ASS (TikTok Animated)</option>
-            <option value="srt">{{ t("candDetail.srt") }}</option>
-            <option value="vtt">{{ t("candDetail.vtt") }}</option>
-          </select>
-        </div>
-        <div class="col-6 col-sm-auto">
-          <label class="form-label small text-muted">Style</label>
-          <select class="form-select form-select-sm bg-dark text-white border-secondary" id="subStyle">
-            <option value="tiktok" selected>🔥 TikTok Kinetic (Word Highlight)</option>
-            <option value="minimal">{{ t("candDetail.minimal") }} (White Simple)</option>
-            <option value="youtube">{{ t("candDetail.youtube") }}</option>
-          </select>
-        </div>
-        <div class="col-6 col-sm-auto" id="subFontGroup">
-          <label class="form-label small text-muted">Font</label>
-          <select class="form-select form-select-sm bg-dark text-white border-secondary" id="subFont">
-            <option value="impact" selected>Anton (Impact)</option>
-            <option value="clean">Poppins Black</option>
-            <option value="fun">Bangers</option>
-          </select>
-        </div>
-        <div class="col-6 col-sm-auto">
-          <label class="form-label small text-muted">{{ t("candDetail.langLabel") }}</label>
-          <select class="form-select form-select-sm bg-dark text-white border-secondary" id="subLanguage">
-            <option value="id" selected>Indonesian</option>
-            <option value="en">English</option>
-          </select>
-        </div>
-        <div class="col-12 col-sm-auto">
-          <button class="btn btn-primary btn-sm w-100" onclick="generateSubtitle(this, {{ clip.id }})">
-            <i class="bi bi-magic me-1"></i>{{ t("candDetail.genSub") }}
-          </button>
-        </div>
-      </div>
-      <div id="subtitleResult" class="mt-3"></div>
-    </div>
-    {% endif %}
   </aside>
 </div>
 
@@ -1902,12 +1902,20 @@ async function submitCropFrame(event, clipId) {
 
 function onModeSelectChanged() {
   const isNormal = document.getElementById('modeNormal') && document.getElementById('modeNormal').checked;
-  const subOptions = document.getElementById('normalSubOptions');
-  if (subOptions) {
+  const normalOptions = document.getElementById('normalSubOptions');
+  const splitOptions = document.getElementById('splitSubOptions') || document.getElementById('splitSubOptionsRegen');
+  if (normalOptions) {
     if (isNormal) {
-      subOptions.classList.remove('d-none');
+      normalOptions.classList.remove('d-none');
     } else {
-      subOptions.classList.add('d-none');
+      normalOptions.classList.add('d-none');
+    }
+  }
+  if (splitOptions) {
+    if (isNormal) {
+      splitOptions.classList.add('d-none');
+    } else {
+      splitOptions.classList.remove('d-none');
     }
   }
 }
@@ -1928,13 +1936,17 @@ async function doGenerateClip(btn, candidateId) {
     aspectRatio = '9:16';
     layout = 'stacked_split';
   }
+
+  const facecamEl = document.getElementById('facecamPosSelect') || document.getElementById('facecamPosSelectRegen');
+  const facecamPos = facecamEl ? facecamEl.value : 'auto';
+
   const autoSubEl = document.getElementById('autoSubCheckbox') || document.getElementById('autoSubCheckboxRegen');
   const autoSub = autoSubEl ? autoSubEl.checked : true;
   const subStyle = autoSub ? 'tiktok' : 'minimal';
 
   try {
     const res = await fetch(
-      `/clips/generate-detail?candidate_id=${candidateId}&aspect_ratio=${encodeURIComponent(aspectRatio)}&layout=${encodeURIComponent(layout)}&subtitle_enabled=${autoSub}&subtitle_style=${subStyle}`,
+      `/clips/generate-detail?candidate_id=${candidateId}&aspect_ratio=${encodeURIComponent(aspectRatio)}&layout=${encodeURIComponent(layout)}&facecam_position=${encodeURIComponent(facecamPos)}&subtitle_enabled=${autoSub}&subtitle_style=${subStyle}`,
       { method: 'POST' }
     );
     if (res.ok) {

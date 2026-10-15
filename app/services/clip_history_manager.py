@@ -138,6 +138,37 @@ class ClipHistoryManager:
             return Path(clip.file_path)
         raise ValidationException(f"File sumber dasar untuk hook clip {self.clip_id} tidak ditemukan.")
 
+    def prepare_base_for_subtitle(self, clip: Any) -> Path:
+        """Siapkan file sumber dasar untuk burn subtitle.
+
+        Jika di stack riwayat sudah ada langkah 'subtitle' (misal re-generate subtitle),
+        mundurkan current_step ke langkah tepat sebelum 'subtitle' pertama, sehingga
+        subtitle baru tidak menimpa / double-burn di atas pixel subtitle lama.
+        """
+        manifest = self.init_if_needed(clip)
+        current_step_idx = manifest.get("current_step", 0)
+        steps = manifest.get("steps", [])
+
+        # Cari apakah ada langkah 'subtitle' di riwayat sampai current_step
+        first_sub_idx = None
+        for i in range(current_step_idx + 1):
+            if i < len(steps) and steps[i].get("action") == "subtitle":
+                first_sub_idx = i
+                break
+
+        if first_sub_idx is not None and first_sub_idx > 0:
+            clean_idx = first_sub_idx - 1
+            manifest["current_step"] = clean_idx
+            self._write_manifest(manifest)
+            clean_step = steps[clean_idx]
+            clip.hook_applied = bool(clean_step.get("hook_applied", False))
+            clean_path = Path(clean_step.get("file_path", ""))
+            if clean_path.exists():
+                return clean_path
+
+        # Jika belum ada subtitle atau fallback
+        return self.get_current_source(clip)
+
     def push_step(
         self,
         clip: Any,

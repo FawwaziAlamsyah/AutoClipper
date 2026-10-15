@@ -29,5 +29,6 @@ class ClipGenerateRequest(BaseModel):
     candidate_id: int
     aspect_ratio: str = "9:16"
     layout: str = "stacked_split"
+    facecam_position: str = "auto"
     subtitle_enabled: bool = False
     subtitle_style: str = "minimal"

@@ -138,6 +138,8 @@ class WhisperAnalyzer(AnalyzerInterface):
             language=language,
             word_timestamps=True,
             beam_size=5,
+            vad_filter=True,
+            vad_parameters=dict(min_silence_duration_ms=400),
         )
 
         detected_language = info.language
@@ -156,6 +158,19 @@ class WhisperAnalyzer(AnalyzerInterface):
                         "end": w.end,
                         "probability": w.probability,
                     })
+            elif seg.text.strip():
+                # Fallback: jika faster-whisper tidak menghasilkan word_timestamps untuk segmen ini,
+                # buat perkiraan proporsional agar kata-kata TIDAK HILANG!
+                seg_words = seg.text.strip().split()
+                if seg_words:
+                    dur_per_word = max(0.1, (seg.end - seg.start) / len(seg_words))
+                    for idx, sw in enumerate(seg_words):
+                        words_list.append({
+                            "word": sw,
+                            "start": seg.start + idx * dur_per_word,
+                            "end": min(seg.end, seg.start + (idx + 1) * dur_per_word),
+                            "probability": 1.0,
+                        })
 
             transcribed_segments.append({
                 "start": seg.start,

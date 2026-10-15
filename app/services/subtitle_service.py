@@ -220,7 +220,7 @@ class SubtitleService:
 
                     cues.append({
                         "start": chunk_start,
-                        "end": chunk_end,
+                        "end": min(chunk_end, chunk_start + 1.8),
                         "text": cue_text,
                         "words": [cw.upper() for cw in chunk_words],
                         "highlight_word": highlight_word,
@@ -234,19 +234,24 @@ class SubtitleService:
 
     def _transcribe_clip_audio(self, clip, language: str | None = None) -> list[dict] | None:
         """Transkrip langsung dari file video klip untuk akurasi kata 100% dan timing presisi."""
-        source_path = getattr(clip, "edited_file_path", None) or getattr(clip, "file_path", None)
-        if not source_path:
-            return None
-        src_file = Path(source_path)
-        if not src_file.exists():
+        try:
+            from app.services.clip_history_manager import ClipHistoryManager
+            src_file = ClipHistoryManager(clip.id).prepare_base_for_subtitle(clip)
+        except Exception:
+            source_path = getattr(clip, "edited_file_path", None) or getattr(clip, "file_path", None)
+            if not source_path:
+                return None
+            src_file = Path(source_path)
+        if not src_file or not src_file.exists():
             return None
 
         from app.core.config.settings import settings
         cache_dir = settings.DATA_DIR / "outputs" / "cache"
         cache_dir.mkdir(parents=True, exist_ok=True)
-        wav_path = cache_dir / f"clip_{clip.id}_audio.wav"
+        mtime = int(src_file.stat().st_mtime)
+        wav_path = cache_dir / f"clip_{clip.id}_{src_file.stem}_{mtime}_audio.wav"
 
-        # Ekstrak audio 16kHz mono via ffmpeg jika belum ada di cache
+        # Ekstrak audio 16kHz mono via ffmpeg jika belum ada di cache untuk versi file ini
         if not wav_path.exists():
             cmd = [
                 "ffmpeg", "-y",
@@ -270,14 +275,29 @@ class SubtitleService:
 
             all_words = []
             for s in segments:
-                for w in s.get("words", []):
-                    word_text = w.get("word", "").strip()
-                    if word_text:
+                s_words = s.get("words", [])
+                if s_words:
+                    for w in s_words:
+                        word_text = w.get("word", "").strip()
+                        if word_text:
+                            all_words.append({
+                                "word": word_text,
+                                "start": float(w.get("start", 0.0)),
+                                "end": float(w.get("end", 0.0)),
+                            })
+                elif s.get("text", "").strip():
+                    # Fallback agar kata-kata tidak hilang jika faster-whisper tidak menyertakan words
+                    raw_words = s.get("text", "").strip().split()
+                    seg_s = float(s.get("start", 0.0))
+                    seg_e = float(s.get("end", seg_s + 1.0))
+                    dur_w = max(0.1, (seg_e - seg_s) / len(raw_words))
+                    for idx, rw in enumerate(raw_words):
                         all_words.append({
-                            "word": word_text,
-                            "start": float(w.get("start", 0.0)),
-                            "end": float(w.get("end", 0.0)),
+                            "word": rw,
+                            "start": seg_s + idx * dur_w,
+                            "end": min(seg_e, seg_s + (idx + 1) * dur_w),
                         })
+
             if not all_words:
                 return None
 
@@ -287,7 +307,7 @@ class SubtitleService:
             return None
 
     def _build_kinetic_cues_from_words(self, all_words: list[dict]) -> list[dict]:
-        """Group word-level timestamps directly into 1-3 word kinetic cues with zero overlap."""
+        """Group word-level timestamps directly into 1-3 word kinetic cues with zero overlap and no standby subtitles."""
         chunks: list[dict] = []
         curr_chunk: list[dict] = []
 
@@ -295,27 +315,40 @@ class SubtitleService:
             curr_chunk.append(w)
             chunk_len = sum(len(cw["word"]) for cw in curr_chunk) + len(curr_chunk) - 1
             is_last = (i == len(all_words) - 1)
-            has_punct = w["word"].endswith((".", "?", "!", "...", "…"))
+            has_punct = w["word"].endswith((".", "?", "!", "...", "…", ","))
+
+            # Deteksi jeda hening / jeda napas ke kata berikutnya (min 350ms)
+            pause_gap = 0.0
+            if not is_last:
+                next_w = all_words[i + 1]
+                pause_gap = max(0.0, float(next_w.get("start", 0.0)) - float(w.get("end", 0.0)))
+            has_pause = pause_gap >= 0.35
 
             should_break = (
-                has_punct
+                is_last
+                or has_pause
+                or has_punct
                 or len(curr_chunk) >= 3
                 or (len(curr_chunk) >= 2 and chunk_len >= 8)
-                or is_last
             )
 
             # Jika kata terakhir di stream hanya 1 kata kecil (<= 3 huruf),
-            # gabungkan ke chunk sebelumnya agar tidak berkedip sendirian
-            if is_last and len(curr_chunk) == 1 and len(curr_chunk[0]["word"]) <= 3 and chunks:
+            # gabungkan ke chunk sebelumnya agar tidak berkedip sendirian (jika tidak ada jeda panjang)
+            if is_last and len(curr_chunk) == 1 and len(curr_chunk[0]["word"]) <= 3 and chunks and pause_gap < 0.35:
                 prev = chunks[-1]
                 prev["text"] = f"{prev['text']} {curr_chunk[0]['word'].upper()}"
                 prev["words"].append(curr_chunk[0]["word"].upper())
-                prev["end"] = curr_chunk[0]["end"]
+                prev["end"] = max(prev["end"], curr_chunk[0]["end"])
                 break
 
             if should_break:
-                chunk_start = curr_chunk[0]["start"]
-                chunk_end = curr_chunk[-1]["end"]
+                chunk_start = max(0.0, float(curr_chunk[0]["start"]))
+                ideal_end = float(curr_chunk[-1]["end"]) + 0.15
+                if not is_last:
+                    ideal_end = min(ideal_end, float(all_words[i + 1]["start"]) - 0.03)
+                # Maksimal cue kinetic tampil di layar adalah 1.8 detik agar tidak standby saat diam
+                chunk_end = min(max(chunk_start + 0.25, ideal_end), chunk_start + 1.8)
+
                 chunk_words = [cw["word"] for cw in curr_chunk]
                 cue_text = " ".join(chunk_words).upper()
 
@@ -329,8 +362,8 @@ class SubtitleService:
                     highlight_word = max(chunk_words, key=len).upper()
 
                 chunks.append({
-                    "start": chunk_start,
-                    "end": chunk_end,
+                    "start": round(chunk_start, 2),
+                    "end": round(chunk_end, 2),
                     "text": cue_text,
                     "words": [cw.upper() for cw in chunk_words],
                     "highlight_word": highlight_word,

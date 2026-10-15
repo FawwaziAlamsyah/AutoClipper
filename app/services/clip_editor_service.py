@@ -644,7 +644,8 @@ class ClipEditorService:
         if clip is None:
             raise NotFoundException(f"Clip {clip_id} tidak ditemukan")
 
-        source = self._current_source(clip)
+        history_mgr = self._history_manager(clip_id)
+        source = history_mgr.prepare_base_for_subtitle(clip)
         temp_path = self._temp_output_path(clip_id, "subtitle")
 
         # Cek dimensi video (default 1080x1920 untuk 9:16)
@@ -790,6 +791,7 @@ class ClipEditorService:
             action="subtitle",
             label="Burn Subtitle",
             temp_file_path=temp_path,
+            hook_applied=bool(getattr(clip, "hook_applied", False)),
         )
         clip.has_subtitle = True
         self.db.commit()

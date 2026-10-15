@@ -41,6 +41,7 @@ def generate_clip(
         req.subtitle_enabled,
         req.subtitle_style,
         layout=req.layout,
+        facecam_position=req.facecam_position,
     )
     
     # Return HTML for htmx requests, JSON for API requests
@@ -76,6 +77,7 @@ def generate_clip_htmx(
     candidate_id: int = Query(...),
     aspect_ratio: str = Query("9:16"),
     layout: str = Query("stacked_split"),
+    facecam_position: str = Query("auto"),
     subtitle_enabled: bool = Query(False),
     subtitle_style: str = Query("minimal"),
     service: ClipService = Depends(get_clip_service),
@@ -88,6 +90,7 @@ def generate_clip_htmx(
         subtitle_enabled,
         subtitle_style,
         layout=layout,
+        facecam_position=facecam_position,
     )
     # Fetch candidate untuk get semua data (include clip_filename)
     candidate_obj = candidate_service.get_candidate(candidate_id)
@@ -132,6 +135,7 @@ def generate_clip_detail(
     candidate_id: int = Query(...),
     aspect_ratio: str = Query("9:16"),
     layout: str = Query("stacked_split"),
+    facecam_position: str = Query("auto"),
     subtitle_enabled: bool = Query(False),
     subtitle_style: str = Query("minimal"),
     service: ClipService = Depends(get_clip_service),
@@ -144,6 +148,7 @@ def generate_clip_detail(
         subtitle_enabled,
         subtitle_style,
         layout=layout,
+        facecam_position=facecam_position,
     )
     filename = os.path.basename(clip.file_path)
     show_path = clip.edited_file_path or clip.file_path
@@ -274,20 +279,6 @@ def get_clip_thumbnail(
         ffmpeg.extract_thumbnail(video_path, str(thumb_path), timestamp=ts)
 
     return FileResponse(str(thumb_path), media_type="image/jpeg")
-
-
-@router.post("/{clip_id}/edit/text", response_class=HTMLResponse)
-def edit_add_text(
-    request: Request,
-    clip_id: int,
-    text: str = Form(...),
-    position: str = Form("bottom"),
-    font_size: int = Form(48),
-    color: str = Form("white"),
-    service: ClipEditorService = Depends(get_clip_editor_service),
-):
-    clip = service.add_text(clip_id, text, position, font_size, color)
-    return _preview_response(request, clip, service)
 
 
 @router.post("/{clip_id}/edit/crop", response_class=HTMLResponse)

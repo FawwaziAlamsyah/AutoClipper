@@ -52,6 +52,7 @@ class HookComposerService:
         hook_moment: HookMoment,
         window_duration: float,
         layout: str = "stacked_split",
+        facecam_position: str = "auto",
     ) -> bool:
         """Terapkan cold-open hook ke clip.
 
@@ -62,6 +63,7 @@ class HookComposerService:
             hook_moment: hasil HookMomentFinder.find().
             window_duration: durasi window candidate (detik) — untuk guard min window.
             layout: "stacked_split" | "blurred_fit" | "center_crop"
+            facecam_position: "auto" | "bottom_left" | "bottom_right" | "top_left" | "top_right"
 
         Returns:
             True  → hook berhasil diterapkan, clip.edited_file_path diupdate.
@@ -96,6 +98,7 @@ class HookComposerService:
             result_path = self._render_hook(
                 clip, video_source_path, aspect_ratio, hook_moment,
                 base_clip_path=base_clip_path, layout=layout,
+                facecam_position=facecam_position,
             )
             history_mgr.push_step(
                 clip=clip,
@@ -130,6 +133,7 @@ class HookComposerService:
         hook_moment: HookMoment,
         window_duration: float,
         layout: str = "stacked_split",
+        facecam_position: str = "auto",
     ) -> bool:
         """Render ulang hook dari momen yang sudah tersimpan di candidate.
 
@@ -150,6 +154,7 @@ class HookComposerService:
             result_path = self._render_hook(
                 clip, video_source_path, aspect_ratio, hook_moment,
                 base_clip_path=base_clip_path, layout=layout,
+                facecam_position=facecam_position,
             )
             history_mgr.push_step(
                 clip=clip,
@@ -185,6 +190,7 @@ class HookComposerService:
         hook_moment: HookMoment,
         base_clip_path: str | Path | None = None,
         layout: str = "stacked_split",
+        facecam_position: str = "auto",
     ) -> Path:
         """Render seluruh pipeline hook, return path file akhir."""
         if base_clip_path is not None:
@@ -211,6 +217,7 @@ class HookComposerService:
                 video_source_path, str(teaser_raw),
                 hook_moment.hook_moment_start, hook_moment.hook_moment_end,
                 aspect_ratio, layout=layout,
+                facecam_position=facecam_position,
             )
 
             # Step 2 — Zoom-punch (crop 85% tengah → scale balik)
@@ -265,6 +272,7 @@ class HookComposerService:
         end: float,
         aspect_ratio: str,
         layout: str = "stacked_split",
+        facecam_position: str = "auto",
     ) -> None:
         """Extract 2 detik teaser dari video sumber, terapkan crop/scale identik _extract_clip."""
         norm_ratio, norm_layout = self._resolve_aspect_and_layout(aspect_ratio, layout)
@@ -274,9 +282,23 @@ class HookComposerService:
         filter_args: list[str] = []
         if norm_ratio == "9:16":
             if norm_layout == "stacked_split":
+                facecam_pos = facecam_position
+                if facecam_pos == "auto":
+                    try:
+                        from app.services.facecam_detector_service import FacecamDetectorService
+                        det = FacecamDetectorService().detect_facecam_position(source, start, end)
+                        detected = det.get("position", "bottom_right")
+                        facecam_pos = detected if detected != "none" else "bottom_right"
+                    except Exception as e:
+                        logger.warning("Teaser facecam detection failed, fallback to bottom_right: %s", e)
+                        facecam_pos = "bottom_right"
+
+                from app.services.facecam_detector_service import FacecamDetectorService
+                vface_filter = FacecamDetectorService.get_facecam_crop_filter(facecam_pos)
+
                 fc = (
                     "[0:v]split=2[vface][vgame];"
-                    "[vface]crop=w=iw*0.30:h=ih*0.38:x=iw-iw*0.31:y=ih-ih*0.39,scale=1080:800:flags=lanczos[top];"
+                    f"{vface_filter}"
                     "[vgame]crop=w=min(iw\\,ih*1080/1120):h=ih:x=(iw-min(iw\\,ih*1080/1120))/2:y=0,scale=1080:1120:flags=lanczos[bot];"
                     "[top][bot]vstack=inputs=2[vout]"
                 )
