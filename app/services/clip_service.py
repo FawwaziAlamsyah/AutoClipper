@@ -172,6 +172,8 @@ class ClipService:
         video,
         layout: str = "stacked_split",
         facecam_position: str = "auto",
+        punch_zoom_scale: float | None = None,
+        zoom_target: str | None = None,
     ) -> None:
         """Cari momen hook via LLM, simpan ke candidate, lalu compose clip.
 
@@ -180,11 +182,30 @@ class ClipService:
         try:
             from app.ai_modules.hook_analysis.hook_moment_finder import HookMomentFinder
             from app.services.hook_composer_service import HookComposerService
+            from app.services.audio_spike_detector_service import AudioSpikeDetectorService
 
             # Ambil rentang waktu aktif klip (memperhitungkan hasil trim jika klip sudah diedit)
             effective_start = float(clip.start_time if clip.start_time is not None else candidate.start_time)
             effective_end = float(clip.end_time if clip.end_time is not None else candidate.end_time)
             window_duration = max(0.0, effective_end - effective_start)
+
+            # Deteksi lonjakan audio / emosi (Fitur 4)
+            audio_spikes = None
+            if getattr(settings, "AUTO_HOOK_ENABLE_AUDIO_SPIKE", True):
+                try:
+                    spike_detector = AudioSpikeDetectorService()
+                    audio_spikes = spike_detector.detect_spikes(
+                        video.file_path,
+                        start_time=effective_start,
+                        end_time=effective_end,
+                    )
+                    # Simpan informasi audio spike ke score_breakdown candidate (JSONB)
+                    if not isinstance(candidate.score_breakdown, dict):
+                        candidate.score_breakdown = {}
+                    candidate.score_breakdown["audio_spike"] = audio_spikes
+                    self.db.commit()
+                except Exception as e:
+                    logger.debug("Deteksi audio spike dilewati: %s", e)
 
             # Ambil segments transcript
             transcript = self.transcript_repo.get_by_video(video.id)
@@ -205,7 +226,7 @@ class ClipService:
             category_name = candidate.category.name if candidate.category else None
 
             finder = HookMomentFinder()
-            hook_moment, skip_reason = finder.find(segs_in_window, category_name)
+            hook_moment, skip_reason = finder.find(segs_in_window, category_name, audio_spikes=audio_spikes)
 
             if hook_moment is None:
                 logger.info(
@@ -235,6 +256,8 @@ class ClipService:
                 window_duration=window_duration,
                 layout=norm_layout,
                 facecam_position=facecam_position,
+                punch_zoom_scale=punch_zoom_scale,
+                zoom_target=zoom_target,
             )
 
         except Exception as e:
@@ -248,7 +271,12 @@ class ClipService:
             except Exception:
                 pass
 
-    def retry_hook_search(self, clip_id: int) -> ClipModel:
+    def retry_hook_search(
+        self,
+        clip_id: int,
+        punch_zoom_scale: float | None = None,
+        zoom_target: str | None = None,
+    ) -> ClipModel:
         """Cari ulang momen hook dari awal via LLM — untuk kasus hook_moment_start null.
 
         Dipakai tombol "Cari Hook Ulang" di UI saat LLM sebelumnya tidak bisa
@@ -272,12 +300,24 @@ class ClipService:
         self.db.commit()
 
         # Jalankan ulang seluruh pipeline pencarian hook + compose
-        self._run_auto_hook(clip, candidate, video)
+        if punch_zoom_scale is not None or zoom_target is not None:
+            self._run_auto_hook(
+                clip, candidate, video,
+                punch_zoom_scale=punch_zoom_scale,
+                zoom_target=zoom_target,
+            )
+        else:
+            self._run_auto_hook(clip, candidate, video)
 
         clip = self.clip_repo.get(clip_id)
         return clip
 
-    def regenerate_hook(self, clip_id: int) -> ClipModel:
+    def regenerate_hook(
+        self,
+        clip_id: int,
+        punch_zoom_scale: float | None = None,
+        zoom_target: str | None = None,
+    ) -> ClipModel:
         """Render ulang hook dari momen tersimpan candidate (tanpa replay LLM).
 
         Dipakai tombol "Generate Ulang Hook" di UI saat render sebelumnya gagal
@@ -311,7 +351,14 @@ class ClipService:
         ):
             clip.hook_skip_reason = None
             self.db.commit()
-            self._run_auto_hook(clip, candidate, video)
+            if punch_zoom_scale is not None or zoom_target is not None:
+                self._run_auto_hook(
+                    clip, candidate, video,
+                    punch_zoom_scale=punch_zoom_scale,
+                    zoom_target=zoom_target,
+                )
+            else:
+                self._run_auto_hook(clip, candidate, video)
             clip = self.clip_repo.get(clip_id)
             return clip
 
@@ -348,9 +395,62 @@ class ClipService:
             hook_moment=hook_moment,
             window_duration=window_duration,
             layout=norm_layout,
+            punch_zoom_scale=punch_zoom_scale,
+            zoom_target=zoom_target,
         )
         clip = self.clip_repo.get(clip_id)
         return clip
+
+    def snap_hook_to_audio_spike(
+        self,
+        clip_id: int,
+        punch_zoom_scale: float | None = None,
+        zoom_target: str | None = None,
+    ) -> ClipModel:
+        """Snap momen hook ke titik lonjakan emosi/teriakan tertinggi audio spike lalu render ulang."""
+        clip = self.clip_repo.get(clip_id)
+        if clip is None:
+            raise ValidationException(f"Clip {clip_id} tidak ditemukan")
+
+        candidate = self.candidate_repo.get(clip.candidate_id)
+        if candidate is None:
+            raise ValidationException(f"Candidate untuk clip {clip_id} tidak ditemukan")
+
+        video = self.video_repo.get(candidate.video_id)
+        if video is None or not Path(video.file_path).exists():
+            raise ValidationException("Video sumber sudah tidak ada.")
+
+        effective_start = float(clip.start_time if clip.start_time is not None else candidate.start_time)
+        effective_end = float(clip.end_time if clip.end_time is not None else candidate.end_time)
+
+        from app.services.audio_spike_detector_service import AudioSpikeDetectorService
+        detector = AudioSpikeDetectorService()
+        spikes = detector.detect_spikes(video.file_path, effective_start, effective_end)
+
+        if not isinstance(candidate.score_breakdown, dict):
+            candidate.score_breakdown = {}
+        candidate.score_breakdown["audio_spike"] = spikes
+
+        peak_time = spikes.get("peak_time", (effective_start + effective_end) / 2.0)
+        h_start, h_end = detector.get_hook_window_from_spike(
+            peak_time=peak_time,
+            window_start=effective_start,
+            window_end=effective_end,
+            teaser_duration=2.5,
+        )
+
+        candidate.hook_moment_start = h_start
+        candidate.hook_moment_end = h_end
+        candidate.hook_type = "shock"
+        if not candidate.hook_caption:
+            candidate.hook_caption = "REAKSI TAK TERDUGA!"
+        self.db.commit()
+
+        return self.regenerate_hook(
+            clip_id,
+            punch_zoom_scale=punch_zoom_scale,
+            zoom_target=zoom_target,
+        )
 
     @staticmethod
     def _resolve_aspect_and_layout(aspect_ratio: str, layout: str = "stacked_split") -> tuple[str, str]:
@@ -455,6 +555,7 @@ class ClipService:
             "-c:v", "libx264",
             "-preset", "slow",   # slow = kualitas lebih baik, ukuran lebih kecil vs fast
             "-crf", "18",        # 18 = kualitas tinggi (visually lossless), sosmed-ready
+            "-pix_fmt", "yuv420p",
             "-c:a", "aac",
             "-b:a", "192k",      # naik dari 128k untuk audio sosmed
             "-movflags", "+faststart",  # progressive download, penting untuk sosmed

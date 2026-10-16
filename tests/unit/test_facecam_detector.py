@@ -41,6 +41,18 @@ def test_get_facecam_crop_filter_mappings():
     assert fallback == br
 
 
+def test_get_facecam_crop_filter_with_zoom():
+    """Verify zoom_scale reduces crop width/height and centers the crop."""
+    service = FacecamDetectorService()
+    # 1.25x zoom on bottom_right
+    br_zoom = service.get_facecam_crop_filter("bottom_right", zoom_scale=1.25)
+    # w0=0.30 / 1.25 = 0.2400
+    assert "w=iw*0.2400" in br_zoom
+    assert "h=ih*0.3040" in br_zoom
+    assert "1080:800" in br_zoom
+
+
+
 def test_detect_facecam_nonexistent_file():
     """Detection on a non-existent file returns bottom_right with 0 confidence."""
     service = FacecamDetectorService()

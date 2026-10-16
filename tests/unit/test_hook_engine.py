@@ -160,6 +160,37 @@ def test_happy_path_valid_llm_response() -> None:
     assert moment.best_idx == 6
 
 
+def test_happy_path_with_audio_spikes() -> None:
+    """audio_spikes metadata diteruskan ke HookMoment."""
+    finder = HookMomentFinder()
+    finder.api_key = "dummy-key"
+
+    segs = _make_segments(10, start_offset=0.0)
+    llm_response = json.dumps({
+        "best_idx": 6,
+        "hook_type": "shock",
+        "confidence": 0.92,
+        "reason": "teriakan kencang",
+        "caption": "Reaksi tak terduga!",
+    })
+
+    audio_spikes = {
+        "has_spike": True,
+        "peak_time": 19.5,
+        "peak_db": -4.2,
+        "mean_db": -22.0,
+    }
+
+    with patch.object(finder, "_call_llm", return_value=llm_response):
+        moment, reason = finder.find(segs, audio_spikes=audio_spikes)
+
+    assert moment is not None
+    assert moment.has_audio_spike is True
+    assert moment.audio_spike_time == 19.5
+    assert moment.hook_type == "shock"
+
+
+
 # ── g. Fallback caption kalau LLM tidak kirim caption ────────────────────────
 
 def test_fallback_caption_when_empty() -> None:

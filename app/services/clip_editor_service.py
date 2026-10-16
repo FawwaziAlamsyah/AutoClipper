@@ -122,6 +122,7 @@ class ClipEditorService:
             "-i", str(source),
             "-vf", vf,
             "-c:v", "libx264", "-crf", "18", "-preset", "fast",
+            "-pix_fmt", "yuv420p",
             "-g", "60", "-keyint_min", "60", "-sc_threshold", "0",
             "-c:a", "copy",
             "-movflags", "+faststart",
@@ -169,6 +170,7 @@ class ClipEditorService:
             "-ss", str(start_time),
             "-t", str(duration),
             "-c:v", "libx264", "-crf", "18", "-preset", "fast",
+            "-pix_fmt", "yuv420p",
             "-g", "60", "-keyint_min", "60", "-sc_threshold", "0",
             "-c:a", "copy",
             "-avoid_negative_ts", "make_zero",
@@ -289,6 +291,7 @@ class ClipEditorService:
             "-map", "0:v",
             "-map", "[aout]",
             "-c:v", "libx264", "-crf", "18", "-preset", "fast",
+            "-pix_fmt", "yuv420p",
             "-g", "60", "-keyint_min", "60", "-sc_threshold", "0",
             "-movflags", "+faststart",
             str(temp_path),
@@ -330,6 +333,7 @@ class ClipEditorService:
             "-i", str(source),
             "-af", f"volume={video_volume}",
             "-c:v", "libx264", "-crf", "18", "-preset", "fast",
+            "-pix_fmt", "yuv420p",
             "-g", "60", "-keyint_min", "60", "-sc_threshold", "0",
             "-movflags", "+faststart",
             str(temp_path),
@@ -474,6 +478,7 @@ class ClipEditorService:
             "-map", "[vout]",
             "-map", "0:a?",  # "?" = optional, tidak error kalau video tanpa audio
             "-c:v", "libx264", "-crf", "18", "-preset", "fast",
+            "-pix_fmt", "yuv420p",
             "-g", "60", "-keyint_min", "60", "-sc_threshold", "0",
             "-c:a", "copy",
             "-movflags", "+faststart",
@@ -699,10 +704,28 @@ class ClipEditorService:
                 "end": end_rel,
             })
 
-        # Anti-overlap clamp mutlak pada rel_cues (mencegah teks bertabrakan / saling timpa)
-        for i in range(len(rel_cues) - 1):
-            if rel_cues[i]["end"] > rel_cues[i + 1]["start"]:
-                rel_cues[i]["end"] = max(rel_cues[i]["start"] + 0.1, rel_cues[i + 1]["start"] - 0.02)
+        # Sequential Anti-Overlap Guarantee mutlak pada rel_cues (mencegah teks bertabrakan / saling timpa)
+        cleaned_rel_cues: list[dict] = []
+        for rc in rel_cues:
+            if not rc["text"].strip():
+                continue
+            if not cleaned_rel_cues:
+                cleaned_rel_cues.append(dict(rc))
+                continue
+            prev = cleaned_rel_cues[-1]
+            if rc["start"] < prev["end"]:
+                if rc["start"] <= prev["start"] + 0.12:
+                    prev["text"] = f"{prev['text']} {rc['text']}"
+                    prev["words"] = prev.get("words", []) + rc.get("words", [])
+                    prev["end"] = max(prev["end"], rc["end"])
+                    continue
+                else:
+                    prev["end"] = round(max(prev["start"] + 0.15, rc["start"] - 0.03), 2)
+                    if rc["start"] <= prev["end"]:
+                        rc["start"] = round(prev["end"] + 0.03, 2)
+                        rc["end"] = round(max(rc["start"] + 0.2, rc["end"]), 2)
+            cleaned_rel_cues.append(dict(rc))
+        rel_cues = cleaned_rel_cues
 
         use_ass = style in ("tiktok", "kinetic", "capcut", "ass")
         rendered_with_ass = False
@@ -730,6 +753,7 @@ class ClipEditorService:
                     "-i", str(source),
                     "-vf", vf,
                     "-c:v", "libx264", "-crf", "18", "-preset", "fast",
+                    "-pix_fmt", "yuv420p",
                     "-g", "60", "-keyint_min", "60", "-sc_threshold", "0",
                     "-c:a", "copy",
                     "-movflags", "+faststart",
@@ -774,6 +798,7 @@ class ClipEditorService:
                 "-i", str(source),
                 "-vf", vf,
                 "-c:v", "libx264", "-crf", "18", "-preset", "fast",
+                "-pix_fmt", "yuv420p",
                 "-g", "60", "-keyint_min", "60", "-sc_threshold", "0",
                 "-c:a", "copy",
                 "-movflags", "+faststart",
@@ -863,6 +888,7 @@ class ClipEditorService:
             "-i", str(source),
             "-vf", f"crop={width}:{height}:{x}:{y}",
             "-c:v", "libx264", "-crf", "18", "-preset", "fast",
+            "-pix_fmt", "yuv420p",
             "-g", "60", "-keyint_min", "60", "-sc_threshold", "0",
             "-c:a", "copy",
             "-movflags", "+faststart",

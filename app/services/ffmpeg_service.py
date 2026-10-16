@@ -48,6 +48,12 @@ class FFmpegService:
                 "width": None,
                 "height": None,
                 "fps": None,
+                "pix_fmt": None,
+                "video_codec": None,
+                "profile": None,
+                "sample_aspect_ratio": None,
+                "has_audio": False,
+                "audio_codec": None,
             }
 
             # Ambil detail format info
@@ -60,6 +66,10 @@ class FFmpegService:
                 if stream.get("codec_type") == "video":
                     metadata["width"] = int(stream["width"]) if "width" in stream else None
                     metadata["height"] = int(stream["height"]) if "height" in stream else None
+                    metadata["pix_fmt"] = stream.get("pix_fmt")
+                    metadata["video_codec"] = stream.get("codec_name")
+                    metadata["profile"] = stream.get("profile")
+                    metadata["sample_aspect_ratio"] = stream.get("sample_aspect_ratio")
                     
                     # Hitung FPS (misal: "30/1" atau "24000/1001")
                     r_frame_rate = stream.get("r_frame_rate", "")
@@ -84,6 +94,12 @@ class FFmpegService:
                                 except (ValueError, TypeError):
                                     pass
                     metadata["rotation"] = rotation
+                    break
+
+            for stream in probe_data.get("streams", []):
+                if stream.get("codec_type") == "audio":
+                    metadata["has_audio"] = True
+                    metadata["audio_codec"] = stream.get("codec_name")
                     break
 
             logger.info("Extracted metadata for %s: %s", video_path, metadata)

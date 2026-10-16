@@ -203,9 +203,11 @@ class FacecamDetectorService:
             cap.release()
 
     @staticmethod
-    def get_facecam_crop_filter(position: str = "bottom_right") -> str:
+    def get_facecam_crop_filter(position: str = "bottom_right", zoom_scale: float = 1.0) -> str:
         """Kembalikan string filter FFmpeg untuk memotong facecam (1080x800).
 
+        Jika zoom_scale > 1.0 (misal 1.25x untuk punch-zoom), area crop diperkecil
+        di sekitar titik tengah facecam lalu di-scale balik ke 1080x800.
         Posisi:
         - bottom_left: crop pojok kiri bawah
         - bottom_right: crop pojok kanan bawah
@@ -214,11 +216,46 @@ class FacecamDetectorService:
         - none: fallback ke bottom_right
         """
         pos = position.lower()
+        scale = max(1.0, min(float(zoom_scale), 2.0))
+
+        # Dimensi dasar facecam
+        w0 = 0.30
+        h0 = 0.38
+
+        # Posisi sudut dasar (x0, y0)
         if pos == "bottom_left":
-            return "[vface]crop=w=iw*0.30:h=ih*0.38:x=0:y=ih-ih*0.39,scale=1080:800:flags=lanczos[top];"
+            x0_str = "0"
+            y0_str = "ih-ih*0.39"
         elif pos == "top_left":
-            return "[vface]crop=w=iw*0.30:h=ih*0.38:x=0:y=0,scale=1080:800:flags=lanczos[top];"
+            x0_str = "0"
+            y0_str = "0"
         elif pos == "top_right":
-            return "[vface]crop=w=iw*0.30:h=ih*0.38:x=iw-iw*0.31:y=0,scale=1080:800:flags=lanczos[top];"
+            x0_str = "iw-iw*0.31"
+            y0_str = "0"
         else:  # "bottom_right" or default
-            return "[vface]crop=w=iw*0.30:h=ih*0.38:x=iw-iw*0.31:y=ih-ih*0.39,scale=1080:800:flags=lanczos[top];"
+            x0_str = "iw-iw*0.31"
+            y0_str = "ih-ih*0.39"
+
+        if scale <= 1.001:
+            return f"[vface]crop=w=iw*{w0:.2f}:h=ih*{h0:.2f}:x={x0_str}:y={y0_str},scale=1080:800:flags=lanczos[top];"
+
+        # Zoomed dimensions
+        w_zoom = w0 / scale
+        h_zoom = h0 / scale
+        delta_x = (w0 - w_zoom) / 2.0
+        delta_y = (h0 - h_zoom) / 2.0
+
+        if pos == "bottom_left":
+            x_expr = f"iw*{delta_x:.4f}"
+            y_expr = f"ih-ih*0.39+ih*{delta_y:.4f}"
+        elif pos == "top_left":
+            x_expr = f"iw*{delta_x:.4f}"
+            y_expr = f"ih*{delta_y:.4f}"
+        elif pos == "top_right":
+            x_expr = f"iw-iw*0.31+iw*{delta_x:.4f}"
+            y_expr = f"ih*{delta_y:.4f}"
+        else:  # bottom_right
+            x_expr = f"iw-iw*0.31+iw*{delta_x:.4f}"
+            y_expr = f"ih-ih*0.39+ih*{delta_y:.4f}"
+
+        return f"[vface]crop=w=iw*{w_zoom:.4f}:h=ih*{h_zoom:.4f}:x={x_expr}:y={y_expr},scale=1080:800:flags=lanczos[top];"

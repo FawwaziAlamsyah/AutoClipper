@@ -53,6 +53,8 @@ class HookComposerService:
         window_duration: float,
         layout: str = "stacked_split",
         facecam_position: str = "auto",
+        punch_zoom_scale: float | None = None,
+        zoom_target: str | None = None,
     ) -> bool:
         """Terapkan cold-open hook ke clip.
 
@@ -64,6 +66,8 @@ class HookComposerService:
             window_duration: durasi window candidate (detik) — untuk guard min window.
             layout: "stacked_split" | "blurred_fit" | "center_crop"
             facecam_position: "auto" | "bottom_left" | "bottom_right" | "top_left" | "top_right"
+            punch_zoom_scale: intensitas zoom (misal 1.25x / 1.35x)
+            zoom_target: "facecam" (streamer face) | "full" (full frame)
 
         Returns:
             True  → hook berhasil diterapkan, clip.edited_file_path diupdate.
@@ -99,6 +103,8 @@ class HookComposerService:
                 clip, video_source_path, aspect_ratio, hook_moment,
                 base_clip_path=base_clip_path, layout=layout,
                 facecam_position=facecam_position,
+                punch_zoom_scale=punch_zoom_scale,
+                zoom_target=zoom_target,
             )
             history_mgr.push_step(
                 clip=clip,
@@ -134,13 +140,10 @@ class HookComposerService:
         window_duration: float,
         layout: str = "stacked_split",
         facecam_position: str = "auto",
+        punch_zoom_scale: float | None = None,
+        zoom_target: str | None = None,
     ) -> bool:
-        """Render ulang hook dari momen yang sudah tersimpan di candidate.
-
-        Dipakai tombol "Generate Ulang Hook" di UI saat render sebelumnya gagal
-        (hook_skip_reason=render_failed) atau user ingin coba lagi. Momen hook
-        TIDAK dicari ulang — pakai yang tersimpan di candidate, langsung compose.
-        """
+        """Render ulang hook dari momen yang sudah tersimpan di candidate."""
         clip = self.clip_repo.get(clip_id)
         if clip is None:
             logger.warning("HookComposer.regenerate: clip %d tidak ditemukan", clip_id)
@@ -155,6 +158,8 @@ class HookComposerService:
                 clip, video_source_path, aspect_ratio, hook_moment,
                 base_clip_path=base_clip_path, layout=layout,
                 facecam_position=facecam_position,
+                punch_zoom_scale=punch_zoom_scale,
+                zoom_target=zoom_target,
             )
             history_mgr.push_step(
                 clip=clip,
@@ -191,8 +196,13 @@ class HookComposerService:
         base_clip_path: str | Path | None = None,
         layout: str = "stacked_split",
         facecam_position: str = "auto",
+        punch_zoom_scale: float | None = None,
+        zoom_target: str | None = None,
     ) -> Path:
         """Render seluruh pipeline hook, return path file akhir."""
+        pz_scale = float(punch_zoom_scale if punch_zoom_scale is not None else getattr(settings, "AUTO_HOOK_PUNCH_ZOOM_SCALE", 1.25))
+        z_target = str(zoom_target if zoom_target is not None else getattr(settings, "AUTO_HOOK_ZOOM_TARGET", "facecam"))
+
         if base_clip_path is not None:
             clip_path = Path(base_clip_path)
         else:
@@ -211,18 +221,25 @@ class HookComposerService:
         ) as tmpdir:
             tmp = Path(tmpdir)
 
-            # Step 1 — Extract teaser dari video sumber
+            # Step 1 — Extract teaser dari video sumber (dengan facecam punch-zoom jika split)
             teaser_raw = tmp / "teaser_raw.mp4"
             self._extract_teaser(
                 video_source_path, str(teaser_raw),
                 hook_moment.hook_moment_start, hook_moment.hook_moment_end,
                 aspect_ratio, layout=layout,
                 facecam_position=facecam_position,
+                punch_zoom_scale=pz_scale,
+                zoom_target=z_target,
             )
 
-            # Step 2 — Zoom-punch (crop 85% tengah → scale balik)
+            # Step 2 — Zoom-punch (crop tengah untuk full-frame, atau passthrough untuk facecam split)
             teaser_zoomed = tmp / "teaser_zoomed.mp4"
-            self._apply_zoom_punch(str(teaser_raw), str(teaser_zoomed), aspect_ratio)
+            self._apply_zoom_punch(
+                str(teaser_raw), str(teaser_zoomed), aspect_ratio,
+                punch_zoom_scale=pz_scale,
+                zoom_target=z_target,
+                layout=layout,
+            )
 
             # Step 3 — Caption overlay
             teaser_caption = tmp / "teaser_caption.mp4"
@@ -273,8 +290,10 @@ class HookComposerService:
         aspect_ratio: str,
         layout: str = "stacked_split",
         facecam_position: str = "auto",
+        punch_zoom_scale: float = 1.25,
+        zoom_target: str = "facecam",
     ) -> None:
-        """Extract 2 detik teaser dari video sumber, terapkan crop/scale identik _extract_clip."""
+        """Extract teaser dari video sumber, terapkan crop/scale dan facecam punch-zoom jika split."""
         norm_ratio, norm_layout = self._resolve_aspect_and_layout(aspect_ratio, layout)
         duration = end - start
         width, height = self._parse_aspect_ratio(norm_ratio)
@@ -294,7 +313,9 @@ class HookComposerService:
                         facecam_pos = "bottom_right"
 
                 from app.services.facecam_detector_service import FacecamDetectorService
-                vface_filter = FacecamDetectorService.get_facecam_crop_filter(facecam_pos)
+                # Terapkan punch-zoom langsung pada webcam jika target adalah facecam
+                face_zoom = punch_zoom_scale if zoom_target == "facecam" else 1.0
+                vface_filter = FacecamDetectorService.get_facecam_crop_filter(facecam_pos, zoom_scale=face_zoom)
 
                 fc = (
                     "[0:v]split=2[vface][vgame];"
@@ -330,22 +351,44 @@ class HookComposerService:
             "-ss", str(start), "-i", source, "-t", str(duration),
             *filter_args,
             "-c:v", "libx264", "-crf", "18", "-preset", "fast",
+            "-pix_fmt", "yuv420p",
             "-c:a", "aac", "-b:a", "192k",
             "-movflags", "+faststart",
             output,
         ]
         self._run(cmd, "extract_teaser")
 
-    def _apply_zoom_punch(self, source: str, output: str, aspect_ratio: str) -> None:
-        """Zoom-punch: crop 85% area tengah frame → scale balik ke resolusi penuh.
-
-        Efek "zoomed in" statis — lebih stabil dari zoompan animasi dan tidak ada
-        keyframe drift. Sama meyakinkan secara visual untuk cold-open 2 detik.
+    def _apply_zoom_punch(
+        self,
+        source: str,
+        output: str,
+        aspect_ratio: str,
+        punch_zoom_scale: float = 1.25,
+        zoom_target: str = "facecam",
+        layout: str = "stacked_split",
+    ) -> None:
+        """Zoom-punch:
+        - Jika layout == 'stacked_split' dan zoom_target == 'facecam', zoom punch SUDAH
+          diterapkan langsung ke webcam atas di _extract_teaser tanpa memotong seam gameplay.
+          Cukup copy source -> output.
+        - Jika zoom_target == 'full' atau layout non-split, crop 1/punch_zoom_scale area tengah frame
+          lalu scale balik ke resolusi penuh.
         """
-        width, height = self._parse_aspect_ratio(aspect_ratio)
-        crop_w = int(width * 0.85)
-        crop_h = int(height * 0.85)
-        # Pastikan dimensi genap (libx264 syarat)
+        import shutil
+
+        norm_ratio, norm_layout = self._resolve_aspect_and_layout(aspect_ratio, layout)
+        if norm_layout == "stacked_split" and zoom_target == "facecam":
+            shutil.copy2(source, output)
+            return
+
+        scale = max(1.0, min(float(punch_zoom_scale), 2.0))
+        if scale <= 1.001:
+            shutil.copy2(source, output)
+            return
+
+        width, height = self._parse_aspect_ratio(norm_ratio)
+        crop_w = int(width / scale)
+        crop_h = int(height / scale)
         crop_w -= crop_w % 2
         crop_h -= crop_h % 2
         x_off = (width - crop_w) // 2
@@ -360,6 +403,7 @@ class HookComposerService:
             "-i", source,
             "-vf", vf,
             "-c:v", "libx264", "-crf", "18", "-preset", "fast",
+            "-pix_fmt", "yuv420p",
             "-c:a", "copy",
             "-movflags", "+faststart",
             output,
@@ -410,6 +454,7 @@ class HookComposerService:
                 "-i", source,
                 "-vf", vf,
                 "-c:v", "libx264", "-crf", "18", "-preset", "fast",
+                "-pix_fmt", "yuv420p",
                 "-g", "60", "-keyint_min", "60", "-sc_threshold", "0",
                 "-c:a", "copy",
                 "-movflags", "+faststart",
@@ -445,6 +490,7 @@ class HookComposerService:
                 "-i", source,
                 "-vf", vf,
                 "-c:v", "libx264", "-crf", "18", "-preset", "fast",
+                "-pix_fmt", "yuv420p",
                 "-g", "60", "-keyint_min", "60", "-sc_threshold", "0",
                 "-c:a", "copy",
                 "-movflags", "+faststart",
@@ -498,6 +544,7 @@ class HookComposerService:
             "-map", "0:v",
             "-map", "[aout]",
             "-c:v", "libx264", "-crf", "18", "-preset", "fast",
+            "-pix_fmt", "yuv420p",
             "-g", "60", "-keyint_min", "60", "-sc_threshold", "0",
             "-movflags", "+faststart",
             output,
@@ -569,6 +616,7 @@ class HookComposerService:
             "-map", "[v]",
             "-map", "[a]",
             "-c:v", "libx264", "-crf", "18", "-preset", "fast",
+            "-pix_fmt", "yuv420p",
             "-c:a", "aac", "-b:a", "192k",
             "-movflags", "+faststart",
             output_path,

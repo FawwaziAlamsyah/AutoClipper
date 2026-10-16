@@ -133,14 +133,23 @@ class WhisperAnalyzer(AnalyzerInterface):
         model = self._load_model()
         logger.info("Transcribing audio: %s", audio_path)
 
-        segments, info = model.transcribe(
-            audio_path,
-            language=language,
-            word_timestamps=True,
-            beam_size=5,
-            vad_filter=True,
-            vad_parameters=dict(min_silence_duration_ms=400),
-        )
+        vad_filter = input.get("vad_filter", False)
+        condition_on_previous_text = input.get("condition_on_previous_text", False)
+
+        transcribe_kwargs = {
+            "language": language,
+            "word_timestamps": True,
+            "beam_size": 5,
+            "condition_on_previous_text": condition_on_previous_text,
+            "vad_filter": vad_filter,
+        }
+        if vad_filter:
+            transcribe_kwargs["vad_parameters"] = input.get(
+                "vad_parameters",
+                dict(min_silence_duration_ms=400),
+            )
+
+        segments, info = model.transcribe(audio_path, **transcribe_kwargs)
 
         detected_language = info.language
         full_text_list = []

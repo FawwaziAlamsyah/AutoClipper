@@ -186,11 +186,17 @@ def _preview_response(request: Request, clip, service: ClipEditorService) -> HTM
 def regenerate_hook(
     request: Request,
     clip_id: int,
+    punch_zoom_scale: float = Query(1.25),
+    zoom_target: str = Query("facecam"),
     service: ClipService = Depends(get_clip_service),
     editor_service: ClipEditorService = Depends(get_clip_editor_service),
 ):
-    """Generate ulang hook dari momen tersimpan candidate (tanpa replay LLM)."""
-    clip = service.regenerate_hook(clip_id)
+    """Generate ulang hook dari momen tersimpan candidate (dengan opsi Emotion Punch-Zoom)."""
+    clip = service.regenerate_hook(
+        clip_id,
+        punch_zoom_scale=punch_zoom_scale,
+        zoom_target=zoom_target,
+    )
     return _preview_response(request, clip, editor_service)
 
 
@@ -198,22 +204,50 @@ def regenerate_hook(
 def retry_hook_search(
     request: Request,
     clip_id: int,
+    punch_zoom_scale: float = Query(1.25),
+    zoom_target: str = Query("facecam"),
     service: ClipService = Depends(get_clip_service),
     editor_service: ClipEditorService = Depends(get_clip_editor_service),
 ):
-    """Cari ulang momen hook dari awal via LLM."""
-    clip = service.retry_hook_search(clip_id)
+    """Cari ulang momen hook dari awal via LLM & audio spike."""
+    clip = service.retry_hook_search(
+        clip_id,
+        punch_zoom_scale=punch_zoom_scale,
+        zoom_target=zoom_target,
+    )
+    return _preview_response(request, clip, editor_service)
+
+
+@router.post("/{clip_id}/hook/snap-spike", response_class=HTMLResponse)
+def snap_hook_to_spike(
+    request: Request,
+    clip_id: int,
+    punch_zoom_scale: float = Query(1.25),
+    zoom_target: str = Query("facecam"),
+    service: ClipService = Depends(get_clip_service),
+    editor_service: ClipEditorService = Depends(get_clip_editor_service),
+):
+    """Snap momen teaser ke puncak lonjakan reaksi/teriakan tertinggi lalu render ulang."""
+    clip = service.snap_hook_to_audio_spike(
+        clip_id,
+        punch_zoom_scale=punch_zoom_scale,
+        zoom_target=zoom_target,
+    )
     return _preview_response(request, clip, editor_service)
 
 
 @router.get("/{clip_id}/hook/status", response_class=JSONResponse)
 def hook_status(clip_id: int, service: ClipService = Depends(get_clip_service)) -> dict:
-    """Status hook saat ini — dipakai frontend untuk feedback setelah retry/regenerate."""
+    """Status hook saat ini — dipakai frontend untuk feedback setelah retry/regenerate/snap."""
     clip = service.clip_repo.get(clip_id)
     if clip is None:
         from app.core.exceptions.base import NotFoundException
         raise NotFoundException(f"Clip {clip_id} tidak ditemukan")
     candidate = service.candidate_repo.get(clip.candidate_id)
+    audio_spike = None
+    if candidate and isinstance(candidate.score_breakdown, dict):
+        audio_spike = candidate.score_breakdown.get("audio_spike")
+
     return {
         "has_moment": bool(candidate and candidate.hook_moment_start is not None),
         "hook_skip_reason": clip.hook_skip_reason,
@@ -221,6 +255,7 @@ def hook_status(clip_id: int, service: ClipService = Depends(get_clip_service)) 
         "moment_start": candidate.hook_moment_start if candidate else None,
         "moment_end": candidate.hook_moment_end if candidate else None,
         "hook_caption": candidate.hook_caption if candidate else None,
+        "audio_spike": audio_spike,
         "clip_start": clip.start_time,
         "clip_end": clip.end_time,
     }

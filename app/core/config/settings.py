@@ -190,6 +190,11 @@ class Settings(BaseSettings):
     HOOK_POP_ANIMATION: bool = True
     AUTO_HOOK_FONTS_DIR: str = "data/assets/fonts"
 
+    # Fitur 4: Emotion Punch-Zoom & Audio Spike Settings
+    AUTO_HOOK_PUNCH_ZOOM_SCALE: float = 1.25  # 1.25x punch-zoom di awal teaser hook
+    AUTO_HOOK_ZOOM_TARGET: str = "facecam"    # "facecam" (streamer face) | "full" (seluruh frame)
+    AUTO_HOOK_ENABLE_AUDIO_SPIKE: bool = True # Aktifkan deteksi lonjakan audio/teriakan
+
 
 @lru_cache
 def get_settings() -> Settings:

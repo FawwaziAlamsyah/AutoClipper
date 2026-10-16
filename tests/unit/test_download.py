@@ -1,6 +1,7 @@
 """Tests for the video download logic using yt-dlp."""
 
 from datetime import datetime, UTC
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import yt_dlp
@@ -60,8 +61,8 @@ def test_download_strategy_order_no_cookies(mock_extract: MagicMock, db_session:
     assert mock_extract.call_count >= 2
     first_opts = mock_extract.call_args_list[0].args[1]
     last_opts = mock_extract.call_args_list[-1].args[1]
-    # Client pertama = tv (bukan android), format wajib minimal 720p.
-    assert first_opts.get("extractor_args", {}).get("youtube", {}).get("player_client") == ["tv"]
+    # Client pertama = visionos (bukan android), format wajib minimal 720p.
+    assert first_opts.get("extractor_args", {}).get("youtube", {}).get("player_client") == ["visionos"]
     assert "height>=720" in first_opts["format"]
     # Attempt terakhir = android fallback, TANPA minimum height.
     assert last_opts.get("extractor_args", {}).get("youtube", {}).get("player_client") == ["android"]
@@ -73,6 +74,7 @@ def test_download_strategy_android_fallback_logs_warning(mock_extract: MagicMock
     """Kalau cuma android yang berhasil, muncul warning resolusi rendah di log."""
     calls = iter([yt_dlp.utils.DownloadError("boom"), yt_dlp.utils.DownloadError("boom"),
                   yt_dlp.utils.DownloadError("boom"), yt_dlp.utils.DownloadError("boom"),
+                  yt_dlp.utils.DownloadError("boom"),
                   "android-result"])
 
     def _fake(*a, **k):
@@ -118,4 +120,21 @@ def test_download_hang_detected_and_aborts(mock_ytdl: MagicMock, mock_abort: Mag
 
     # Watchdog harus memicu abort (hang terdeteksi setelah timeout kecil).
     mock_abort.assert_called()
+
+
+@patch("app.services.download_service.DownloadService._extract_and_register")
+def test_download_service_uses_cookiefile_when_present(mock_extract: MagicMock, db_session: Session) -> None:
+    """DownloadService memasukkan cookiefile ke ydl_opts saat data/cookies.txt ada di disk."""
+    mock_extract.return_value = MagicMock(spec=VideoModel)
+    service = DownloadService(db_session)
+
+    with patch.object(Path, "exists", autospec=True) as mock_exists:
+        mock_exists.side_effect = lambda p: "cookies.txt" in str(p)
+        service.download_video("https://www.youtube.com/watch?v=mock")
+
+    assert mock_extract.called
+    called_opts = mock_extract.call_args[0][1]
+    assert "cookiefile" in called_opts
+    assert "cookies.txt" in called_opts["cookiefile"]
+
 

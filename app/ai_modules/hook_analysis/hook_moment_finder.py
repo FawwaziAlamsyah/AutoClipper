@@ -74,6 +74,8 @@ class HookMoment:
     hook_confidence: float      # 0.0–1.0
     hook_caption: str           # caption overlay (maks 8 kata)
     best_idx: int               # index relatif ke list segments window
+    audio_spike_time: float | None = None  # timestamp lonjakan emosi/teriakan (jika terdeteksi)
+    has_audio_spike: bool = False
 
 
 class HookMomentFinder:
@@ -104,6 +106,7 @@ class HookMomentFinder:
         self,
         segments: list,
         category_name: str | None = None,
+        audio_spikes: dict | None = None,
     ) -> tuple[HookMoment | None, str | None]:
         """Cari momen hook terbaik dari segments window candidate.
 
@@ -111,6 +114,7 @@ class HookMomentFinder:
             segments: list of transcript segment objects (.start_time, .end_time, .text)
                       URUTAN sesuai window (bukan seluruh video).
             category_name: nama kategori candidate (opsional, untuk konteks prompt).
+            audio_spikes: dict hasil deteksi lonjakan audio dari AudioSpikeDetectorService.
 
         Returns:
             (HookMoment, None)        → sukses
@@ -132,7 +136,7 @@ class HookMomentFinder:
             for i, seg in enumerate(segments)
         ]
 
-        prompt = self._build_prompt(seg_list, category_name)
+        prompt = self._build_prompt(seg_list, category_name, audio_spikes=audio_spikes)
 
         try:
             raw = self._call_llm(prompt)
@@ -226,6 +230,8 @@ class HookMomentFinder:
             hook_confidence=confidence,
             hook_caption=caption,
             best_idx=best_idx,
+            audio_spike_time=audio_spikes.get("peak_time") if audio_spikes else None,
+            has_audio_spike=bool(audio_spikes and audio_spikes.get("has_spike")),
         ), None
 
     # ── Private helpers ───────────────────────────────────────────────────────
@@ -244,10 +250,24 @@ class HookMomentFinder:
         transcript = " ".join(seg.text or "" for seg in segments).lower()
         return all(num.lower() in transcript for num in numbers)
 
-    def _build_prompt(self, seg_list: list[dict], category_name: str | None) -> str:
+    def _build_prompt(
+        self,
+        seg_list: list[dict],
+        category_name: str | None,
+        audio_spikes: dict | None = None,
+    ) -> str:
         category_ctx = (
             f"Kategori konten: {category_name}." if category_name else "Konten umum."
         )
+        spike_hint = ""
+        if audio_spikes and audio_spikes.get("has_spike"):
+            peak_t = audio_spikes.get("peak_time", 0.0)
+            spike_hint = (
+                f"- CATATAN AUDIO SPIKE: Terdeteksi puncak teriakan/reaksi emosi tinggi di sekitar "
+                f"timestamp ~{peak_t:.1f} detik. Jika ada segmen di sekitar timestamp ini yang emosional atau kaget, "
+                f"prioritaskan segmen tersebut sebagai momen hook!\n"
+            )
+
         segs_json = json.dumps(seg_list, ensure_ascii=False, indent=2)
         if len(seg_list) < 8:
             start_rule = "- JANGAN pilih segmen paling awal (idx 0) — cold open membutuhkan momen yang berbeda dari pembuka klip."
@@ -268,7 +288,7 @@ Tugasmu:
 Aturan:
 - Pilih segmen yang mengandung kejutan, klaim mengejutkan, pertanyaan retorik, konflik, atau fakta menarik.
 {start_rule}
-- hook_type harus salah satu: question, shock, stat, conflict, curiosity_gap.
+{spike_hint}- hook_type harus salah satu: question, shock, stat, conflict, curiosity_gap.
 - confidence: 0.0–1.0 seberapa yakin momen ini akan membuat penonton tertarik.
 - CAPTION WAJIB JUJUR: hanya boleh memakai ulang fakta/angka yang benar-benar ada di transkrip. DILARANG mengubah, menambah, atau melebih-lebihkan angka maupun klaim (contoh salah: transkrip bilang 6 juta tapi caption bilang 100 juta). Dilarang klikbait palsu — kalimat provokatif boleh, tapi isi faktual harus sama persis dengan transkrip.
 

@@ -373,6 +373,49 @@
           <span class="badge bg-warning text-dark ms-1">{{ t("candDetail.hookSkipped") }}: {{ clip.hook_skip_reason }}</span>
           {% endif %}
         </div>
+        {% set audio_spike = candidate.score_breakdown.get('audio_spike') if (candidate.score_breakdown is mapping) else None %}
+        {% if audio_spike and audio_spike.has_spike %}
+        <div class="alert alert-info py-2 px-3 mb-3 small d-flex flex-wrap justify-content-between align-items-center gap-2">
+          <div>
+            <i class="bi bi-lightning-charge-fill text-warning me-1"></i>
+            <strong>Peak Audio Spike:</strong> {{ '%.1f'|format(audio_spike.peak_time) }}s ({{ '%.1f'|format(audio_spike.peak_db) }} dB volume burst)
+          </div>
+          <button type="button" class="btn btn-xs btn-outline-primary btn-sm py-0 px-2"
+                  onclick="snapHookSpike(this, {{ clip.id }})"
+                  title="Snap hook teaser tepat ke titik puncak reaksi/teriakan ini">
+            🎯 Snap Teaser ke Sini
+          </button>
+        </div>
+        {% endif %}
+
+        <!-- Emotion Punch-Zoom Settings (Fitur 4) -->
+        <div class="card bg-dark border-secondary-subtle border-opacity-25 mb-3">
+          <div class="card-body p-2">
+            <div class="row g-2">
+              <div class="col-sm-6">
+                <label class="form-label small fw-semibold text-muted mb-1">
+                  <i class="bi bi-zoom-in text-warning me-1"></i>Emotion Punch-Zoom (Detik 0-3)
+                </label>
+                <select id="hook-punch-zoom-{{ clip.id }}" class="form-select form-select-sm bg-dark text-light border-secondary">
+                  <option value="1.25" selected>⭐ Optimal Punch (1.25x)</option>
+                  <option value="1.35">🔥 Intense Punch (1.35x)</option>
+                  <option value="1.15">🍃 Subtle Punch (1.15x)</option>
+                  <option value="1.0">🚫 Tanpa Zoom (1.0x)</option>
+                </select>
+              </div>
+              <div class="col-sm-6">
+                <label class="form-label small fw-semibold text-muted mb-1">
+                  <i class="bi bi-person-bounding-box text-info me-1"></i>Target Zoom
+                </label>
+                <select id="hook-zoom-target-{{ clip.id }}" class="form-select form-select-sm bg-dark text-light border-secondary">
+                  <option value="facecam" selected>👤 Facecam Streamer (Fokus Wajah)</option>
+                  <option value="full">🖥️ Layar Penuh (Full Frame)</option>
+                </select>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <div class="mb-3">
           <label class="form-label small fw-semibold mb-1 text-muted">{{ t("candDetail.hookCaption") }}</label>
           <div class="input-group input-group-sm">
@@ -429,6 +472,12 @@
           🔄 {{ t("candDetail.retryHook") }}
         </button>
         {% endif %}
+
+        <button type="button" class="btn btn-sm btn-outline-info"
+                onclick="snapHookSpike(this, {{ clip.id }})"
+                title="Posisikan teaser otomatis di lonjakan reaksi audio tertinggi">
+          🎯 Snap ke Peak Reaction
+        </button>
 
         {% if clip and clip.hook_skip_reason not in ('disabled',) %}
         <button type="button" class="btn btn-sm btn-outline-warning"
@@ -1151,12 +1200,27 @@ async function _applyHookAction(btn, clipId, url, failMsg) {
   }
 }
 
+function _getHookOptions(clipId) {
+  const pzEl = document.getElementById('hook-punch-zoom-' + clipId);
+  const ztEl = document.getElementById('hook-zoom-target-' + clipId);
+  const pz = pzEl ? pzEl.value : '1.25';
+  const zt = ztEl ? ztEl.value : 'facecam';
+  return `punch_zoom_scale=${encodeURIComponent(pz)}&zoom_target=${encodeURIComponent(zt)}`;
+}
+
 async function regenerateHook(btn, clipId) {
-  await _applyHookAction(btn, clipId, `/clips/${clipId}/hook/regenerate`, 'Failed to regenerate hook.');
+  const qs = _getHookOptions(clipId);
+  await _applyHookAction(btn, clipId, `/clips/${clipId}/hook/regenerate?${qs}`, 'Failed to regenerate hook.');
 }
 
 async function retryHookSearch(btn, clipId) {
-  await _applyHookAction(btn, clipId, `/clips/${clipId}/hook/retry-search`, 'Failed to search hook. Ensure LLM is active and try again.');
+  const qs = _getHookOptions(clipId);
+  await _applyHookAction(btn, clipId, `/clips/${clipId}/hook/retry-search?${qs}`, 'Failed to search hook. Ensure LLM is active and try again.');
+}
+
+async function snapHookSpike(btn, clipId) {
+  const qs = _getHookOptions(clipId);
+  await _applyHookAction(btn, clipId, `/clips/${clipId}/hook/snap-spike?${qs}`, 'Failed to snap hook to audio spike.');
 }
 
 async function generateSubtitle(btn, clipId) {

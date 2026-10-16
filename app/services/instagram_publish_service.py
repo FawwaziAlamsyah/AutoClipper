@@ -92,6 +92,26 @@ class InstagramPublishService:
                 msg = str(body.get("debug_info") or body.get("description") or body.get("message") or "")
             if not msg and resp.text:
                 msg = resp.text[:300].strip()
+
+        # Unpack nested JSON strings inside body or message (e.g. Meta rupload processing errors)
+        if isinstance(msg, str) and (msg.startswith("{") or msg.startswith("[")):
+            import json as _json
+            try:
+                nested = _json.loads(msg)
+                while isinstance(nested, dict):
+                    if "error" in nested and isinstance(nested["error"], dict):
+                        nested = nested["error"]
+                    elif "message" in nested:
+                        nested = nested["message"]
+                        if isinstance(nested, str) and nested.startswith("{"):
+                            nested = _json.loads(nested)
+                    else:
+                        break
+                if isinstance(nested, str) and nested:
+                    msg = nested
+            except Exception:
+                pass
+
         user_msg = err.get("error_user_msg")
 
         logger.warning(
@@ -231,15 +251,22 @@ class InstagramPublishService:
 
             if width and height and height > 0:
                 disp_w, disp_h = (height, width) if abs(int(rot)) % 180 == 90 else (width, height)
-                if self.video_prep_service.needs_reframe(disp_w, disp_h):
+                reframe_needed = self.video_prep_service.needs_reframe(disp_w, disp_h)
+                transcode_needed = self.video_prep_service.needs_transcode(meta)
+                if reframe_needed or transcode_needed:
                     if effective_fit_mode != "off":
                         will_reframe = True
-                        warnings.append(
-                            f"Video akan dimasukkan ke bingkai 9:16 (mode: {effective_fit_mode})"
-                        )
+                        if reframe_needed:
+                            warnings.append(
+                                f"Video akan dimasukkan ke bingkai 9:16 (mode: {effective_fit_mode})"
+                            )
+                        else:
+                            warnings.append(
+                                f"Format video akan dinormalisasi ke standar Instagram H.264/yuv420p (mode: {effective_fit_mode})"
+                            )
                     else:
                         will_reframe = False
-                        warnings.append("Video bukan 9:16. Reframing dinonaktifkan (mode: off)")
+                        warnings.append("Video bukan 9:16 / belum standar Instagram. Reframing dinonaktifkan (mode: off)")
         except Exception as e:
             errors.append(f"Gagal mengekstrak metadata video klip: {e}")
 

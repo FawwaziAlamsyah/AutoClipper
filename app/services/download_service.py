@@ -177,6 +177,13 @@ class DownloadService:
             "js_runtimes": {"node": {}},
         }
 
+        # Cek apakah file cookies manual tersedia (sesuai instruksi error)
+        for candidate_cookie in (Path("data/cookies.txt"), Path("cookies.txt")):
+            if candidate_cookie.exists():
+                base_opts["cookiefile"] = str(candidate_cookie)
+                logger.info("[download] Menggunakan cookiefile: %s", candidate_cookie)
+                break
+
         # Strategi BARU: client kualitas lebih baik dulu (tv/ios/web biasanya
         # expose resolusi lebih tinggi dari android), android jadi LAST RESORT
         # karena walau paling reliable lolos bot-check, resolusinya paling terbatas.
@@ -193,7 +200,7 @@ class DownloadService:
         )
 
         attempts: list[tuple[str, dict]] = []
-        for client in ("tv", "tv_simply", "ios", "web"):
+        for client in ("visionos", "tv", "tv_simply", "ios", "web"):
             opts = dict(base_opts)
             opts["format"] = min_height_format
             # outtmpl unik per attempt — kalau satu attempt hang & worker-nya

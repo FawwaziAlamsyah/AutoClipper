@@ -38,6 +38,37 @@ class InstagramVideoPrepService:
             return False
         return abs((width / height) - (9.0 / 16.0)) > 0.01
 
+    def needs_transcode(self, meta: dict) -> bool:
+        """Cek apakah video membutuhkan normalisasi encoding untuk kepatuhan Instagram Reels.
+        
+        Instagram menolak video yang bukan H.264, bukan yuv420p (misal yuv444p High 4:4:4 Predictive),
+        atau memiliki SAR non-square yang menyebabkan 'Video Transcoding Error: both HD and SD progressive failed to transcode'.
+        """
+        if not meta:
+            return False
+
+        # 1. Pixel format harus yuv420p (atau yuvj420p)
+        pix_fmt = meta.get("pix_fmt")
+        if pix_fmt and pix_fmt not in ("yuv420p", "yuvj420p"):
+            return True
+
+        # 2. Profile tidak boleh 4:4:4
+        profile = (meta.get("profile") or "").lower()
+        if "4:4:4" in profile:
+            return True
+
+        # 3. Video codec harus h264 jika diketahui
+        video_codec = (meta.get("video_codec") or "").lower()
+        if video_codec and video_codec not in ("h264", "avc", "avc1"):
+            return True
+
+        # 4. Sample Aspect Ratio (SAR) harus 1:1 jika ada
+        sar = str(meta.get("sample_aspect_ratio") or "")
+        if sar and sar not in ("1:1", "1/1", "0:1", "1", "None", ""):
+            return True
+
+        return False
+
     def prepare(
         self,
         source: Path,
@@ -46,8 +77,9 @@ class InstagramVideoPrepService:
     ) -> PreparedVideo:
         """Siapkan video untuk Instagram Reels.
 
-        Jika video bukan 9:16 dan fit_mode bukan 'off', transcode ke salinan
-        sementara 1080x1920 (pad atau blur). File sumber asli tidak pernah diubah.
+        Jika video bukan 9:16 atau encoding-nya belum standar Instagram (bukan yuv420p / SAR != 1:1),
+        dan fit_mode bukan 'off', transcode ke salinan sementara 1080x1920 (pad atau blur).
+        File sumber asli tidak pernah diubah.
         """
         source = Path(source)
         if not source.exists():
@@ -83,10 +115,13 @@ class InstagramVideoPrepService:
         if w <= 0 or h <= 0:
             raise ValidationException("Dimensi video tidak valid atau gagal dibaca.")
 
-        # 3. Cek apakah reframe diperlukan
-        if not self.needs_reframe(w, h):
+        # 3. Cek apakah reframe atau normalisasi encoding diperlukan
+        reframe_needed = self.needs_reframe(w, h)
+        transcode_needed = self.needs_transcode(meta)
+
+        if not reframe_needed and not transcode_needed:
             logger.info(
-                "InstagramVideoPrep: Video tidak perlu reframe (mode=%s, w=%d, h=%d)",
+                "InstagramVideoPrep: Video tidak perlu reframe/transcode (mode=%s, w=%d, h=%d)",
                 mode,
                 w,
                 h,
@@ -106,7 +141,7 @@ class InstagramVideoPrepService:
         ffmpeg_bin = self.ffmpeg_service.ffmpeg_path
         cmd: list[str] = [ffmpeg_bin, "-y", "-i", str(source)]
 
-        if mode == "blur":
+        if reframe_needed and mode == "blur":
             fc = (
                 f"[0:v]scale={target_w}:{target_h}:force_original_aspect_ratio=increase,"
                 f"crop={target_w}:{target_h},boxblur=20:5[bg];"
@@ -118,7 +153,7 @@ class InstagramVideoPrepService:
                 "-map", "[v]",
                 "-map", "0:a?",
             ])
-        else:  # mode == "pad"
+        else:  # mode == "pad" atau transcode_needed pada video 9:16
             vf = (
                 f"scale={target_w}:{target_h}:force_original_aspect_ratio=decrease:flags=lanczos,"
                 f"pad={target_w}:{target_h}:(ow-iw)/2:(oh-ih)/2:black,setsar=1{fps_clause}"

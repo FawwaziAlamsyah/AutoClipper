@@ -234,14 +234,16 @@ class SubtitleService:
 
     def _transcribe_clip_audio(self, clip, language: str | None = None) -> list[dict] | None:
         """Transkrip langsung dari file video klip untuk akurasi kata 100% dan timing presisi."""
-        try:
-            from app.services.clip_history_manager import ClipHistoryManager
-            src_file = ClipHistoryManager(clip.id).prepare_base_for_subtitle(clip)
-        except Exception:
-            source_path = getattr(clip, "edited_file_path", None) or getattr(clip, "file_path", None)
-            if not source_path:
+        source_path = getattr(clip, "edited_file_path", None) or getattr(clip, "file_path", None)
+        if not source_path:
+            return None
+        src_file = Path(source_path)
+        if not src_file.exists():
+            try:
+                from app.services.clip_history_manager import ClipHistoryManager
+                src_file = ClipHistoryManager(clip.id).get_current_source(clip)
+            except Exception:
                 return None
-            src_file = Path(source_path)
         if not src_file or not src_file.exists():
             return None
 
@@ -279,11 +281,15 @@ class SubtitleService:
                 if s_words:
                     for w in s_words:
                         word_text = w.get("word", "").strip()
-                        if word_text:
+                        w_start = float(w.get("start", 0.0))
+                        w_end = float(w.get("end", 0.0))
+                        dur = w_end - w_start
+                        # Saring kata collapsed (< 60ms) agar artefak alignment tidak memicu tumpukan kata di detik yang sama
+                        if word_text and dur >= 0.06:
                             all_words.append({
                                 "word": word_text,
-                                "start": float(w.get("start", 0.0)),
-                                "end": float(w.get("end", 0.0)),
+                                "start": w_start,
+                                "end": w_end,
                             })
                 elif s.get("text", "").strip():
                     # Fallback agar kata-kata tidak hilang jika faster-whisper tidak menyertakan words
@@ -307,7 +313,7 @@ class SubtitleService:
             return None
 
     def _build_kinetic_cues_from_words(self, all_words: list[dict]) -> list[dict]:
-        """Group word-level timestamps directly into 1-3 word kinetic cues with zero overlap and no standby subtitles."""
+        """Bagi kata-kata menjadi 1–3 kata kinetic cues dengan jaminan 0% tumpuk dan tidak standby prematur."""
         chunks: list[dict] = []
         curr_chunk: list[dict] = []
 
@@ -370,12 +376,31 @@ class SubtitleService:
                 })
                 curr_chunk = []
 
-        # Anti-overlap clamp: setiap cue dijamin berakhir sebelum cue berikutnya mulai
-        for i in range(len(chunks) - 1):
-            if chunks[i]["end"] > chunks[i + 1]["start"]:
-                chunks[i]["end"] = max(chunks[i]["start"] + 0.1, chunks[i + 1]["start"] - 0.02)
+        # Sequential Anti-Overlap Guarantee (100% bebas tumpuk & anti-tabrakan):
+        cleaned_chunks: list[dict] = []
+        for c in chunks:
+            if not c["text"].strip():
+                continue
+            if not cleaned_chunks:
+                cleaned_chunks.append(dict(c))
+                continue
+            prev = cleaned_chunks[-1]
+            if c["start"] < prev["end"]:
+                # Jika kedua chunk hampir bersamaan (< 120ms), gabungkan teksnya ke prev agar tidak bertumpuk
+                if c["start"] <= prev["start"] + 0.12:
+                    prev["text"] = f"{prev['text']} {c['text']}"
+                    prev["words"].extend(c.get("words", []))
+                    prev["end"] = max(prev["end"], c["end"])
+                    continue
+                else:
+                    # Pastikan prev selesai setidaknya 30ms sebelum c mulai
+                    prev["end"] = round(max(prev["start"] + 0.15, c["start"] - 0.03), 2)
+                    if c["start"] <= prev["end"]:
+                        c["start"] = round(prev["end"] + 0.03, 2)
+                        c["end"] = round(max(c["start"] + 0.2, c["end"]), 2)
+            cleaned_chunks.append(dict(c))
 
-        return chunks
+        return cleaned_chunks
 
 
     def _build_word_cues(self, segments: list) -> list[dict]:

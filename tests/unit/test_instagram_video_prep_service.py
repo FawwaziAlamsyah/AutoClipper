@@ -220,3 +220,75 @@ class TestInstagramVideoPrepCleanup:
     def test_cleanup_none_safe_noop(self):
         svc = InstagramVideoPrepService()
         svc.cleanup(None)  # Should not raise
+
+
+class TestInstagramVideoPrepNeedsTranscode:
+    def test_yuv420p_h264_square_sar_returns_false(self):
+        svc = InstagramVideoPrepService()
+        meta = {
+            "pix_fmt": "yuv420p",
+            "video_codec": "h264",
+            "profile": "High",
+            "sample_aspect_ratio": "1:1",
+        }
+        assert svc.needs_transcode(meta) is False
+
+    def test_yuv444p_returns_true(self):
+        svc = InstagramVideoPrepService()
+        meta = {
+            "pix_fmt": "yuv444p",
+            "video_codec": "h264",
+            "profile": "High 4:4:4 Predictive",
+        }
+        assert svc.needs_transcode(meta) is True
+
+    def test_profile_444_returns_true(self):
+        svc = InstagramVideoPrepService()
+        meta = {
+            "profile": "High 4:4:4 Predictive",
+        }
+        assert svc.needs_transcode(meta) is True
+
+    def test_hevc_codec_returns_true(self):
+        svc = InstagramVideoPrepService()
+        meta = {
+            "pix_fmt": "yuv420p",
+            "video_codec": "hevc",
+        }
+        assert svc.needs_transcode(meta) is True
+
+    def test_non_square_sar_returns_true(self):
+        svc = InstagramVideoPrepService()
+        meta = {
+            "pix_fmt": "yuv420p",
+            "video_codec": "h264",
+            "sample_aspect_ratio": "1150:1107",
+        }
+        assert svc.needs_transcode(meta) is True
+
+    @patch("subprocess.run")
+    def test_prepare_already_9_16_but_yuv444p_triggers_transcode(self, mock_subproc, dummy_video: Path):
+        mock_ffmpeg = MagicMock(spec=FFmpegService)
+        mock_ffmpeg.ffmpeg_path = "ffmpeg"
+        mock_ffmpeg.extract_metadata.return_value = {
+            "duration_seconds": 15.0,
+            "width": 1080,
+            "height": 1920,
+            "rotation": 0,
+            "fps": 30.0,
+            "pix_fmt": "yuv444p",
+            "profile": "High 4:4:4 Predictive",
+            "sample_aspect_ratio": "1150:1107",
+        }
+        mock_subproc.return_value = MagicMock(returncode=0, stderr="")
+        svc = InstagramVideoPrepService(ffmpeg_service=mock_ffmpeg)
+
+        prep = svc.prepare(dummy_video, fit_mode="pad")
+        assert prep.is_temp is True
+        assert prep.reframed is True
+        mock_subproc.assert_called_once()
+        cmd_args = mock_subproc.call_args[0][0]
+        assert "-pix_fmt" in cmd_args
+        assert cmd_args[cmd_args.index("-pix_fmt") + 1] == "yuv420p"
+
+        svc.cleanup(prep)
