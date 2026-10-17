@@ -242,14 +242,23 @@ class HookComposerService:
             )
 
             # Step 3 — Caption overlay
+            # Pada layout 9:16 stacked_split, panel atas (0..800px) adalah facecam.
+            # Letakkan caption tepat di garis batas (y=800px) agar tidak menutupi wajah streamer!
+            norm_ratio, norm_layout = self._resolve_aspect_and_layout(aspect_ratio, layout)
+            safe_box = None
+            if norm_ratio == "9:16" and norm_layout == "stacked_split":
+                safe_box = {"layout": "facecam_top", "split_y": 800, "offset_y": 0}
+
             teaser_caption = tmp / "teaser_caption.mp4"
             teaser_duration = hook_moment.hook_moment_end - hook_moment.hook_moment_start
             self._apply_caption(
                 str(teaser_zoomed), str(teaser_caption),
                 hook_moment.hook_caption, teaser_duration,
                 reaction_type=hook_moment.hook_type,
-                aspect_ratio=aspect_ratio,
+                aspect_ratio=norm_ratio,
+                safe_box=safe_box,
                 tmp_dir=tmp,
+                highlight_word=getattr(hook_moment, "highlight_word", None),
             )
 
             # Step 4 — SFX whoosh (best-effort, bisa skip). Letaknya di POTONGAN
@@ -302,12 +311,15 @@ class HookComposerService:
         if norm_ratio == "9:16":
             if norm_layout == "stacked_split":
                 facecam_pos = facecam_position
+                face_center = None
                 if facecam_pos == "auto":
                     try:
                         from app.services.facecam_detector_service import FacecamDetectorService
                         det = FacecamDetectorService().detect_facecam_position(source, start, end)
                         detected = det.get("position", "bottom_right")
                         facecam_pos = detected if detected != "none" else "bottom_right"
+                        if detected != "none":
+                            face_center = det.get("center")
                     except Exception as e:
                         logger.warning("Teaser facecam detection failed, fallback to bottom_right: %s", e)
                         facecam_pos = "bottom_right"
@@ -315,7 +327,11 @@ class HookComposerService:
                 from app.services.facecam_detector_service import FacecamDetectorService
                 # Terapkan punch-zoom langsung pada webcam jika target adalah facecam
                 face_zoom = punch_zoom_scale if zoom_target == "facecam" else 1.0
-                vface_filter = FacecamDetectorService.get_facecam_crop_filter(facecam_pos, zoom_scale=face_zoom)
+                vface_filter = FacecamDetectorService.get_facecam_crop_filter(
+                    facecam_pos,
+                    zoom_scale=face_zoom,
+                    face_center=face_center,
+                )
 
                 fc = (
                     "[0:v]split=2[vface][vgame];"
@@ -420,6 +436,7 @@ class HookComposerService:
         aspect_ratio: str = "9:16",
         safe_box: dict | tuple | None = None,
         tmp_dir: Path | None = None,
+        highlight_word: str | None = None,
     ) -> None:
         """Bakar caption overlay ke teaser via ASS (libass) atau fallback drawtext bundel."""
         width, height = self._parse_aspect_ratio(aspect_ratio)
@@ -438,6 +455,7 @@ class HookComposerService:
                 width=width,
                 height=height,
                 safe_box=safe_box,
+                highlight_word=highlight_word,
             )
             ass_file.write_text(ass_content, encoding="utf-8")
 

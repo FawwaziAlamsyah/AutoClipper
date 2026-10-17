@@ -203,11 +203,16 @@ class FacecamDetectorService:
             cap.release()
 
     @staticmethod
-    def get_facecam_crop_filter(position: str = "bottom_right", zoom_scale: float = 1.0) -> str:
+    def get_facecam_crop_filter(
+        position: str = "bottom_right",
+        zoom_scale: float = 1.0,
+        face_center: tuple[float, float] | list[float] | None = None,
+    ) -> str:
         """Kembalikan string filter FFmpeg untuk memotong facecam (1080x800).
 
         Jika zoom_scale > 1.0 (misal 1.25x untuk punch-zoom), area crop diperkecil
-        di sekitar titik tengah facecam lalu di-scale balik ke 1080x800.
+        di sekitar koordinat wajah streamer (face_center) atau titik tengah facecam
+        lalu di-scale balik ke 1080x800.
         Posisi:
         - bottom_left: crop pojok kiri bawah
         - bottom_right: crop pojok kanan bawah
@@ -226,15 +231,19 @@ class FacecamDetectorService:
         if pos == "bottom_left":
             x0_str = "0"
             y0_str = "ih-ih*0.39"
+            x_base, y_base = 0.0, 0.61
         elif pos == "top_left":
             x0_str = "0"
             y0_str = "0"
+            x_base, y_base = 0.0, 0.0
         elif pos == "top_right":
             x0_str = "iw-iw*0.31"
             y0_str = "0"
+            x_base, y_base = 0.69, 0.0
         else:  # "bottom_right" or default
             x0_str = "iw-iw*0.31"
             y0_str = "ih-ih*0.39"
+            x_base, y_base = 0.69, 0.61
 
         if scale <= 1.001:
             return f"[vface]crop=w=iw*{w0:.2f}:h=ih*{h0:.2f}:x={x0_str}:y={y0_str},scale=1080:800:flags=lanczos[top];"
@@ -242,6 +251,20 @@ class FacecamDetectorService:
         # Zoomed dimensions
         w_zoom = w0 / scale
         h_zoom = h0 / scale
+
+        # Jika ada koordinat wajah (cx, cy) dari MediaPipe, pusatkan zoom tepat ke wajah
+        # dengan tetap di-clamp di dalam batas kotak facecam agar tidak keluar frame
+        if face_center and len(face_center) >= 2:
+            cx, cy = float(face_center[0]), float(face_center[1])
+            x_min, x_max = x_base, x_base + (w0 - w_zoom)
+            y_min, y_max = y_base, y_base + (h0 - h_zoom)
+            x_target = max(x_min, min(x_max, cx - w_zoom / 2.0))
+            y_target = max(y_min, min(y_max, cy - h_zoom / 2.0))
+            return (
+                f"[vface]crop=w=iw*{w_zoom:.4f}:h=ih*{h_zoom:.4f}:"
+                f"x=iw*{x_target:.4f}:y=ih*{y_target:.4f},scale=1080:800:flags=lanczos[top];"
+            )
+
         delta_x = (w0 - w_zoom) / 2.0
         delta_y = (h0 - h_zoom) / 2.0
 
@@ -259,3 +282,4 @@ class FacecamDetectorService:
             y_expr = f"ih-ih*0.39+ih*{delta_y:.4f}"
 
         return f"[vface]crop=w=iw*{w_zoom:.4f}:h=ih*{h_zoom:.4f}:x={x_expr}:y={y_expr},scale=1080:800:flags=lanczos[top];"
+

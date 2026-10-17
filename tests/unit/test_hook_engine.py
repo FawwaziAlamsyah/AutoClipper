@@ -54,18 +54,18 @@ def test_skip_if_no_api_key() -> None:
     assert reason == "llm_unavailable"
 
 
-# ── c. Skip kalau best_idx terlalu dekat ke awal (index < 3) ─────────────────
+# ── c. Skip kalau best_idx adalah segmen pembuka paling awal (index < 1) ─────
 
 def test_skip_if_best_idx_too_close_by_index() -> None:
-    """best_idx=1 (< 3) → moment_too_close_to_start."""
+    """best_idx=0 (< 1, kalimat pembuka) → moment_too_close_to_start."""
     finder = HookMomentFinder()
     finder.api_key = "dummy-key"
 
     llm_response = json.dumps({
-        "best_idx": 1,
+        "best_idx": 0,
         "hook_type": "shock",
         "confidence": 0.9,
-        "reason": "dekat awal",
+        "reason": "pembuka asli",
         "caption": "Ini menarik!",
     })
 
@@ -77,19 +77,19 @@ def test_skip_if_best_idx_too_close_by_index() -> None:
     assert reason == "moment_too_close_to_start"
 
 
-# ── d. Skip kalau best_idx terlalu dekat ke awal (delta waktu < 5 detik) ─────
+# ── d. Skip kalau best_idx terlalu dekat ke awal (delta waktu < 2.5 detik) ───
 
 def test_skip_if_best_idx_too_close_by_time() -> None:
-    """Segment idx=3 tapi hanya 4 detik dari awal → moment_too_close_to_start."""
+    """Segment idx=2 tapi hanya 1.6 detik dari awal (< 2.5s) → moment_too_close_to_start."""
     finder = HookMomentFinder()
     finder.api_key = "dummy-key"
 
-    # Segment sangat rapat: setiap segment hanya 1.2 detik
-    segs = [_seg(i * 1.2, i * 1.2 + 1.0, f"Teks {i}") for i in range(8)]
-    # segs[3].start_time = 3.6 → delta = 3.6 - 0.0 = 3.6 < 5.0
+    # Segment sangat rapat: setiap segment hanya 0.8 detik
+    segs = [_seg(i * 0.8, i * 0.8 + 0.7, f"Teks {i}") for i in range(8)]
+    # segs[2].start_time = 1.6 → delta = 1.6 - 0.0 = 1.6 < 2.5
 
     llm_response = json.dumps({
-        "best_idx": 3,
+        "best_idx": 2,
         "hook_type": "stat",
         "confidence": 0.85,
         "reason": "fakta menarik",
@@ -101,6 +101,31 @@ def test_skip_if_best_idx_too_close_by_time() -> None:
 
     assert moment is None
     assert reason == "moment_too_close_to_start"
+
+
+def test_early_mid_zone_idx_1_or_2_accepted() -> None:
+    """Zona awal-menengah (idx 1 atau 2 setelah pembuka, delta_t >= 2.5s) diterima pada klip >= 8 segmen."""
+    finder = HookMomentFinder()
+    finder.api_key = "dummy-key"
+
+    segs = _make_segments(8)  # segs[1].start_time = 3.0s (delta 3.0s >= 2.5s)
+    llm_response = json.dumps({
+        "best_idx": 1,
+        "hook_type": "curiosity_gap",
+        "confidence": 0.88,
+        "reason": "pemicu penasaran tepat setelah intro",
+        "caption": "Salah buka pintu terlarang!",
+        "highlight_word": "terlarang",
+    })
+
+    with patch.object(finder, "_call_llm", return_value=llm_response):
+        moment, reason = finder.find(segs)
+
+    assert reason is None
+    assert moment is not None
+    assert moment.best_idx == 1
+    assert moment.hook_moment_start == 3.0
+    assert moment.highlight_word == "terlarang"
 
 
 # ── e. Skip kalau confidence di bawah threshold ───────────────────────────────
@@ -421,3 +446,35 @@ def test_short_trimmed_window_allows_idx_1() -> None:
     assert moment is not None
     assert moment.best_idx == 1
     assert moment.hook_moment_start == 13.0
+
+
+def test_cliffhanger_cut_on_long_shock_segment() -> None:
+    """Jika hook_type='shock' dan segmen terlalu panjang (> 3.8s), potong di hook_duration
+    agar tidak membocorkan akhir situasi (anti-spoiler cliffhanger cut)."""
+    finder = HookMomentFinder()
+    finder.api_key = "dummy-key"
+
+    segs = _make_segments(8)
+    # Buat segmen idx 4 berdurasi panjang (6.0 detik: 12.0 -> 18.0)
+    segs[4] = _seg(12.0, 18.0, "Teriakan kaget panjang lalu diikuti penjelasan akhir cerita.")
+
+    llm_response = json.dumps({
+        "best_idx": 4,
+        "hook_type": "shock",
+        "confidence": 0.91,
+        "hook_duration": 2.4,
+        "reason": "puncak teriakan",
+        "caption": "Detik terakhir bikin panik...",
+        "highlight_word": "panik",
+    })
+
+    with patch.object(finder, "_call_llm", return_value=llm_response):
+        moment, reason = finder.find(segs)
+
+    assert reason is None
+    assert moment is not None
+    assert moment.hook_moment_start == 12.0
+    # Harus dipotong di 12.0 + 2.4 = 14.4, bukan di-snap ke 18.0
+    assert moment.hook_moment_end == pytest.approx(14.4)
+    assert moment.highlight_word == "panik"
+

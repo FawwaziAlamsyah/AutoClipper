@@ -76,3 +76,20 @@ def test_detect_facecam_cached():
     result = service.detect_facecam_position(test_path)
     assert result["position"] == "bottom_left"
     assert result["confidence"] == 1.0
+
+
+def test_get_facecam_crop_filter_with_face_center():
+    """Verify face_center centers the zoom crop around the detected face and clamps within corner bounds."""
+    service = FacecamDetectorService()
+    # bottom_right: x_base=0.69, y_base=0.61, w0=0.30, h0=0.38
+    # zoom_scale=1.25 -> w_zoom=0.24, h_zoom=0.304
+    # face_center=(0.82, 0.78) -> x_target = 0.82 - 0.12 = 0.70 (clamped in [0.69, 0.75])
+    # y_target = 0.78 - 0.152 = 0.628 (clamped in [0.61, 0.686])
+    filt = service.get_facecam_crop_filter(
+        "bottom_right",
+        zoom_scale=1.25,
+        face_center=(0.82, 0.78),
+    )
+    assert "w=iw*0.2400:h=ih*0.3040" in filt
+    assert "x=iw*0.7000:y=ih*0.6280" in filt
+

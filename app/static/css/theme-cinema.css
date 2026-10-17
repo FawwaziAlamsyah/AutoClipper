@@ -1262,14 +1262,18 @@ pre {
 
 .thumb .play {
   position: absolute;
-  inset: 0 0 42px 0;
+  top: 42%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
   display: grid;
   place-items: center;
   opacity: 0;
-  transition: opacity 0.2s ease, background 0.2s ease;
-  background: rgba(0, 0, 0, 0.35);
-  pointer-events: auto;
-  cursor: pointer;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  background: transparent;
+  pointer-events: none;
   z-index: 4;
 }
 
@@ -1279,42 +1283,43 @@ pre {
   opacity: 1;
 }
 
-/* Saat video sedang diputar, sembunyikan background gelap agar video tidak redup */
+/* Saat video sedang diputar, perkecil dan samarkan tombol tengah agar tidak mengganggu kontrol */
 .thumb.is-playing .play {
   opacity: 0;
-  background: transparent;
 }
 
 .clip-card:hover .thumb.is-playing .play,
 .video-card:hover .thumb.is-playing .play,
 .thumb.is-playing:hover .play {
-  opacity: 0.7;
-  background: transparent;
+  opacity: 0.55;
 }
 
 .thumb .play b {
-  width: 48px;
-  height: 48px;
+  width: 44px;
+  height: 44px;
   border-radius: 50%;
   background: rgba(255, 255, 255, 0.92);
   display: grid;
   place-items: center;
   color: #000;
-  font-size: 16px;
+  font-size: 15px;
   padding-left: 3px;
   user-select: none;
-  transition: transform 0.15s ease, background 0.15s ease;
+  pointer-events: auto;
+  cursor: pointer;
+  transition: transform 0.15s ease, background 0.15s ease, opacity 0.15s ease;
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.45);
 }
 
-.thumb .play:hover b {
+.thumb .play b:hover {
   transform: scale(1.12);
   background: #ffffff;
+  opacity: 1;
 }
 
 .thumb.is-playing .play b {
   padding-left: 0;
-  font-size: 14px;
+  font-size: 13px;
 }
 
 .thumb {
@@ -1354,7 +1359,7 @@ pre {
 .thumb .dur {
   position: absolute;
   right: 8px;
-  bottom: 8px;
+  top: 8px;
   background: rgba(0, 0, 0, 0.78);
   font-size: 11px;
   font-weight: 600;
@@ -1363,6 +1368,7 @@ pre {
   color: #ffffff;
   z-index: 3;
   letter-spacing: 0.03em;
+  pointer-events: none;
 }
 
 .thumb .score {
@@ -1377,6 +1383,7 @@ pre {
   font-weight: 800;
   color: var(--green);
   z-index: 3;
+  pointer-events: none;
 }
 
 .clip-card .card-body,

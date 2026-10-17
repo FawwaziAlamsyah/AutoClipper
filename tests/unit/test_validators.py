@@ -39,3 +39,13 @@ def test_run_all_validators_shape():
     assert all({"score", "reason"} <= set(v) for v in result.values())
     # llm_content sekarang dihasilkan LLMService, bukan run_all_validators
     assert "llm_content" not in result
+
+
+def test_validate_hook_cold_open_potential_in_body():
+    """Hook validator should add cold-open bonus when body contains hook triggers."""
+    intro_filler = "Halo semuanya kembali lagi bersama kita di acara hari ini. " * 6
+    body_hook = "Tapi tunggu, ternyata ada rahasia besar yang belum pernah terungkap!"
+    score, reason = validate_hook(intro_filler + body_hook)
+    assert score >= 6.0
+    assert "cold-open hook" in reason
+

@@ -144,37 +144,27 @@
     initUI();
   }
 
-  // Handle click on candidate preview thumbnails or play button
+  // Handle click specifically on the center .play button overlay
+  // (Let native <video controls> handle clicks on the video, volume slider, timeline, and fullscreen)
   document.addEventListener('click', (e) => {
-    const thumb = e.target.closest('.thumb');
-    if (!thumb) return;
+    const playBtn = e.target.closest('.thumb .play b, .thumb .play');
+    if (!playBtn) return;
 
-    // Don't intercept clicks on links or non-play buttons
-    if (e.target.closest('a, button')) return;
+    const thumb = playBtn.closest('.thumb');
+    if (!thumb) return;
 
     const video = thumb.querySelector('video');
     if (!video) return;
-
-    // If clicked directly on the video element's bottom area (native controls), let native controls handle it
-    if (e.target === video) {
-      const rect = video.getBoundingClientRect();
-      const clickY = e.clientY - rect.top;
-      if (clickY > rect.height - 42) {
-        return;
-      }
-    }
 
     e.preventDefault();
     e.stopPropagation();
 
     if (video.paused) {
-      // Pause any other playing video previews on the page
       document.querySelectorAll('.thumb video').forEach((v) => {
         if (v !== video && !v.paused) v.pause();
       });
       video.play().catch((err) => {
         console.warn('[Video Player] Failed to play video with audio, retrying muted...', err);
-        // Fallback: if browser blocks autoplay due to sound policy
         video.muted = true;
         video.play().catch((e2) => {
           console.error('[Video Player] Playback failed completely:', e2);
@@ -185,9 +175,12 @@
     }
   });
 
-  // Sync play/pause icons and classes
+  // Sync play/pause icons and classes, and pause other videos when one starts playing
   document.addEventListener('play', (e) => {
     if (e.target && e.target.tagName && e.target.tagName.toLowerCase() === 'video') {
+      document.querySelectorAll('.thumb video').forEach((v) => {
+        if (v !== e.target && !v.paused) v.pause();
+      });
       const thumb = e.target.closest('.thumb');
       if (thumb) {
         thumb.classList.add('is-playing');

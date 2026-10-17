@@ -689,14 +689,23 @@ class ClipEditorService:
 
         rel_cues = []
         for cue in cues:
-            # Jika cue["start"] >= clip.start_time - 1.0, berarti timestamp absolut video asli
-            if cue["start"] >= clip.start_time - 1.0:
+            is_direct_clip_stt = bool(cue.get("relative_to_clip")) or (cue["start"] < clip.start_time - 1.0)
+            if not is_direct_clip_stt:
+                # Timestamp absolut dari DB transkrip video asli → geser setelah teaser (hook_offset)
                 start_rel = max(cue["start"] - clip.start_time, 0.0) + hook_offset
                 end_rel = max(cue["end"] - clip.start_time, start_rel + 0.1) + hook_offset
             else:
-                # Timestamp sudah relatif terhadap video klip (misal hasil direct STT klip)
+                # Timestamp sudah relatif terhadap video klip (hasil direct STT klip)
                 start_rel = max(cue["start"], 0.0)
                 end_rel = max(cue["end"], start_rel + 0.1)
+                # Cegah tumpang tindih 2 teks (Hook Caption + Kinetic Subtitle) selama teaser berlangsung
+                if hook_offset > 0.5:
+                    if end_rel <= hook_offset + 0.05:
+                        continue
+                    if start_rel < hook_offset:
+                        start_rel = round(hook_offset, 2)
+                        if end_rel <= start_rel + 0.1:
+                            continue
 
             rel_cues.append({
                 **cue,

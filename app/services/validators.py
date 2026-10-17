@@ -11,6 +11,8 @@ HOOK_STARTERS = (
     "bayangkan", "apakah", "kenapa", "bagaimana", "tahukah", "wow",
     "the thing is", "here is why", "here's why", "you won't believe",
     "wait", "wait for it", "perhatian", "penting", "rahasia",
+    "tunggu", "lihat", "kok bisa", "jangan", "hati-hati", "ternyata",
+    "alasan", "masalahnya", "gila", "anjir", "astaga", "waduh", "sumpah",
 )
 QUESTION_MARK = re.compile(r"[?？]")
 EXCLAMATION_MARK = re.compile(r"[!！]")
@@ -45,9 +47,11 @@ def _words(text: str) -> str:
 
 
 def validate_hook(text: str) -> tuple[float, str]:
-    """Hook: opening grabs attention."""
+    """Hook: opening grabs attention + cold-open potential from early-mid/body."""
     low = _words(text)
-    head = low[: len(low) // 5 + 200]
+    split_pos = min(len(low), len(low) // 5 + 200)
+    head = low[:split_pos]
+    body = low[split_pos:]
     score = 5.0
     reasons = []
     if any(s in head for s in HOOK_STARTERS):
@@ -59,6 +63,16 @@ def validate_hook(text: str) -> tuple[float, str]:
     if EXCLAMATION_MARK.search(head):
         score += 1.0
         reasons.append("Ada tanda seru pembuka")
+
+    # Potensi Cold-Open Reorder: jika bagian awal-menengah/tengah memiliki pemicu
+    # penasaran atau reaksi kuat yang bisa ditarik ke detik 0 oleh Auto Hook Engine
+    if body and (
+        any(s in body for s in HOOK_STARTERS)
+        or (QUESTION_MARK.search(body) and EXCLAMATION_MARK.search(body))
+    ):
+        score += 1.0
+        reasons.append("Potensi cold-open hook di dalam klip")
+
     if not reasons:
         reasons.append("Tidak ada pola hook jelas di pembuka")
     return min(score, 10.0), ", ".join(reasons)

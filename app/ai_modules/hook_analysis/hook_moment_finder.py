@@ -76,6 +76,7 @@ class HookMoment:
     best_idx: int               # index relatif ke list segments window
     audio_spike_time: float | None = None  # timestamp lonjakan emosi/teriakan (jika terdeteksi)
     has_audio_spike: bool = False
+    highlight_word: str | None = None      # 1 kata kunci pemicu penasaran untuk warna kuning
 
 
 class HookMomentFinder:
@@ -130,11 +131,23 @@ class HookMomentFinder:
             logger.debug("HookMomentFinder skip: segments < 4 (%d)", len(segments))
             return None, "window_too_short"
 
-        # Bangun list segment untuk prompt
-        seg_list = [
-            {"idx": i, "text": seg.text.strip()}
-            for i, seg in enumerate(segments)
-        ]
+        # Bangun list segment lengkap dengan timestamp & penanda audio spike
+        has_spike = bool(audio_spikes and audio_spikes.get("has_spike"))
+        peak_t = float(audio_spikes["peak_time"]) if (has_spike and audio_spikes.get("peak_time") is not None) else None
+
+        seg_list = []
+        for i, seg in enumerate(segments):
+            s_start = round(float(seg.start_time), 1)
+            s_end = round(float(seg.end_time), 1)
+            item: dict = {
+                "idx": i,
+                "start": s_start,
+                "end": s_end,
+                "text": seg.text.strip(),
+            }
+            if peak_t is not None and (s_start - 1.2) <= peak_t <= (s_end + 1.2):
+                item["audio_spike_peak"] = True
+            seg_list.append(item)
 
         prompt = self._build_prompt(seg_list, category_name, audio_spikes=audio_spikes)
 
@@ -157,6 +170,7 @@ class HookMomentFinder:
         confidence = float(parsed.get("confidence", 0.0))
         hook_type = str(parsed.get("hook_type", "curiosity_gap"))
         caption = str(parsed.get("caption", "")).strip()
+        highlight_word = str(parsed.get("highlight_word", "")).strip() or None
 
         # Validasi best_idx range
         if not isinstance(best_idx, int) or best_idx < 0 or best_idx >= len(segments):
@@ -171,16 +185,15 @@ class HookMomentFinder:
             )
             return None, "low_confidence"
 
-        # Guard: momen hook tidak boleh terlalu dekat ke awal window.
-        # Untuk klip pendek/hasil trim (< 8 segment), beri batas lebih fleksibel (idx >= 1 dan delta >= 2.0s)
+        # Guard: momen hook tidak boleh mengambil segmen paling awal (idx 0)
+        # agar kalimat pembuka tidak terulang dua kali berturut-turut.
+        # Namun zona awal-menengah setelah pembuka (idx >= 1 dengan jeda >= 2.0s–2.5s)
+        # tetap dibuka agar insiden pemicu di awal-tengah klip bisa dijadikan hook!
         window_start_time = float(segments[0].start_time)
         hook_start_time = float(segments[best_idx].start_time)
-        if len(segments) < 8:
-            too_close_by_index = best_idx < 1
-            too_close_by_time = (hook_start_time - window_start_time) < 2.0
-        else:
-            too_close_by_index = best_idx < 3
-            too_close_by_time = (hook_start_time - window_start_time) < 5.0
+        min_delta_t = 2.0 if len(segments) < 8 else 2.5
+        too_close_by_index = best_idx < 1
+        too_close_by_time = (hook_start_time - window_start_time) < min_delta_t
 
         if too_close_by_index or too_close_by_time:
             logger.debug(
@@ -190,25 +203,29 @@ class HookMomentFinder:
             )
             return None, "moment_too_close_to_start"
 
-        # Map ke timestamp absolut.
-        # Durasi hook tidak kaku 2 detik — pakai hook_duration dari LLM agar
-        # momen kejutan selesai utuh, lalu snap akhir ke boundary segment
-        # (end segmen yang memuat titik akhir) supaya tidak terpotong di
-        # tengah kalimat.
+        # Map ke timestamp absolut dengan prinsip Cliffhanger Cut (anti-spoiler).
+        # Untuk tipe shock/teriakan yang segmennya panjang, potong di puncak ketegangan
+        # tanpa membocorkan akhir situasi. Untuk kalimat pertanyaan/fakta, snap ke
+        # batas akhir segmen agar kalimat gantung tidak terpotong di tengah kata.
         window_end_time = float(segments[-1].end_time)
         hook_moment_start = hook_start_time
         try:
             duration = float(parsed.get("hook_duration", 2.0))
         except (ValueError, TypeError):
             duration = 2.0
-        duration = max(1.0, min(duration, 6.0))
+        duration = max(1.5, min(duration, 4.5))
 
         hook_duration_end = hook_moment_start + duration
         snapped_end: float | None = None
         for i in range(best_idx, len(segments)):
             seg_end = float(segments[i].end_time)
             if hook_duration_end <= seg_end:
-                snapped_end = seg_end
+                # Jika shock dan segmen terlalu panjang (> 3.8s dari start hook),
+                # potong langsung sesuai durasi cliffhanger agar tidak bocor/spoiler
+                if hook_type == "shock" and (seg_end - hook_moment_start) > 3.8:
+                    snapped_end = hook_duration_end
+                else:
+                    snapped_end = seg_end
                 break
         hook_moment_end = (
             min(snapped_end, window_end_time)
@@ -222,6 +239,7 @@ class HookMomentFinder:
         # caption LLM, pakai teks verbatim segment (dijamin jujur).
         if not caption or not self._caption_consistent(caption, segments):
             caption = " ".join(segments[best_idx].text.split()[:8])
+            highlight_word = None
 
         return HookMoment(
             hook_moment_start=hook_moment_start,
@@ -231,7 +249,8 @@ class HookMomentFinder:
             hook_caption=caption,
             best_idx=best_idx,
             audio_spike_time=audio_spikes.get("peak_time") if audio_spikes else None,
-            has_audio_spike=bool(audio_spikes and audio_spikes.get("has_spike")),
+            has_audio_spike=has_spike,
+            highlight_word=highlight_word,
         ), None
 
     # ── Private helpers ───────────────────────────────────────────────────────
@@ -262,38 +281,45 @@ class HookMomentFinder:
         spike_hint = ""
         if audio_spikes and audio_spikes.get("has_spike"):
             peak_t = audio_spikes.get("peak_time", 0.0)
+            peak_db = audio_spikes.get("peak_db", 0.0)
             spike_hint = (
-                f"- CATATAN AUDIO SPIKE: Terdeteksi puncak teriakan/reaksi emosi tinggi di sekitar "
-                f"timestamp ~{peak_t:.1f} detik. Jika ada segmen di sekitar timestamp ini yang emosional atau kaget, "
-                f"prioritaskan segmen tersebut sebagai momen hook!\n"
+                f"- CATATAN AUDIO SPIKE: Terdeteksi puncak teriakan/reaksi vokal tinggi ({peak_db:.1f} dB) "
+                f"di timestamp ~{peak_t:.1f} detik (ditandai `\"audio_spike_peak\": true` pada segmen terkait). "
+                f"Prioritaskan segmen tersebut jika mengandung reaksi kaget, panik, atau emosi puncak!\n"
             )
 
         segs_json = json.dumps(seg_list, ensure_ascii=False, indent=2)
-        if len(seg_list) < 8:
-            start_rule = "- JANGAN pilih segmen paling awal (idx 0) — cold open membutuhkan momen yang berbeda dari pembuka klip."
-        else:
-            start_rule = "- JANGAN pilih segmen di awal daftar (idx 0, 1, atau 2) — cold open hanya bermakna kalau momen tersebut jauh dari awal klip."
+        start_rule = (
+            "- JANGAN pilih segmen pembuka paling awal (idx 0) agar pembuka video tidak terulang dua kali.\n"
+            "- ZONA PENCARIAN IDEAL: Kamu BOLEH memilih dari bagian awal-menengah (mulai idx 1 atau idx 2, tepat setelah kalimat pengantar) "
+            "hingga bagian tengah/klimaks. Hindari memilih segmen paling akhir jika segmen terakhir itu hanya berisi kesimpulan/jawaban yang membocorkan akhir cerita (spoiler)."
+        )
 
-        return f"""Kamu adalah editor video viral untuk platform TikTok/Reels.
+        return f"""Kamu adalah editor video viral spesialis retensi tinggi (TikTok/Reels/Shorts).
 {category_ctx}
 
-Diberikan daftar segmen transkrip dari satu klip video (urutan kronologis):
+Diberikan daftar segmen transkrip beserta timestamp (detik) dari satu klip video:
 {segs_json}
 
 Tugasmu:
-1. Pilih SATU segmen yang paling menarik untuk dijadikan "cold open" (potongan pembuka sebelum klip asli mengalir), agar penonton tidak skip.
-2. Tentukan durasi cold open (hook_duration) yang CUKUP agar momen kejutan selesai utuh, TANPA terpotong di tengah kalimat. Biasanya 2.0–5.0 detik.
-3. Buat 1 kalimat caption pendek (MAKS 8 KATA) dalam BAHASA YANG SAMA dengan transkrip, yang memancing rasa penasaran terhadap momen itu. BUKAN copy-paste kalimat asli — buat kalimat provokatif BARU.
+1. Pilih SATU segmen terbaik untuk dijadikan "Cold-Open Hook" (cuplikan pembuka di detik 0–3 sebelum klip asli dimulai) yang memicu RASA PENASARAN TINGGI (Curiosity Gap / Open Loop) sehingga penonton bertahan menonton sampai akhir.
+2. Tentukan `hook_duration` (ideal 1.8–3.2 detik) dengan prinsip CLIFFHANGER CUT:
+   - Jangan bocorkan hasil akhir/punchline di teaser!
+   - Potong tepat di puncak reaksi/teriakan atau tepat saat pertanyaan/konflik menggantung, sehingga penonton wajib menonton klip utuh untuk tahu kelanjutannya.
+3. Buat 1 `caption` overlay pendek (MAKS 7 KATA) dalam BAHASA YANG SAMA dengan transkrip.
+   - DILARANG merangkum jawaban atau copy-paste datar.
+   - Gunakan formula Open Loop / Pemicu Penasaran (contoh pola: "Detik terakhir bikin panik...", "Salah ambil langkah pas...", "Alasan jangan pernah...", "Tunggu sampai dia sadar...", "Padahal awalnya cuma...").
+4. Pilih 1 kata dari dalam `caption` tersebut sebagai `highlight_word` (kata yang paling emosional/pemicu penasaran/angka) untuk diberi warna kuning mencolok.
 
-Aturan:
-- Pilih segmen yang mengandung kejutan, klaim mengejutkan, pertanyaan retorik, konflik, atau fakta menarik.
+Aturan Wajib:
+- Pilih segmen yang memicu pertanyaan di kepala penonton ("Kenapa dia teriak?", "Apa yang sebenarnya terjadi?", "Kok bisa begitu?").
 {start_rule}
 {spike_hint}- hook_type harus salah satu: question, shock, stat, conflict, curiosity_gap.
-- confidence: 0.0–1.0 seberapa yakin momen ini akan membuat penonton tertarik.
-- CAPTION WAJIB JUJUR: hanya boleh memakai ulang fakta/angka yang benar-benar ada di transkrip. DILARANG mengubah, menambah, atau melebih-lebihkan angka maupun klaim (contoh salah: transkrip bilang 6 juta tapi caption bilang 100 juta). Dilarang klikbait palsu — kalimat provokatif boleh, tapi isi faktual harus sama persis dengan transkrip.
+- confidence: 0.0–1.0 seberapa kuat momen ini menahan penonton agar tidak swipe.
+- CAPTION WAJIB JUJUR: hanya boleh memakai fakta/angka yang ada di transkrip. DILARANG mengarang atau mengubah angka (contoh salah: transkrip bilang 6 juta tapi caption bilang 100 juta).
 
 Balas HANYA dengan JSON valid (tidak ada teks lain):
-{{"best_idx": <int>, "hook_type": "<str>", "confidence": <float>, "hook_duration": <float, detik>, "reason": "<singkat>", "caption": "<maks 8 kata>"}}"""
+{{"best_idx": <int>, "hook_type": "<str>", "confidence": <float>, "hook_duration": <float, detik>, "reason": "<singkat>", "caption": "<maks 7 kata>", "highlight_word": "<1 kata dari caption>"}}"""
 
     def _call_llm(self, prompt: str) -> str:
         payload = {

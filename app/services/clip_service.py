@@ -443,7 +443,25 @@ class ClipService:
         candidate.hook_moment_end = h_end
         candidate.hook_type = "shock"
         if not candidate.hook_caption:
-            candidate.hook_caption = "REAKSI TAK TERDUGA!"
+            contextual_caption = None
+            try:
+                transcript = self.transcript_repo.get_by_video(candidate.video_id)
+                if transcript:
+                    segs = self.segment_repo.get_by_transcript(transcript.id)
+                    near = [
+                        s for s in segs
+                        if isinstance(getattr(s, "text", None), str)
+                        and s.end_time >= h_start
+                        and s.start_time <= h_end
+                        and s.text.strip()
+                    ]
+                    if near:
+                        words = near[0].text.strip().split()[:6]
+                        if words:
+                            contextual_caption = " ".join(words)
+            except Exception:
+                contextual_caption = None
+            candidate.hook_caption = contextual_caption or "REAKSI TAK TERDUGA!"
         self.db.commit()
 
         return self.regenerate_hook(

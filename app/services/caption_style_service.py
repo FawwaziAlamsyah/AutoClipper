@@ -46,7 +46,7 @@ FONT_STYLES: dict[str, dict[str, str]] = {
     },
 }
 
-# Kata kunci reaksi prioritas (dalam huruf kecil)
+# Kata kunci reaksi & curiosity-gap prioritas (dalam huruf kecil)
 PRIORITY_REACTION_KEYWORDS: list[str] = [
     "teriak",
     "kaget",
@@ -55,6 +55,26 @@ PRIORITY_REACTION_KEYWORDS: list[str] = [
     "kenapa",
     "gak kuat",
     "kuat",
+    "panik",
+    "jangan",
+    "rahasia",
+    "ternyata",
+    "muncul",
+    "hilang",
+    "mati",
+    "hantu",
+    "salah",
+    "bahaya",
+    "alasan",
+    "gila",
+    "parah",
+    "hancur",
+    "terakhir",
+    "bocah",
+    "ngamuk",
+    "nangis",
+    "kabur",
+    "kejar",
 ]
 
 
@@ -203,13 +223,16 @@ class CaptionStyleService:
         lines: list[str],
         reaction_type: str | None = None,
         highlight_color_bgr: str = "&H00E6FF&",
+        highlight_word: str | None = None,
     ) -> str:
         """Beri highlight warna kuning pada TEPAT 1 kata kunci, lalu gabungkan dengan \\N.
 
-        Aturan:
-        1. Kata reaction_type jika ada di teks
-        2. Kata dari PRIORITY_REACTION_KEYWORDS jika ada di teks
-        3. Kata terpanjang (fallback)
+        Aturan prioritas:
+        1. Kata pilihan LLM (highlight_word) jika ada di teks
+        2. Kata reaction_type jika ada di teks
+        3. Kata dari PRIORITY_REACTION_KEYWORDS jika ada di teks
+        4. Kata yang mengandung angka/digit (nominal/statistik)
+        5. Kata terpanjang (fallback)
         """
         all_tokens = [tok for line in lines for tok in line.split()]
         if not all_tokens:
@@ -220,8 +243,17 @@ class CaptionStyleService:
 
         target_token: str | None = None
 
-        # 1. Cek reaction_type spesifik
-        if reaction_type:
+        # 1. Cek highlight_word pilihan LLM
+        if highlight_word:
+            hw_clean = clean_tok(highlight_word)
+            if hw_clean:
+                for tok in all_tokens:
+                    if clean_tok(tok) == hw_clean:
+                        target_token = tok
+                        break
+
+        # 2. Cek reaction_type spesifik
+        if not target_token and reaction_type:
             rt_clean = clean_tok(reaction_type)
             if rt_clean and rt_clean not in {"auto", "impact", "clean", "fun"}:
                 for tok in all_tokens:
@@ -229,7 +261,7 @@ class CaptionStyleService:
                         target_token = tok
                         break
 
-        # 2. Cek priority reaction keywords
+        # 3. Cek priority reaction keywords
         if not target_token:
             for kw in PRIORITY_REACTION_KEYWORDS:
                 for tok in all_tokens:
@@ -239,7 +271,14 @@ class CaptionStyleService:
                 if target_token:
                     break
 
-        # 3. Fallback: kata terpanjang
+        # 4. Prioritaskan kata yang memuat angka/digit (misal: "100", "6", "99%")
+        if not target_token:
+            for tok in all_tokens:
+                if any(ch.isdigit() for ch in tok):
+                    target_token = tok
+                    break
+
+        # 5. Fallback: kata terpanjang
         if not target_token:
             target_token = max(all_tokens, key=lambda t: len(clean_tok(t)))
 
@@ -323,6 +362,7 @@ class CaptionStyleService:
         safe_box: Any = None,
         font_size: int | None = None,
         min_size: int | None = None,
+        highlight_word: str | None = None,
     ) -> str:
         """Hasilkan file script ASS lengkap untuk dibakar via filter libass.
 
@@ -335,6 +375,7 @@ class CaptionStyleService:
             safe_box: Informasi safe area atau layout
             font_size: Override ukuran font dasar
             min_size: Override batas minimum ukuran font
+            highlight_word: Kata kunci pilihan LLM untuk di-highlight kuning
         """
         style_name = cls.resolve_style(reaction_type)
         family_name, font_path = cls.get_font_info(style_name)
@@ -362,6 +403,7 @@ class CaptionStyleService:
             lines,
             reaction_type=reaction_type,
             highlight_color_bgr=highlight_bgr,
+            highlight_word=highlight_word,
         )
 
         pos_x, pos_y = cls.calculate_position(width, height, safe_box)

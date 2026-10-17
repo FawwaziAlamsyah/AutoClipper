@@ -305,3 +305,68 @@ def test_hook_composer_apply_caption_fallback_on_ass_error(tmp_path: Path) -> No
         assert "fontsize=110" in vf_val
         assert "textfile=" in vf_val
         assert "box=" not in vf_val
+
+
+def test_build_ass_highlight_word_from_llm_takes_priority() -> None:
+    """highlight_word pilihan LLM diprioritaskan di atas kata terpanjang."""
+    ass = CaptionStyleService.build_ass(
+        caption="DETIK TERAKHIR BIKIN PINTU TERBUKA",
+        reaction_type="curiosity_gap",
+        highlight_word="pintu",
+    )
+    assert "{\\c&H00E6FF&}PINTU{\\c&HFFFFFF&}" in ass
+
+
+def test_build_ass_highlights_numeric_token_before_longest_word() -> None:
+    """Jika tidak ada keyword reaksi, angka/nominal diprioritaskan di atas kata terpanjang."""
+    ass = CaptionStyleService.build_ass(
+        caption="KERUGIAN MENCAPAI 500 JUTA",
+        reaction_type="stat",
+    )
+    assert "{\\c&H00E6FF&}500{\\c&HFFFFFF&}" in ass
+
+
+def test_render_hook_stacked_split_passes_facecam_top_safe_box(tmp_path: Path) -> None:
+    """Pada layout 9:16 stacked_split, _render_hook meneruskan safe_box facecam_top (split_y=800, offset_y=0)
+    agar caption berada di perbatasan y=800px dan tidak menutupi wajah streamer."""
+    from app.ai_modules.hook_analysis.hook_moment_finder import HookMoment
+    from app.services.hook_composer_service import HookComposerService
+
+    mock_db = MagicMock()
+    service = HookComposerService(mock_db)
+    moment = HookMoment(
+        hook_moment_start=10.0,
+        hook_moment_end=12.5,
+        hook_type="shock",
+        hook_confidence=0.9,
+        hook_caption="DETIK TERAKHIR BIKIN PANIK!",
+        best_idx=3,
+        highlight_word="panik",
+    )
+
+    mock_clip = MagicMock()
+    mock_clip.id = 1
+    mock_clip.file_path = str(tmp_path / "dummy_clip.mp4")
+
+    with (
+        patch.object(service, "_extract_teaser"),
+        patch.object(service, "_apply_zoom_punch"),
+        patch.object(service, "_apply_caption") as mock_apply_caption,
+        patch.object(service, "_apply_sfx"),
+        patch.object(service, "_concat"),
+    ):
+        service._render_hook(
+            clip=mock_clip,
+            video_source_path="dummy_source.mp4",
+            aspect_ratio="9:16",
+            hook_moment=moment,
+            base_clip_path="dummy_clip.mp4",
+            layout="stacked_split",
+        )
+
+    assert mock_apply_caption.called
+    kwargs = mock_apply_caption.call_args.kwargs
+    assert kwargs["safe_box"] == {"layout": "facecam_top", "split_y": 800, "offset_y": 0}
+    assert kwargs["highlight_word"] == "panik"
+
+

@@ -373,6 +373,7 @@ class SubtitleService:
                     "text": cue_text,
                     "words": [cw.upper() for cw in chunk_words],
                     "highlight_word": highlight_word,
+                    "relative_to_clip": True,
                 })
                 curr_chunk = []
 
