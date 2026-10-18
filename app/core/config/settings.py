@@ -82,22 +82,25 @@ class Settings(BaseSettings):
     GOOGLE_ACCOUNT_EMAIL: str = ""
 
     # Score weights — kiblat urutan scoring (default, user-overridable per job).
-    # Prioritas user: gesture(20%) > voice_emotion > face_emotion > hook (4 utama).
-    # gesture = gerakan tangan (HandLandmarker), bukan gerakan badan.
-    # Sisa (0.34) sesuai riset sinyal retention: story > llm_content > scene.
-    # llm_content sengaja rendah (masih bisa mock bila tanpa API key).
+    # Prioritas Retensi Media Sosial (Target >= 200k views):
+    # 1. Hook (detik 0-3 stop-scroll rate) = 25%
+    # 2. LLM Content (substansi topik, curiosity gap, shareability) = 22%
+    # 3. Voice Emotion (energi audio, nada vokal dinamis, tawa/reaksi) = 18%
+    # 4. Gesture & Face (pendukung visual) = 10% & 7%
+    # 5. Narrative Payoff (ending & story) = 6% & 5%
+    # 6. Teknis Penunjang (scene, eye contact, audio, context, viral words) = 7% total.
     # Total bobot = 1.00. Final score = 0.8*bobot + 0.2*trained (bila model ada).
-    SCORE_WEIGHT_LLM_CONTENT: float = 0.07
-    SCORE_WEIGHT_HOOK: float = 0.14
-    SCORE_WEIGHT_STORY: float = 0.09
-    SCORE_WEIGHT_VOICE_EMOTION: float = 0.17
-    SCORE_WEIGHT_FACE_EMOTION: float = 0.15
-    SCORE_WEIGHT_GESTURE: float = 0.20
-    SCORE_WEIGHT_EYE_CONTACT: float = 0.04
-    SCORE_WEIGHT_SCENE: float = 0.06
-    SCORE_WEIGHT_AUDIO: float = 0.03
-    SCORE_WEIGHT_CONTEXT: float = 0.02
-    SCORE_WEIGHT_ENDING: float = 0.02
+    SCORE_WEIGHT_HOOK: float = 0.25
+    SCORE_WEIGHT_LLM_CONTENT: float = 0.22
+    SCORE_WEIGHT_VOICE_EMOTION: float = 0.18
+    SCORE_WEIGHT_GESTURE: float = 0.10
+    SCORE_WEIGHT_FACE_EMOTION: float = 0.07
+    SCORE_WEIGHT_ENDING: float = 0.06
+    SCORE_WEIGHT_STORY: float = 0.05
+    SCORE_WEIGHT_SCENE: float = 0.02
+    SCORE_WEIGHT_EYE_CONTACT: float = 0.02
+    SCORE_WEIGHT_AUDIO: float = 0.01
+    SCORE_WEIGHT_CONTEXT: float = 0.01
     SCORE_WEIGHT_VIRAL_POTENTIAL: float = 0.01  # total = 1.00
 
     # Training data settings
@@ -117,7 +120,15 @@ class Settings(BaseSettings):
 
     # Candidate minimum final score (0-10). Candidates di bawah ini ditolak
     # oleh select_top_n — mencegah "sampah" lolos murni karena relatif tertinggi.
-    MIN_CANDIDATE_SCORE: float = 4.0
+    # Dinaikkan ke 6.0 agar kandidat tanpa hook/emosi kuat tereliminasi.
+    MIN_CANDIDATE_SCORE: float = 6.0
+
+    # Hook Gatekeeper Multiplier (Detik 0-3 Kill-Switch)
+    # Menjamin klip tanpa hook (skor < 4.0) terdiskon signifikan (0.6x)
+    HOOK_GATEKEEPER_HIGH_THRESHOLD: float = 6.0
+    HOOK_GATEKEEPER_LOW_THRESHOLD: float = 4.0
+    HOOK_GATEKEEPER_MID_MULTIPLIER: float = 0.85
+    HOOK_GATEKEEPER_LOW_MULTIPLIER: float = 0.60
 
     # Single-pass visual analyzer toggle
     # True  = pakai VideoVisionPass (1 VideoCapture per window, ~3-4x lebih cepat)

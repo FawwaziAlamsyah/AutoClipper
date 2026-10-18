@@ -113,7 +113,9 @@ class AnalysisService:
         for window in windows:
             text = " ".join(seg.text for seg in window["segments"])
             window_texts.append(text)
-            scores = run_all_validators(text, keywords, skip_keywords)
+            first_seg_start = window["segments"][0].start_time if window.get("segments") else window["start"]
+            start_delay = max(0.0, first_seg_start - window["start"])
+            scores = run_all_validators(text, keywords, skip_keywords, start_delay=start_delay)
 
             for analyzer_type, payload in scores.items():
                 self.analysis_repo.add(AnalysisResultModel(

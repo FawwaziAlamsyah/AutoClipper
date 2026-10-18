@@ -30,18 +30,19 @@ class ScoreEngine:
     def calculate_for_job(self, job_id: int) -> float:
         """Calculate weighted score for all candidates in a job.
 
-        Weights (configurable via settings):
-        - LLM Content: 30%
-        - Hook: 10%
-        - Story: 15%
-        - Voice Emotion: 10%
-        - Face Emotion: 8%
-        - Gesture: 5%
-        - Eye Contact: 3%
-        - Scene: 4%
-        - Audio: 5%
-        - Context: 5%
-        - Ending: 5%
+        Weights (prioritas retensi algoritma viral >= 200k views, configurable via settings):
+        - Hook: 25% (detik 0-3 stop-scroll rate)
+        - LLM Content: 22% (curiosity gap, humor, argumen menarik)
+        - Voice Emotion: 18% (dinamika energi nada & reaksi vokal)
+        - Gesture: 10% (gerakan tangan dinamis)
+        - Face Emotion: 7% (ekspresi wajah / senyum)
+        - Ending: 6% (punchline & kesimpulan)
+        - Story: 5% (alur narasi)
+        - Eye Contact: 2%
+        - Scene: 2%
+        - Audio: 1%
+        - Context: 1%
+        - Viral Potential: 1%
         """
         job = self.job_repo.get(job_id)
         if job is None:
@@ -57,6 +58,7 @@ class ScoreEngine:
             meta = breakdown.get("_meta", {})
             weighted = meta.get("legacy_weighted_sum_score", 0.0)
             trained = meta.get("model_predicted_score")
+            gk_mult = meta.get("gatekeeper_multiplier", 1.0)
             # Kiblat = bobot (0.8). Trained model hanya koreksi tipis (0.2) bila ada.
             # Bobot SELALU menentukan final score — trained tidak pernah ganti total.
             if trained is not None:
@@ -69,7 +71,8 @@ class ScoreEngine:
                     tw, fw = 0.8, 0.2
                 else:
                     tw, fw = tw / total, fw / total
-                final_score = round(tw * trained + fw * weighted, 2)
+                raw_blend = tw * trained + fw * meta.get("raw_weighted_sum_score", weighted)
+                final_score = round(raw_blend * gk_mult, 2)
             else:
                 final_score = weighted
             breakdown.setdefault("_meta", {})["final_score"] = final_score
@@ -182,19 +185,34 @@ class ScoreEngine:
                 "reason": self._get_reason(cand_analysis, analyzer_type),
             }
 
-        # Penalty for skip keywords (simplified: subtract 0.5 per keyword match)
+        # Penalty for skip keywords and slow start / dead-air
         penalty = self._calculate_penalty(cand_analysis)
         if penalty > 0:
+            reasons = []
+            slow_reason = self._get_reason(cand_analysis, "slow_start")
+            if slow_reason:
+                reasons.append(slow_reason)
+            pen_reason = self._get_reason(cand_analysis, "penalty")
+            if pen_reason:
+                reasons.append(pen_reason)
+            penalty_reason = ", ".join(reasons) if reasons else "Konten spam/CTA/slow-start terdeteksi"
             breakdown["penalty"] = {
                 "score": penalty,
                 "weight": 0.0,
                 "contribution": round(-abs(penalty), 2),
-                "reason": self._get_reason(cand_analysis, "penalty") or "Konten spam/CTA terdeteksi",
+                "reason": penalty_reason,
             }
 
         # Weighted-sum legacy score (selalu dihitung — dipakai sebagai fallback
         # DAN sebagai pembanding transparansi di breakdown)
-        legacy_score = sum(v["contribution"] for v in breakdown.values())
+        raw_weighted = sum(v["contribution"] for v in breakdown.values())
+
+        # Hook Gatekeeper Multiplier (Detik 0-3 Kill-Switch):
+        # Jika hook lemah (< 4.0), video terbukti rontok di algoritma TikTok/Reels (< 200k views).
+        # Multiplier memangkas skor agar klip dengan pembuka datar tidak bisa lolos ke Top Rank.
+        hook_score = breakdown.get("hook", {}).get("score") if "hook" in breakdown else None
+        gatekeeper_multiplier, gatekeeper_reason = self._calculate_hook_gatekeeper(hook_score)
+        legacy_score = round(raw_weighted * gatekeeper_multiplier, 2)
 
         # Model terlatih — coba prediksi, None jika model belum ada atau gagal
         model_score = None
@@ -213,6 +231,9 @@ class ScoreEngine:
 
         breakdown["_meta"] = {
             "scoring_method": "trained_model" if model_score is not None else "weighted_sum",
+            "raw_weighted_sum_score": round(raw_weighted, 2),
+            "gatekeeper_multiplier": gatekeeper_multiplier,
+            "gatekeeper_reason": gatekeeper_reason,
             "legacy_weighted_sum_score": round(legacy_score, 2),
             "model_predicted_score": round(model_score, 2) if model_score is not None else None,
             "trained_model_used": model_score is not None,
@@ -220,6 +241,29 @@ class ScoreEngine:
         }
 
         return breakdown
+
+    def _calculate_hook_gatekeeper(self, hook_score: float | None) -> tuple[float, str]:
+        """Hitung Gatekeeper Multiplier berdasarkan skor hook (detik 0-3).
+
+        Target retensi media sosial >= 200k views:
+        - hook >= HIGH_THRESHOLD (default 6.0): Hook kuat/potensial -> Multiplier = 1.0x (Lolos)
+        - LOW_THRESHOLD <= hook < HIGH_THRESHOLD: Hook moderat -> Multiplier = MID_MULTIPLIER (0.85x)
+        - hook < LOW_THRESHOLD (default 4.0): Hook lemah -> Multiplier = LOW_MULTIPLIER (0.60x)
+        """
+        if hook_score is None:
+            return 1.0, "Hook analyzer tidak aktif (multiplier netral 1.0x)"
+
+        high_th = getattr(settings, "HOOK_GATEKEEPER_HIGH_THRESHOLD", 6.0)
+        low_th = getattr(settings, "HOOK_GATEKEEPER_LOW_THRESHOLD", 4.0)
+        mid_mult = getattr(settings, "HOOK_GATEKEEPER_MID_MULTIPLIER", 0.85)
+        low_mult = getattr(settings, "HOOK_GATEKEEPER_LOW_MULTIPLIER", 0.60)
+
+        if hook_score >= high_th:
+            return 1.0, f"Hook kuat ({hook_score:.1f}/10) — Lolos Gatekeeper 1.0x"
+        elif hook_score >= low_th:
+            return mid_mult, f"Hook moderat ({hook_score:.1f}/10) — Gatekeeper Multiplier {mid_mult:.2f}x"
+        else:
+            return low_mult, f"Hook lemah ({hook_score:.1f}/10) — Gatekeeper Penalty {low_mult:.2f}x"
 
     def _get_reason(self, analysis: list, analyzer_type: str) -> str:
         """Ambil reason dari result_data analysis terakhir untuk analyzer type."""
@@ -233,12 +277,12 @@ class ScoreEngine:
         """Extract average score from analyzer results (per-window, sudah di-filter)."""
         results = [a for a in analysis if a.analyzer_type == analyzer_type]
         if not results:
-            return 0.5  # Default neutral score
+            return 5.0  # Default neutral score (skala 0-10)
 
         return sum(r.score or 0 for r in results) / len(results)
 
     def _calculate_penalty(self, analysis: list) -> float:
-        """Calculate penalty for skip keywords."""
+        """Calculate penalty for skip keywords, dead-air, and slow-pacing intro."""
         penalties = {
             "sponsor": 0.5,
             "intro": 0.5,
@@ -250,6 +294,11 @@ class ScoreEngine:
 
         total_penalty = 0.0
         for a in analysis:
+            # 1. Analyzer bertipe penalty atau slow_start dengan skor negatif
+            if a.analyzer_type in ("penalty", "slow_start") and a.score is not None and a.score < 0:
+                total_penalty += abs(a.score)
+
+            # 2. Keyword eksplisit di result_data
             result_data = a.result_data or {}
             if "keyword" in result_data:
                 for kw, val in penalties.items():

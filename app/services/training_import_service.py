@@ -164,10 +164,13 @@ class TrainingImportService:
                 _IMPORTS[import_id]["queued"] -= 1
                 db.close()
 
-        # Jalankan tiap baris di background thread — endpoint langsung balas
-        for row in rows:
-            thread = threading.Thread(target=_run_row, args=(row,), daemon=True)
-            thread.start()
+        # Jalankan baris secara berurutan di background worker thread
+        # agar tidak membebani CPU/GPU (Whisper/MediaPipe) dan menghindari blokir rate-limit YouTube.
+        def _worker_loop():
+            for row in rows:
+                _run_row(row)
+
+        threading.Thread(target=_worker_loop, daemon=True).start()
 
         return import_id, []
 

@@ -128,3 +128,69 @@ def test_strip_silence_validation_no_gaps() -> None:
 
         with pytest.raises(ValidationException, match="Tidak ditemukan jeda hening"):
             service.strip_silence(12)
+
+
+def test_detect_active_intervals_preserves_acoustic_audio() -> None:
+    """When audio is acoustically active (gameplay/music), it is preserved even if Whisper has a gap."""
+    service, clip = _make_service()
+
+    with patch("pathlib.Path.exists", return_value=True), \
+         patch("subprocess.run") as mock_run, \
+         patch("app.ai_modules.speech_to_text.whisper_analyzer.WhisperAnalyzer.analyze") as mock_whisper:
+
+        # Whisper only found speech from 0 to 10 and 55 to 60 (gap 10 to 55 is gameplay without words)
+        mock_whisper.return_value = MagicMock(
+            result_data={
+                "segments": [
+                    {"start": 0.0, "end": 10.0, "text": "halo guys"},
+                    {"start": 55.0, "end": 60.0, "text": "mantap"},
+                ]
+            }
+        )
+
+        # But FFmpeg silencedetect only found 2 seconds of actual silence: 50.0 to 52.0
+        mock_run.return_value = MagicMock(
+            returncode=0,
+            stderr="[Parsed_silencedetect_0] silence_start: 50.0\n[Parsed_silencedetect_0] silence_end: 52.0 | silence_duration: 2.0\n"
+        )
+
+        res = service.detect_active_intervals(clip.file_path, min_silence_duration=1.2, padding=0.25)
+
+        # The 10-50s gameplay audio must NOT be cut! Only the 50-52s silence should be trimmed
+        assert res["total_duration"] == 60.0
+        # Active intervals must span through the 10-50s gameplay region
+        assert any(st <= 10.0 and et >= 49.0 for st, et in res["active_intervals"])
+        # Removed duration should be around 1.5 - 2.0s, NOT 45s!
+        assert res["removed_duration"] < 5.0
+
+
+def test_strip_silence_does_not_set_temp_path() -> None:
+    """strip_silence must never point clip.edited_file_path to a temporary directory."""
+    service, clip = _make_service()
+
+    with patch("pathlib.Path.exists", return_value=True), \
+         patch("subprocess.run") as mock_run, \
+         patch("app.services.silence_stripper_service.SilenceStripperService.detect_active_intervals") as mock_detect, \
+         patch("app.services.clip_history_manager.ClipHistoryManager.push_step") as mock_push:
+
+        mock_run.return_value = MagicMock(returncode=0)
+        mock_detect.return_value = {
+            "active_intervals": [(0.0, 10.0), (20.0, 40.0)],
+            "total_duration": 40.0,
+            "new_duration": 30.0,
+            "removed_duration": 10.0,
+            "gaps_count": 1,
+        }
+
+        # Simulate push_step setting a valid history path
+        def fake_push_step(clip, action, label, temp_file_path, new_end_time=None):
+            clip.edited_file_path = "data/outputs/edited/history/clip_12/step_1_silence.mp4"
+
+        mock_push.side_effect = fake_push_step
+
+        service.strip_silence(12)
+
+        # Must NOT point to temp
+        assert "temp" not in (clip.edited_file_path or "").lower()
+        assert clip.edited_file_path == "data/outputs/edited/history/clip_12/step_1_silence.mp4"
+

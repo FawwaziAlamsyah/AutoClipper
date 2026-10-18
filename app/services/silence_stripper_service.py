@@ -117,40 +117,53 @@ class SilenceStripperService:
         except Exception as e:
             logger.debug("Whisper VAD deteksi hening skip (%s), coba fallback audio level", e)
 
-        # Metode 2 (Fallback): FFmpeg silencedetect jika Whisper tidak menghasilkan segmen
-        if not speech_intervals:
-            try:
-                sd_cmd = [
-                    self.ffmpeg.ffmpeg_path, "-i", str(wav_path),
-                    "-af", f"silencedetect=noise=-30dB:d={min_silence_duration}",
-                    "-f", "null", "-",
-                ]
-                proc = subprocess.run(sd_cmd, capture_output=True, text=True, errors="replace")
-                silence_starts = []
-                silence_ends = []
-                for line in proc.stderr.splitlines():
-                    if "silence_start:" in line:
-                        m = re.search(r"silence_start:\s*([\d\.]+)", line)
-                        if m:
-                            silence_starts.append(float(m.group(1)))
-                    elif "silence_end:" in line:
-                        m = re.search(r"silence_end:\s*([\d\.]+)", line)
-                        if m:
-                            silence_ends.append(float(m.group(1)))
+        # Jalankan FFmpeg silencedetect untuk verifikasi apakah ada jeda hening akustik nyata (< -30dB)
+        silence_starts: list[float] = []
+        silence_ends: list[float] = []
+        try:
+            sd_cmd = [
+                self.ffmpeg.ffmpeg_path, "-i", str(wav_path),
+                "-af", f"silencedetect=noise=-30dB:d={min_silence_duration}",
+                "-f", "null", "-",
+            ]
+            proc = subprocess.run(sd_cmd, capture_output=True, text=True, errors="replace")
+            for line in proc.stderr.splitlines():
+                if "silence_start:" in line:
+                    m = re.search(r"silence_start:\s*([\d\.]+)", line)
+                    if m:
+                        silence_starts.append(float(m.group(1)))
+                elif "silence_end:" in line:
+                    m = re.search(r"silence_end:\s*([\d\.]+)", line)
+                    if m:
+                        silence_ends.append(float(m.group(1)))
+        except Exception as e:
+            logger.warning("FFmpeg silencedetect error: %s", e)
 
-                # Konversi jeda hening menjadi interval aktif
-                if silence_starts:
-                    curr_pos = 0.0
-                    for s_st, s_et in zip(silence_starts, silence_ends):
-                        if s_st > curr_pos + 0.2:
-                            speech_intervals.append((curr_pos, s_st))
-                        curr_pos = s_et
-                    if curr_pos < total_dur - 0.2:
-                        speech_intervals.append((curr_pos, total_dur))
-            except Exception as e:
-                logger.warning("Fallback FFmpeg silencedetect error: %s", e)
+        raw_active: list[tuple[float, float]] = []
 
-        if not speech_intervals:
+        if silence_starts:
+            # Gunakan acoustic silence nyata sebagai basis pemotongan:
+            # Pertahankan semua bagian video yang memiliki suara aktif (gameplay, BGM, efek suara).
+            curr_pos = 0.0
+            for s_st, s_et in zip(silence_starts, silence_ends):
+                act_end = min(total_dur, s_st + padding)
+                if act_end > curr_pos + 0.2:
+                    raw_active.append((curr_pos, act_end))
+                curr_pos = max(0.0, s_et - padding)
+            if curr_pos < total_dur - 0.2:
+                raw_active.append((curr_pos, total_dur))
+
+            # Lindungi juga segmen bicara Whisper (union) agar ucapan tidak terpotong
+            for st, et in speech_intervals:
+                raw_active.append((max(0.0, st - padding), min(total_dur, et + padding)))
+        elif speech_intervals:
+            # Fallback jika silencedetect tidak menghasilkan data (misal di mock unit test)
+            for st, et in speech_intervals:
+                p_st = max(0.0, st - padding)
+                p_et = min(total_dur, et + padding)
+                raw_active.append((p_st, p_et))
+
+        if not raw_active:
             return {
                 "active_intervals": [(0.0, total_dur)],
                 "total_duration": total_dur,
@@ -160,13 +173,7 @@ class SilenceStripperService:
             }
 
         # Gabungkan dan cari gap yang > min_silence_duration
-        speech_intervals.sort(key=lambda x: x[0])
-
-        raw_active: list[tuple[float, float]] = []
-        for st, et in speech_intervals:
-            p_st = max(0.0, st - padding)
-            p_et = min(total_dur, et + padding)
-            raw_active.append((p_st, p_et))
+        raw_active.sort(key=lambda x: x[0])
 
         # Merge overlapping / touching intervals
         merged: list[list[float]] = []
@@ -254,13 +261,15 @@ class SilenceStripperService:
             raise ValidationException(f"Gagal memotong jeda hening: {str(e)}")
 
         new_dur = info["new_duration"]
+        # push_step memindahkan temp_path ke step_filename permanen di data/outputs/edited/history/
+        # dan menyinkronkan clip.edited_file_path secara benar ke file permanen.
         self._history_manager(clip_id).push_step(
             clip=clip,
             action="silence",
             label=f"Pangkas Hening (-{removed:.1f}s)",
             temp_file_path=temp_path,
+            new_end_time=clip.start_time + new_dur,
         )
-        clip.edited_file_path = str(temp_path)
         clip.end_time = clip.start_time + new_dur
         self.db.commit()
 

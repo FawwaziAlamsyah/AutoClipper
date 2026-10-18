@@ -40,6 +40,14 @@ PENALTY_KEYWORDS = (
     "follow", "like", "iklan", "advertisement", "jangan lupa like",
     "bagikan", "share this", "intro", "outro",
 )
+SLOW_INTRO_STARTERS = (
+    "halo semuanya", "halo guys", "halo gaes", "halo kawan-kawan",
+    "kembali lagi bersama", "kembali lagi di", "welcome back",
+    "tes tes", "oke jadi gini", "jadi gini ya", "jadi di video kali ini",
+    "di video kali ini kita", "hari ini kita mau", "hari ini gue mau",
+    "jumpa lagi", "assalamualaikum teman-teman", "selamat datang kembali",
+    "ok guys jadi", "oke guys jadi", "so guys jadi",
+)
 
 
 def _words(text: str) -> str:
@@ -52,16 +60,16 @@ def validate_hook(text: str) -> tuple[float, str]:
     split_pos = min(len(low), len(low) // 5 + 200)
     head = low[:split_pos]
     body = low[split_pos:]
-    score = 5.0
+    score = 2.0
     reasons = []
     if any(s in head for s in HOOK_STARTERS):
-        score += 2.0
+        score += 3.0
         reasons.append("Pembuka memakai kata hook")
     if QUESTION_MARK.search(head):
-        score += 1.5
+        score += 2.5
         reasons.append("Ada pertanyaan pembuka")
     if EXCLAMATION_MARK.search(head):
-        score += 1.0
+        score += 1.5
         reasons.append("Ada tanda seru pembuka")
 
     # Potensi Cold-Open Reorder: jika bagian awal-menengah/tengah memiliki pemicu
@@ -70,7 +78,7 @@ def validate_hook(text: str) -> tuple[float, str]:
         any(s in body for s in HOOK_STARTERS)
         or (QUESTION_MARK.search(body) and EXCLAMATION_MARK.search(body))
     ):
-        score += 1.0
+        score += 4.0
         reasons.append("Potensi cold-open hook di dalam klip")
 
     if not reasons:
@@ -82,7 +90,7 @@ def validate_story(text: str) -> tuple[float, str]:
     """Story: has narrative flow markers."""
     low = _words(text)
     hits = [m for m in STORY_MARKERS if m in low]
-    score = min(5.0 + len(hits) * 1.2, 10.0)
+    score = min(3.0 + len(hits) * 1.5, 10.0) if hits else 3.0
     reason = f"{len(hits)} penanda alur cerita" if hits else "Tidak ada penanda alur cerita"
     return score, reason
 
@@ -91,7 +99,7 @@ def validate_viral(text: str) -> tuple[float, str]:
     """Viral potential: strong/power words."""
     low = _words(text)
     hits = [w for w in VIRAL_WORDS if w in low]
-    score = min(5.0 + len(hits) * 1.5, 10.0)
+    score = min(2.0 + len(hits) * 2.5, 10.0) if hits else 2.0
     reason = f"{len(hits)} kata berpotensi viral" if hits else "Tidak ada kata viral kuat"
     return score, reason
 
@@ -100,7 +108,7 @@ def validate_context(text: str) -> tuple[float, str]:
     """Context completeness: references to prior info."""
     low = _words(text)
     hits = [w for w in CONTEXT_REFERENCE if w in low]
-    score = min(4.0 + len(hits) * 1.0, 10.0)
+    score = min(3.0 + len(hits) * 1.5, 10.0) if hits else 3.0
     reason = f"{len(hits)} referensi konteks" if hits else "Konteks terasa lepas (kemungkinan potongan di tengah)"
     return score, reason
 
@@ -110,7 +118,7 @@ def validate_ending(text: str) -> tuple[float, str]:
     low = _words(text)
     tail = low[-300:]
     hits = [w for w in ENDING_MARKERS if w in tail]
-    score = min(4.0 + len(hits) * 1.5, 10.0)
+    score = min(3.5 + len(hits) * 2.0, 10.0) if hits else 2.5
     reason = "Ada penutup/kesimpulan" if hits else "Konteks terasa lepas (kemungkinan potongan di tengah)"
     return score, reason
 
@@ -135,10 +143,46 @@ def validate_penalty(text: str, skip_keywords: list[str] | None = None) -> tuple
     return -1.0, f"Konten spam/CTA terdeteksi: {', '.join(matched)}"
 
 
+def validate_pacing(
+    text: str,
+    start_delay: float = 0.0,
+) -> tuple[float, str]:
+    """Pacing & Dead-Air: deteksi keheningan di detik 0 dan pembuka lambat (basa-basi).
+
+    Returns (penalty_score <= 0.0, reason).
+    0.0 = pacing pembuka baik tanpa penalti.
+    < 0.0 = penalti keheningan awal atau pembuka basa-basi.
+    """
+    penalties = 0.0
+    reasons = []
+
+    # 1. Deteksi keheningan (dead-air) sebelum kata pertama dimulai
+    if start_delay >= 2.0:
+        penalties -= 1.5
+        reasons.append(f"Dead air di detik awal ({start_delay:.1f}s hening)")
+    elif start_delay >= 1.2:
+        penalties -= 0.8
+        reasons.append(f"Jeda hening di detik awal ({start_delay:.1f}s)")
+
+    # 2. Deteksi pembuka basa-basi (filler / slow-pacing intro) di awal teks
+    low = _words(text)
+    head = low[:min(len(low), 120)]
+    matched_slow = [s for s in SLOW_INTRO_STARTERS if s in head]
+    if matched_slow:
+        penalties -= 1.0
+        reasons.append(f"Pembuka basa-basi/slow-pacing: '{matched_slow[0]}'")
+
+    if penalties == 0.0:
+        return 0.0, "Pacing pembuka baik tanpa dead-air"
+
+    return penalties, ", ".join(reasons)
+
+
 def run_all_validators(
     text: str,
     keywords: list[str] | None = None,
     skip_keywords: list[str] | None = None,
+    start_delay: float = 0.0,
 ) -> dict[str, dict]:
     """Run all text-based validators on a window of text.
 
@@ -161,6 +205,10 @@ def run_all_validators(
     score, reason = validate_penalty(text, skip_keywords)
     if score < 0:
         result["penalty"] = _pack(score, reason)
+
+    score, reason = validate_pacing(text, start_delay=start_delay)
+    if score < 0:
+        result["slow_start"] = _pack(score, reason)
 
     return result
 

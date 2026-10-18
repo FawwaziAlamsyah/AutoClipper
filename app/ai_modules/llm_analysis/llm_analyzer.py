@@ -49,27 +49,41 @@ class LLMAnalyzer(AnalyzerInterface):
         """Analisis satu window transcript.
 
         input: {"transcript_text": str}.
-        Rata-ratakan 5 sub-skor LLM jadi satu skor llm_content 0-10.
+        Menggabungkan 4 dimensi retensi viral:
+        - Curiosity Hook (detik awal): 35%
+        - Emotional Payoff (klimaks emosi/insight): 25%
+        - Shareability (daya sebar & relate): 25%
+        - Idea Completeness (keutuhan bahasan): 15%
         """
         transcript_text = input.get("transcript_text", "")
         analysis = self._analyze_video(transcript_text)
 
-        sub = [
-            analysis.get("hook_score", 5.0),
-            analysis.get("story_score", 5.0),
-            analysis.get("emotional_score", 5.0),
-            analysis.get("educational_value", 5.0),
-            analysis.get("viral_potential", 5.0),
-        ]
-        # source: "mock" saat tidak pakai LLM sungguhan (no key / parse gagal) —
-        # biar 30%-bobot tak terlihat palsu. Result ini masuk analysis_results.
+        c_hook = float(analysis.get("curiosity_hook", analysis.get("hook_score", 5.0)))
+        e_payoff = float(analysis.get("emotional_payoff", analysis.get("emotional_score", 5.0)))
+        share = float(analysis.get("shareability", analysis.get("viral_potential", 5.0)))
+        complete = float(analysis.get("idea_completeness", analysis.get("story_score", 5.0)))
+
+        # Pembobotan terkalibrasi untuk short-form virality (0-10)
+        final_score = round(
+            c_hook * 0.35 + e_payoff * 0.25 + share * 0.25 + complete * 0.15,
+            2,
+        )
+
+        reason = analysis.get("viral_reason") or analysis.get("summary") or "Skor konten dari analisis LLM"
+
         return AnalysisResult(
-            score=round(sum(sub) / len(sub), 2),
+            score=min(max(final_score, 0.0), 10.0),
             result_data={
-                "reason": "Skor konten dari analisis LLM",
+                "reason": reason,
                 "source": analysis.get("_source", "llm"),
                 "summary": analysis.get("summary", ""),
+                "viral_reason": analysis.get("viral_reason", ""),
+                "hook_headline": analysis.get("hook_headline", ""),
                 "key_points": analysis.get("key_points", []),
+                "curiosity_hook": round(c_hook, 2),
+                "emotional_payoff": round(e_payoff, 2),
+                "shareability": round(share, 2),
+                "idea_completeness": round(complete, 2),
             },
         )
 
@@ -86,20 +100,26 @@ class LLMAnalyzer(AnalyzerInterface):
             raise AnalyzerUnavailable(f"LLM API error: {str(e)}")
 
     def _build_analysis_prompt(self, transcript_text: str) -> str:
-        """Build analysis prompt for content understanding."""
-        return f"""Analyze this podcast transcript for viral clip potential.
+        """Build analysis prompt for short-form viral retention understanding."""
+        return f"""Analyze this video/podcast transcript segment for viral short-form clip potential (target: >= 200k views on TikTok FYP, Instagram Reels, YouTube Shorts).
 
 Transcript:
-{transcript_text[:8000]}
+\"\"\"{transcript_text[:8000]}\"\"\"
 
-Return JSON with:
-- hook_score: 0-10
-- story_score: 0-10
-- emotional_score: 0-10
-- educational_value: 0-10
-- viral_potential: 0-10
-- summary: 1 sentence
-- key_points: list of 3-5 bullet points
+Evaluate the transcript based on these 4 viral retention factors (score 0.0 to 10.0 each):
+1. curiosity_hook: Does the opening sentence create an immediate curiosity gap, open loop, or provocative question that stops scrolling in the first 3 seconds? (0 = boring/slow preamble, 10 = irresistible curiosity)
+2. emotional_payoff: Is there a strong emotional peak, punchline, shocking revelation, or exciting insight? (0 = flat monotonous conversation, 10 = intense emotion/aha-moment)
+3. shareability: Would viewers share this clip to friends or debate it in comments (relatability, controversial opinion, or high-value tip)? (0 = niche/unrelatable, 10 = massive broad appeal)
+4. idea_completeness: Does this segment form a cohesive, satisfying idea from start to finish without feeling awkwardly cut off? (0 = fragmented snippet, 10 = complete punchy takeaway)
+
+Return pure JSON only with keys:
+- curiosity_hook: float (0.0 - 10.0)
+- emotional_payoff: float (0.0 - 10.0)
+- shareability: float (0.0 - 10.0)
+- idea_completeness: float (0.0 - 10.0)
+- viral_reason: string (1-2 concise sentences explaining why this clip has or lacks viral potential)
+- hook_headline: string (a punchy 4-7 word viral caption headline)
+- key_points: list of 2-4 key takeaways
 """
 
     def _call_llm(self, prompt: str) -> str:
@@ -109,7 +129,11 @@ Return JSON with:
             "messages": [
                 {
                     "role": "system",
-                    "content": "You are a video content analyst. Return valid JSON only when requested.",
+                    "content": (
+                        "You are an expert viral content strategist specialized in short-form video "
+                        "algorithms (TikTok FYP, Instagram Reels, YouTube Shorts). Your goal is to evaluate "
+                        "transcripts for viral retention and 200k+ views potential. Return valid JSON only."
+                    ),
                 },
                 {"role": "user", "content": prompt},
             ],
@@ -128,15 +152,41 @@ Return JSON with:
         transcript_text dipakai fallback mock kalau response gagal parse.
         """
         try:
-            parsed = json.loads(raw)
+            text = (raw or "").strip()
+            # Handle markdown code fence wrapping ```json ... ```
+            if "```" in text:
+                import re
+                match = re.search(r"```(?:json)?\s*([\s\S]*?)\s*```", text, re.IGNORECASE)
+                if match:
+                    text = match.group(1).strip()
+
+            parsed = json.loads(text)
+
+            curiosity_hook = float(parsed.get("curiosity_hook", parsed.get("hook_score", 5.0)))
+            emotional_payoff = float(parsed.get("emotional_payoff", parsed.get("emotional_score", 5.0)))
+            shareability = float(parsed.get("shareability", parsed.get("viral_potential", 5.0)))
+            idea_completeness = float(parsed.get("idea_completeness", parsed.get("story_score", 5.0)))
+
+            viral_reason = parsed.get("viral_reason") or parsed.get("summary") or "Analisis konten viral LLM"
+            headline = parsed.get("hook_headline") or ""
+            key_points = parsed.get("key_points", [])
+
             return {
-                "hook_score": float(parsed.get("hook_score", 5)),
-                "story_score": float(parsed.get("story_score", 5)),
-                "emotional_score": float(parsed.get("emotional_score", 5)),
-                "educational_value": float(parsed.get("educational_value", 5)),
-                "viral_potential": float(parsed.get("viral_potential", 5)),
-                "summary": parsed.get("summary", ""),
-                "key_points": parsed.get("key_points", []),
+                "_source": "llm",
+                "curiosity_hook": curiosity_hook,
+                "emotional_payoff": emotional_payoff,
+                "shareability": shareability,
+                "idea_completeness": idea_completeness,
+                # Legacy compatibility keys
+                "hook_score": curiosity_hook,
+                "story_score": idea_completeness,
+                "emotional_score": emotional_payoff,
+                "educational_value": float(parsed.get("educational_value", (shareability + curiosity_hook) / 2)),
+                "viral_potential": shareability,
+                "summary": viral_reason,
+                "viral_reason": viral_reason,
+                "hook_headline": headline,
+                "key_points": key_points,
             }
         except (json.JSONDecodeError, ValueError):
             logger.warning("LLM response parse failed, returning defaults")
@@ -145,7 +195,7 @@ Return JSON with:
     def _mock_analysis(self, transcript_text: str) -> dict:
         """Mock skor yang bervariasi berdasarkan isi transcript (tanpa API key).
 
-        Bukan akurasi LLM sungguhan — hanya mencegah llm_content (30% bobot)
+        Bukan akurasi LLM sungguhan — hanya mencegah llm_content (bobot 22%)
         jadi angka konstan di semua window, supaya urutan ranking candidate
         tetap masuk akal walau tanpa key. Variasi dari: panjang teks, kata unik,
         hook/marker cerita, angka/digit.
@@ -155,7 +205,7 @@ Return JSON with:
         unique = len(set(w.lower() for w in words))
         char_len = len(text)
 
-        # Komponen dasar 5.0 + sinyal teks (0.0–~2.0), dibatasi 0–10
+        # Komponen dasar 6.5 + sinyal teks
         hook_boost = 1.2 if any(s in text.lower() for s in (
             "bayangkan", "apakah", "kenapa", "bagaimana", "tahukah", "perhatian",
             "the thing is", "here is why", "wait",
@@ -177,13 +227,25 @@ Return JSON with:
         def _clamp(base: float, extra: float) -> float:
             return round(min(base + extra, 10.0), 1)
 
+        c_hook = _clamp(6.5, hook_boost + hook_q)
+        complete = _clamp(6.5, story_boost * 0.5)
+        e_payoff = _clamp(6.5, activity * 0.5)
+        share = _clamp(6.5, edu_boost * 0.5)
+
         return {
             "_source": "mock",
-            "hook_score": _clamp(6.5, hook_boost + hook_q),
-            "story_score": _clamp(7.0, story_boost),
-            "emotional_score": _clamp(6.0, activity * 0.5),
-            "educational_value": _clamp(7.5, edu_boost),
-            "viral_potential": _clamp(5.5, activity * 0.4),
-            "summary": "Content analyzed (mock mode - no API key)",
-            "key_points": ["Key point 1", "Key point 2", "Key point 3"],
+            "curiosity_hook": c_hook,
+            "emotional_payoff": e_payoff,
+            "shareability": share,
+            "idea_completeness": complete,
+            # Legacy compatibility
+            "hook_score": c_hook,
+            "story_score": complete,
+            "emotional_score": e_payoff,
+            "educational_value": _clamp(6.5, edu_boost),
+            "viral_potential": share,
+            "summary": "Analisis konten transcript (mode fallback - tanpa API key)",
+            "viral_reason": "Analisis konten transcript (mode fallback - tanpa API key)",
+            "hook_headline": "Momen Menarik Pembicaraan",
+            "key_points": ["Topik utama obrolan", "Poin diskusi menarik"],
         }

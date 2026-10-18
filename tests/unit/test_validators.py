@@ -49,3 +49,62 @@ def test_validate_hook_cold_open_potential_in_body():
     assert score >= 6.0
     assert "cold-open hook" in reason
 
+
+def test_validate_baselines_for_flat_content():
+    """Flat/monotone text without hook/viral/story signals should get low calibrated baselines."""
+    from app.services.validators import validate_story, validate_viral, validate_ending
+    flat_text = "Saya makan nasi goreng tadi pagi dan minum air putih biasa saja."
+    hook_score, hook_reason = validate_hook(flat_text)
+    assert hook_score == 2.0
+    assert "Tidak ada pola hook jelas" in hook_reason
+
+    viral_score, viral_reason = validate_viral(flat_text)
+    assert viral_score == 2.0
+    assert "Tidak ada kata viral kuat" in viral_reason
+
+    story_score, _ = validate_story(flat_text)
+    assert story_score == 3.0
+
+    ending_score, _ = validate_ending(flat_text)
+    assert ending_score == 2.5
+
+
+def test_validate_pacing_dead_air_and_slow_intro():
+    """validate_pacing should penalize initial dead-air silence and slow filler intros."""
+    from app.services.validators import validate_pacing
+
+    # 1. Dead air >= 2.0s
+    score, reason = validate_pacing("Kenapa hal ini bisa terjadi?", start_delay=2.5)
+    assert score == -1.5
+    assert "Dead air" in reason
+
+    # 2. Moderate silence 1.2s - 1.9s
+    score, reason = validate_pacing("Kenapa hal ini bisa terjadi?", start_delay=1.5)
+    assert score == -0.8
+    assert "Jeda hening" in reason
+
+    # 3. Slow intro filler starter
+    score, reason = validate_pacing("Halo semuanya kembali lagi di channel gue hari ini.", start_delay=0.2)
+    assert score == -1.0
+    assert "slow-pacing" in reason
+
+    # 4. Both dead air and slow intro
+    score, reason = validate_pacing("Halo guys kembali lagi bersama kita.", start_delay=2.5)
+    assert score == -2.5
+    assert "Dead air" in reason
+    assert "slow-pacing" in reason
+
+    # 5. Clean, fast intro
+    score, reason = validate_pacing("Tahukah kamu bahwa ini rahasia terbesar?", start_delay=0.4)
+    assert score == 0.0
+    assert "baik" in reason
+
+
+def test_run_all_validators_includes_slow_start():
+    """run_all_validators should include slow_start analyzer when delay or filler exists."""
+    res = run_all_validators("Halo guys kembali lagi.", start_delay=2.5)
+    assert "slow_start" in res
+    assert res["slow_start"]["score"] < 0
+
+
+

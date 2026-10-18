@@ -140,3 +140,132 @@ def test_final_score_pure_weighted_when_no_model() -> None:
         assert score_a != score_b, f"skor harus beda per window: A={score_a}, B={score_b}"
         assert bd_a["hook"]["score"] == 9.0
         assert bd_b["hook"]["score"] == 3.0
+
+
+def test_select_top_n_filters_below_min_score() -> None:
+    """Candidates below settings.MIN_CANDIDATE_SCORE (6.0) must be rejected."""
+    engine = ScoreEngine(MagicMock())
+    cands = [
+        MagicMock(id=1, start_time=0.0, end_time=30.0, final_score=7.5),
+        MagicMock(id=2, start_time=35.0, end_time=65.0, final_score=5.2),  # di bawah 6.0
+        MagicMock(id=3, start_time=70.0, end_time=100.0, final_score=4.8), # di bawah 6.0
+    ]
+    engine.candidate_repo = MagicMock()
+    engine.candidate_repo.get_by_job.return_value = cands
+    engine.db = MagicMock()
+
+    with patch("app.services.score_engine.settings.MIN_CANDIDATE_SCORE", 6.0):
+        selected = engine.select_top_n(1, n=3)
+
+    assert len(selected) == 1
+    assert selected[0].id == 1
+
+
+def test_get_analyzer_score_neutral_fallback() -> None:
+    """Missing analyzer results in window should fallback to 5.0 (0-10 neutral scale)."""
+    engine = ScoreEngine(MagicMock())
+    score = engine._get_analyzer_score([], "gesture")
+    assert score == 5.0
+
+
+def test_score_weights_sum_and_priorities() -> None:
+    """Total default score weights must equal 1.00 and prioritize hook & content."""
+    from app.core.config.settings import settings
+
+    weights = [
+        settings.SCORE_WEIGHT_HOOK,
+        settings.SCORE_WEIGHT_LLM_CONTENT,
+        settings.SCORE_WEIGHT_VOICE_EMOTION,
+        settings.SCORE_WEIGHT_GESTURE,
+        settings.SCORE_WEIGHT_FACE_EMOTION,
+        settings.SCORE_WEIGHT_ENDING,
+        settings.SCORE_WEIGHT_STORY,
+        settings.SCORE_WEIGHT_SCENE,
+        settings.SCORE_WEIGHT_EYE_CONTACT,
+        settings.SCORE_WEIGHT_AUDIO,
+        settings.SCORE_WEIGHT_CONTEXT,
+        settings.SCORE_WEIGHT_VIRAL_POTENTIAL,
+    ]
+    assert round(sum(weights), 4) == 1.00
+    # Prioritas utama: Hook > LLM Content > Voice Emotion > Gesture > Face Emotion
+    assert settings.SCORE_WEIGHT_HOOK >= 0.25
+    assert settings.SCORE_WEIGHT_LLM_CONTENT >= 0.20
+    assert settings.SCORE_WEIGHT_VOICE_EMOTION >= 0.15
+    assert settings.SCORE_WEIGHT_HOOK > settings.SCORE_WEIGHT_GESTURE
+    assert settings.SCORE_WEIGHT_LLM_CONTENT > settings.SCORE_WEIGHT_FACE_EMOTION
+
+
+def test_hook_gatekeeper_multiplier_levels() -> None:
+    """Gatekeeper should apply correct multipliers according to hook quality."""
+    engine = ScoreEngine(MagicMock())
+
+    # None hook -> netral 1.0x
+    mult, reason = engine._calculate_hook_gatekeeper(None)
+    assert mult == 1.0
+    assert "netral" in reason
+
+    # Strong hook (>= 6.0) -> 1.0x
+    mult, reason = engine._calculate_hook_gatekeeper(7.5)
+    assert mult == 1.0
+    assert "Lolos Gatekeeper" in reason
+
+    # Moderate hook (4.0 - 5.9) -> 0.85x
+    mult, reason = engine._calculate_hook_gatekeeper(5.0)
+    assert mult == 0.85
+    assert "0.85" in reason
+
+    # Weak hook (< 4.0) -> 0.60x
+    mult, reason = engine._calculate_hook_gatekeeper(2.0)
+    assert mult == 0.60
+    assert "Penalty" in reason
+
+
+def test_weak_hook_gets_gatekeeper_discount_in_breakdown() -> None:
+    """Window with weak hook (< 4.0) should have its final legacy score discounted."""
+    mock_db = MagicMock()
+    mock_repo = MagicMock()
+    # Analyzer: Hook 2.0 (lemah), gesture 10.0 (tinggi)
+    mock_repo.get_by_job.return_value = [
+        MagicMock(analyzer_type="hook", score=2.0, start_time=0.0, end_time=10.0, result_data={"reason": "Pembuka lemah"}),
+        MagicMock(analyzer_type="gesture", score=10.0, start_time=0.0, end_time=10.0, result_data={"reason": "Tangan aktif"}),
+    ]
+
+    engine = ScoreEngine(mock_db)
+    engine.analysis_repo = mock_repo
+
+    cand = MagicMock(start_time=0.0, end_time=10.0)
+    bd = engine._calculate_score_breakdown(1, cand)
+
+    raw_weighted = bd["_meta"]["raw_weighted_sum_score"]
+    mult = bd["_meta"]["gatekeeper_multiplier"]
+    discounted = bd["_meta"]["legacy_weighted_sum_score"]
+
+    assert mult == 0.60
+    assert discounted == round(raw_weighted * 0.60, 2)
+    assert "Penalty" in bd["_meta"]["gatekeeper_reason"]
+
+
+def test_score_engine_applies_slow_start_penalty() -> None:
+    """ScoreEngine should deduct slow_start penalty from weighted score."""
+    mock_db = MagicMock()
+    mock_repo = MagicMock()
+    # Analyzer: Hook 8.0, gesture 8.0, slow_start -1.5
+    mock_repo.get_by_job.return_value = [
+        MagicMock(analyzer_type="hook", score=8.0, start_time=0.0, end_time=10.0, result_data={"reason": "Pembuka kuat"}),
+        MagicMock(analyzer_type="gesture", score=8.0, start_time=0.0, end_time=10.0, result_data={"reason": "Tangan aktif"}),
+        MagicMock(analyzer_type="slow_start", score=-1.5, start_time=0.0, end_time=10.0, result_data={"reason": "Dead air 2.5s"}),
+    ]
+
+    engine = ScoreEngine(mock_db)
+    engine.analysis_repo = mock_repo
+
+    cand = MagicMock(start_time=0.0, end_time=10.0)
+    bd = engine._calculate_score_breakdown(1, cand)
+
+    assert "penalty" in bd
+    assert bd["penalty"]["contribution"] == -1.5
+    assert "Dead air 2.5s" in bd["penalty"]["reason"]
+
+
+
+
