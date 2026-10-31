@@ -45,6 +45,19 @@
   </table>
   {% endif %}
   
+  {% if errors %}
+  <div class="mt-3 pt-2 border-top border-secondary-subtle">
+    <small class="text-danger fw-semibold d-block mb-1"><i class="bi bi-exclamation-octagon me-1"></i>Error Details ({{ errors|length }}):</small>
+    <div class="rounded p-2 bg-dark bg-opacity-50 small" style="max-height: 120px; overflow-y: auto;">
+      {% for err in errors %}
+      <div class="text-white-50 text-truncate mb-1" title="{{ err.source }}: {{ err.error }}">
+        <span class="text-danger">&bull;</span> <code class="text-secondary">{{ err.source }}</code>: {{ err.error }}
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
   {% if status == 'finished' %}
   <div class="alert alert-success mt-3 mb-0">
     <i class="bi bi-check-circle-fill me-1"></i> Import {{ t("import.done") }}! View results on <a href="/candidates" class="alert-link">{{ t("import.candidatesPage") }}</a>.

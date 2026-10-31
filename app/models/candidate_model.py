@@ -28,6 +28,7 @@ class CandidateModel(Base, TimestampMixin):
     hook_confidence: Mapped[float | None] = mapped_column(Float, nullable=True)  # 0.0-1.0 dari LLM
     hook_caption: Mapped[str | None] = mapped_column(Text, nullable=True)    # caption overlay hasil LLM
     status: Mapped[str] = mapped_column(Text, nullable=False, default="candidate")
+    source: Mapped[str] = mapped_column(Text, nullable=False, default="scoring")  # scoring | ai
     actual_score: Mapped[float | None] = mapped_column(Float, nullable=True)
     is_training_example: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     label_source: Mapped[str | None] = mapped_column(Text, nullable=True)

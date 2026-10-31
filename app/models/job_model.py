@@ -2,7 +2,7 @@
 
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, Integer, Text
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base, TimestampMixin
@@ -26,6 +26,11 @@ class JobModel(Base, TimestampMixin):
     # Progress terakhir yang sudah "dikunci" (monotonic) — dijaga supaya stale
     # update tidak bisa nurunin progress yang sudah dikirim ke UI.
     progress_percent: Mapped[int | None] = mapped_column(Integer)
+
+    # Kolom untuk AI Discovery
+    ai_category_text: Mapped[str | None] = mapped_column(Text, nullable=True)
+    ai_scan_visual: Mapped[bool | None] = mapped_column(Boolean, nullable=True, default=True)
+    ai_content_brief: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     video: Mapped["VideoModel"] = relationship(back_populates="jobs")
     category: Mapped["CategoryModel | None"] = relationship(back_populates="jobs")

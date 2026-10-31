@@ -1,7 +1,7 @@
 """Audio Spike Detector Service — visual & acoustic emotion peak detection.
 
 Mendeteksi lonjakan emosi/volume audio (teriakan, kaget, ketawa ngakak, jumpscare)
-dari video/audio sumber untuk Auto Hook Retargeting (Fitur 4).
+dari video/audio sumber untuk Auto Hook Retargeting dan AI Video Analysis.
 """
 
 from __future__ import annotations
@@ -99,6 +99,94 @@ class AudioSpikeDetectorService:
             "duration": round(actual_dur, 2),
         }
 
+    def detect_timeline_spikes(
+        self,
+        media_path: str | Path,
+        min_gap_seconds: float = 12.0,
+        max_peaks: int = 35,
+        sample_rate: int = 8000,
+    ) -> list[dict[str, Any]]:
+        """Scan timeline seluruh video/audio dan deteksi puncak lonjakan audio (teriakan/tawa/reaksi).
+
+        Returns:
+            list of dict: [
+                {"time": 182.4, "time_str": "03:02", "spike_db": 14.5, "peak_db": -12.1},
+                ...
+            ] diurutkan berdasarkan timestamp secara ascending.
+        """
+        path = Path(media_path)
+        if not path.exists():
+            logger.warning("AudioSpikeDetector: File tidak ditemukan untuk timeline: %s", path)
+            return []
+
+        # Ekstrak audio mono downsampled 8kHz untuk seluruh file (sangat ringan dan cepat)
+        audio_data = self._extract_audio_samples(
+            path,
+            start_time=0.0,
+            duration=None,
+            sample_rate=sample_rate,
+            timeout=180,
+        )
+        if audio_data is None or len(audio_data) < sample_rate * 2.0:
+            return []
+
+        hop_len = int(sample_rate * 0.1)     # 100 ms hop
+        frame_len = int(sample_rate * 0.2)   # 200 ms window
+        num_frames = max(1, (len(audio_data) - frame_len) // hop_len + 1)
+        rms = np.zeros(num_frames, dtype=np.float32)
+
+        for i in range(num_frames):
+            frame = audio_data[i * hop_len : i * hop_len + frame_len]
+            rms[i] = np.sqrt(np.mean(frame**2)) if len(frame) > 0 else 0.0
+
+        db = 20.0 * np.log10(np.clip(rms, 1e-6, None))
+        times = np.arange(num_frames) * (hop_len / sample_rate)
+
+        mean_db = float(np.mean(db))
+        std_db = float(np.std(db))
+        threshold = max(mean_db + 1.2 * std_db, -22.0)
+
+        # Cari kandidat puncak lokal
+        candidates: list[dict[str, Any]] = []
+        min_gap_frames = int(min_gap_seconds / (hop_len / sample_rate))
+
+        # Cari local maxima sederhana
+        for i in range(1, num_frames - 1):
+            if db[i] >= threshold and (db[i] - mean_db) >= 5.0:
+                if db[i] >= db[i - 1] and db[i] >= db[i + 1]:
+                    t = float(times[i])
+                    mins = int(t // 60)
+                    secs = int(t % 60)
+                    candidates.append({
+                        "frame_idx": i,
+                        "time": round(t, 1),
+                        "time_str": f"{mins:02d}:{secs:02d}",
+                        "spike_db": round(float(db[i] - mean_db), 1),
+                        "peak_db": round(float(db[i]), 1),
+                    })
+
+        if not candidates:
+            return []
+
+        # Sort berdasarkan kekuatan spike descending untuk non-maximum suppression berbasis min_gap
+        candidates.sort(key=lambda x: x["spike_db"], reverse=True)
+        selected: list[dict[str, Any]] = []
+
+        for cand in candidates:
+            # Pastikan tidak terlalu dekat dengan puncak yang sudah dipilih
+            if any(abs(cand["time"] - s["time"]) < min_gap_seconds for s in selected):
+                continue
+            selected.append(cand)
+            if len(selected) >= max_peaks:
+                break
+
+        # Urutkan kembali berdasarkan waktu ascending untuk timeline yang natural bagi LLM
+        selected.sort(key=lambda x: x["time"])
+        for item in selected:
+            item.pop("frame_idx", None)
+
+        return selected
+
     def get_hook_window_from_spike(
         self,
         peak_time: float,
@@ -111,11 +199,7 @@ class AudioSpikeDetectorService:
         Dimulai 0.75 detik sebelum puncak teriakan agar ekspresi sebelum teriak
         (windup/gasp) ikut tertangkap, berdurasi teaser_duration detik.
         """
-        # Mulai 0.75s sebelum puncak
         ideal_start = peak_time - 0.75
-
-        # Jaga agar tidak terlalu dekat ke awal window jika memungkinkan
-        # (beri ruang minimal 1.0s dari window_start)
         min_start = window_start + 1.0 if (window_end - window_start) > 6.0 else window_start
         max_start = max(min_start, window_end - teaser_duration)
 
@@ -128,29 +212,34 @@ class AudioSpikeDetectorService:
         self,
         path: Path,
         start_time: float,
-        duration: float,
+        duration: float | None,
         sample_rate: int,
+        timeout: int = 30,
     ) -> np.ndarray | None:
         """Ekstrak audio slice via FFmpeg pipe (cepat & hemat memori)."""
         cmd = [
             self.ffmpeg_path,
             "-y",
-            "-ss", str(max(0.0, start_time)),
-            "-t", str(max(0.1, duration)),
+        ]
+        if start_time > 0.0:
+            cmd.extend(["-ss", str(start_time)])
+        if duration is not None and duration > 0:
+            cmd.extend(["-t", str(duration)])
+        cmd.extend([
             "-i", str(path),
             "-vn",
             "-f", "wav",
             "-ar", str(sample_rate),
             "-ac", "1",
             "-",
-        ]
+        ])
         try:
             with subprocess.Popen(
                 cmd,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
             ) as proc:
-                stdout_data, _ = proc.communicate(timeout=30)
+                stdout_data, _ = proc.communicate(timeout=timeout)
                 if proc.returncode == 0 and len(stdout_data) > 44:  # WAV header > 44 bytes
                     data, _ = sf.read(io.BytesIO(stdout_data), dtype="float32")
                     return data
@@ -160,12 +249,13 @@ class AudioSpikeDetectorService:
         # Fallback ke librosa langsung jika ffmpeg pipe gagal
         try:
             import librosa
+            dur_arg = duration if (duration is not None and duration > 0) else None
             data, _ = librosa.load(
                 str(path),
                 sr=sample_rate,
                 mono=True,
                 offset=max(0.0, start_time),
-                duration=max(0.1, duration),
+                duration=dur_arg,
             )
             return data
         except Exception as e:

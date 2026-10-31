@@ -112,6 +112,7 @@ class TrainingImportService:
             "completed": 0,
             "failed": 0,
             "jobs": [],
+            "errors": [],
         }
 
         def _run_row(row: dict) -> None:
@@ -159,6 +160,10 @@ class TrainingImportService:
                 )
             except Exception as e:
                 _IMPORTS[import_id]["failed"] += 1
+                _IMPORTS[import_id].setdefault("errors", []).append({
+                    "source": row.get("source", ""),
+                    "error": str(e),
+                })
                 logger.error("Bulk import %s: baris gagal (%s): %s", import_id, row["source"], e)
             finally:
                 _IMPORTS[import_id]["queued"] -= 1
@@ -195,4 +200,5 @@ class TrainingImportService:
             "queued": queued,
             "percent": percent,
             "job_ids": entry["jobs"],
+            "errors": entry.get("errors", []),
         }

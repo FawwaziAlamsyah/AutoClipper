@@ -20,3 +20,11 @@ class ProcessRequest(BaseModel):
     skip_keywords: list[str] = Field(default_factory=list, description="Keyword yang memicu penalty (sponsor, subscribe, dll)")
     analyze_start_time: float | None = Field(None, description="Batasi analisis dari detik ini")
     analyze_end_time: float | None = Field(None, description="Batasi analisis sampai detik ini")
+
+
+class AIProcessRequest(BaseModel):
+    """Parameter untuk proses kurasi video 'Analys by AI'."""
+
+    category_text: str = Field("", description="Teks bebas kategori video yang diinterpretasikan oleh AI")
+    scan_visual: bool = True
+    content_brief: str | None = Field(None, description="Brief campaign atau instruksi khusus client clipper opsional")

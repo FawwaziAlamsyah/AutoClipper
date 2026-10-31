@@ -9,7 +9,7 @@ from app.repositories.training_run_repository import TrainingRunRepository
 
 logger = logging.getLogger(__name__)
 
-LABEL_SOURCES = ("real_performance", "user_liked")
+LABEL_SOURCES = ("real_performance", "user_liked", "user_disliked")
 
 
 class TrainingStatsService:

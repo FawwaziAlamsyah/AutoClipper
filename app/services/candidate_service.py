@@ -194,20 +194,40 @@ class CandidateService:
             self.db.refresh(candidate)
         return candidate
 
-    def mark_as_disliked(self, candidate_id: int) -> CandidateModel:
-        """Tandai candidate sebagai clip JELEK — cuma penanda kualitas, TIDAK
-        dipakai sebagai data training (beda dari desain lama). Cukup untuk
-        menyembunyikan/menandai, fokus training murni dari kategori positif.
-        """
+    def mark_as_disliked(self, candidate_id: int, category_id: int | None = None) -> CandidateModel:
+        """Tandai candidate sebagai clip JELEK / contoh negatif untuk data training model."""
         candidate = self.candidate_repo.get(candidate_id)
         if candidate is None:
             raise ValueError(f"Candidate {candidate_id} not found")
+
+        # Jika category_id diberikan secara eksplisit, validasi dan pasang
+        if category_id is not None:
+            from app.models.category_model import CategoryModel
+            category = self.db.query(CategoryModel).filter(CategoryModel.id == category_id).first()
+            if category is None:
+                raise ValueError(f"Kategori {category_id} tidak ditemukan. Buat kategori dulu di menu Training.")
+            candidate.category_id = category_id
+        elif candidate.category_id is None:
+            # Fallback ke category_id dari video atau job jika tersedia
+            if candidate.video and getattr(candidate.video, "category_id", None):
+                candidate.category_id = candidate.video.category_id
+            elif candidate.job and getattr(candidate.job, "category_id", None):
+                candidate.category_id = candidate.job.category_id
+
         candidate.label_source = "user_disliked"
-        # is_training_example & actual_score SENGAJA tidak diisi — dislike
-        # tidak lagi berkontribusi ke data training sama sekali.
+        candidate.actual_score = getattr(settings, "DISLIKED_CLIP_DEFAULT_SCORE", 2.0)
+        # Jika candidate memiliki kategori, jadikan data latih negatif (is_training_example=True)
+        if candidate.category_id is not None:
+            candidate.is_training_example = True
+        else:
+            candidate.is_training_example = False
+
         self.db.commit()
         self.db.refresh(candidate)
-        logger.info("Candidate %d ditandai jelek (bukan data training)", candidate_id)
+        logger.info(
+            "Candidate %d ditandai jelek / data training negatif (score=%.1f, kategori=%s, is_training=%s)",
+            candidate_id, candidate.actual_score, candidate.category_id, candidate.is_training_example,
+        )
         return candidate
 
     def unmark_disliked(self, candidate_id: int) -> CandidateModel:

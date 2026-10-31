@@ -2,7 +2,7 @@
 
 Memungkinkan pergantian model LLM secara dinamis lewat menu Settings di UI.
 Data tersimpan di data/llm_config.json agar konsisten diakses oleh
-seluruh pipeline background (HookMomentFinder, LLMAnalyzer, dsb).
+seluruh pipeline background (HookMomentFinder, LLMAnalyzer, AICurator, dsb).
 """
 
 import json
@@ -48,6 +48,7 @@ def _get_defaults() -> dict[str, Any]:
         "active_provider": active_provider,
         "gemini": {
             "model": getattr(settings, "GEMINI_MODEL", "gemini-flash-latest"),
+            "curator_model": "gemini-flash-lite-latest",
             "api_key": getattr(settings, "GEMINI_API_KEY", ""),
             "base_url": getattr(
                 settings,
@@ -58,6 +59,7 @@ def _get_defaults() -> dict[str, Any]:
         },
         "9router": {
             "model": getattr(settings, "LLM_MODEL", "DABOJI"),
+            "curator_model": getattr(settings, "LLM_MODEL", "DABOJI"),
             "api_key": getattr(settings, "LLM_API_KEY", ""),
             "base_url": getattr(settings, "LLM_BASE_URL", "http://localhost:20128/v1"),
         },
@@ -89,7 +91,7 @@ def get_llm_config() -> dict[str, Any]:
 
 
 def get_active_llm() -> dict[str, str]:
-    """Ambil konfigurasi aktif untuk digunakan oleh client LLM."""
+    """Ambil konfigurasi aktif untuk digunakan oleh client LLM standar."""
     cfg = get_llm_config()
     provider = cfg.get("active_provider", "9router")
     if provider == "gemini":
@@ -118,12 +120,34 @@ def get_active_llm() -> dict[str, str]:
         }
 
 
+def get_curator_llm() -> dict[str, str]:
+    """Ambil konfigurasi aktif khusus AI Curator (Analys by AI)."""
+    cfg = get_llm_config()
+    provider = cfg.get("active_provider", "9router")
+    active = get_active_llm()
+    if provider == "gemini":
+        p_cfg = cfg.get("gemini", {})
+        curator_model = p_cfg.get("curator_model")
+        if not curator_model:
+            curator_model = p_cfg.get("model", "gemini-flash-lite-latest")
+        if curator_model not in SUPPORTED_GEMINI_MODELS:
+            curator_model = "gemini-flash-lite-latest"
+        active["model"] = curator_model
+    else:
+        p_cfg = cfg.get("9router", {})
+        curator_model = p_cfg.get("curator_model") or p_cfg.get("model") or "DABOJI"
+        active["model"] = curator_model
+    return active
+
+
 def save_llm_config(
     active_provider: str,
     gemini_model: str | None = None,
+    gemini_curator_model: str | None = None,
     gemini_api_key: str | None = None,
     gemini_base_url: str | None = None,
     router9_model: str | None = None,
+    router9_curator_model: str | None = None,
     router9_api_key: str | None = None,
     router9_base_url: str | None = None,
 ) -> dict[str, Any]:
@@ -134,6 +158,8 @@ def save_llm_config(
 
     if gemini_model:
         cfg["gemini"]["model"] = gemini_model
+    if gemini_curator_model:
+        cfg["gemini"]["curator_model"] = gemini_curator_model
     if gemini_api_key is not None:
         cfg["gemini"]["api_key"] = gemini_api_key.strip()
     if gemini_base_url:
@@ -141,6 +167,8 @@ def save_llm_config(
 
     if router9_model:
         cfg["9router"]["model"] = router9_model
+    if router9_curator_model:
+        cfg["9router"]["curator_model"] = router9_curator_model
     if router9_api_key is not None:
         cfg["9router"]["api_key"] = router9_api_key.strip()
     if router9_base_url:
@@ -209,7 +237,6 @@ def ping_llm_connection(
                     f"Silakan pilih model 'gemini-flash-lite-latest' atau 'gemini-3.5-flash-lite' di dropdown."
                 )
             elif response.status_code == 503:
-                # Coba uji fallback ke gemini-flash-lite-latest jika model yang diuji bukan gemini-flash-lite-latest
                 if provider == "gemini" and model != "gemini-flash-lite-latest":
                     fb_payload = dict(payload, model="gemini-flash-lite-latest")
                     try:

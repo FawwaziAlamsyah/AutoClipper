@@ -11,6 +11,9 @@
         <div class="d-flex flex-wrap gap-2 align-items-center mb-2">
           <span class="badge bg-secondary">Video #{{ candidate.video_id }}</span>
           <span class="badge bg-dark border border-secondary-subtle">Job #{{ candidate.job_id }}</span>
+          {% if candidate.source == 'ai' %}
+          <span class="badge" style="background: linear-gradient(135deg, #6366f1, #a855f7); color: #fff; font-weight: 600;">🤖 AI Curated</span>
+          {% endif %}
           <span class="badge bg-{{ 'success' if candidate.status == 'selected' else ('danger' if candidate.status == 'rejected' else 'info') }}">{{ candidate.status }}</span>
           <span class="badge bg-primary d-none">Video {{ candidate.video_id }}</span>
           <span class="badge bg-secondary d-none">Job {{ candidate.job_id }}</span>
@@ -32,6 +35,9 @@
         {% set meta_info = bd.get('_meta', {}) %}
 
         <div class="d-flex flex-wrap gap-1 align-items-center mb-2">
+          {% if candidate.source == 'ai' and bd.get('archetype') %}
+          <span class="badge" style="background: rgba(168,85,247,0.2); border: 1px solid rgba(168,85,247,0.4); color: #e9d5ff;">🏷️ {{ bd.get('archetype') | upper }}</span>
+          {% endif %}
           {% if hook_info and hook_info.score >= 7.0 %}
           <span class="badge bg-success bg-opacity-25 text-success border border-success-subtle" title="Pembuka sangat kuat di detik awal (Skor: {{ '%.1f'|format(hook_info.score) }})">🎯 Strong Hook ({{ '%.1f'|format(hook_info.score) }})</span>
           {% endif %}
@@ -49,10 +55,10 @@
           {% endif %}
         </div>
 
-        {% set viral_desc = llm_info.reason if (llm_info and llm_info.reason and llm_info.reason != 'Skor konten dari analisis LLM') else (hook_info.reason if (hook_info and hook_info.reason and 'Tidak ada pola' not in hook_info.reason) else '') %}
+        {% set viral_desc = bd.get('why_viral') if (candidate.source == 'ai' and bd.get('why_viral')) else (llm_info.reason if (llm_info and llm_info.reason and llm_info.reason != 'Skor konten dari analisis LLM') else (hook_info.reason if (hook_info and hook_info.reason and 'Tidak ada pola' not in hook_info.reason) else '')) %}
         {% if viral_desc %}
         <p class="small text-white-50 mb-2 fst-italic">
-          <i class="bi bi-stars text-warning me-1"></i><strong>AI Viral Analysis:</strong> {{ viral_desc }}
+          <i class="bi bi-stars text-warning me-1"></i><strong>{% if candidate.source == 'ai' %}Viral Potential (AI):{% else %}AI Viral Analysis:{% endif %}</strong> {{ viral_desc }}
         </p>
         {% endif %}
 

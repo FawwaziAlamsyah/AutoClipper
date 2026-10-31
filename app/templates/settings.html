@@ -136,6 +136,16 @@
                   <input type="text" class="form-control form-control-sm bg-body-secondary text-body"
                          value="{{ user_google_account }}" readonly disabled>
                 </div>
+                <div class="col-md-6">
+                  <label class="form-label small text-muted">Model AI Analys (Curator / Multimodal Vision)</label>
+                  <select name="gemini_curator_model" class="form-select form-select-sm">
+                    {% for m in gemini_models %}
+                    <option value="{{ m }}" {% if (llm_config.gemini.curator_model or 'gemini-3.8-flash') == m %}selected{% endif %}>
+                      {{ m }}{% if m == 'gemini-3.8-flash' %} (Recommended for Vision){% elif m == 'gemini-flash-latest' %} (Fast Vision){% endif %}
+                    </option>
+                    {% endfor %}
+                  </select>
+                </div>
                 <div class="col-12">
                   <label class="form-label small text-muted fw-semibold">{{ t("settings.geminiApiKeyLabel") }}</label>
                   <div class="input-group input-group-sm">

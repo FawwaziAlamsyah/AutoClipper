@@ -13,11 +13,13 @@ from app.core.di.dependencies import (
     get_job_service,
     get_process_service,
     get_video_service,
+    get_category_service,
+    get_ai_discovery_service,
 )
 from app.core.exceptions.base import ValidationException
 from app.core.htmx import render
 from app.schemas.video_schema import VideoDetail, VideoUploadResponse, VideoDownloadRequest
-from app.schemas.process_schema import ProcessRequest
+from app.schemas.process_schema import ProcessRequest, AIProcessRequest
 from app.services.video_service import VideoService
 from app.services.download_service import DownloadService
 from app.services.process_service import ProcessService
@@ -34,6 +36,7 @@ def upload_page(
     request: Request,
     service: VideoService = Depends(get_video_service),
     job_service: JobService = Depends(get_job_service),
+    category_service: CategoryService = Depends(get_category_service),
 ) -> HTMLResponse:
     """Render the upload page."""
     running_jobs = job_service.get_running_by_video()
@@ -48,6 +51,7 @@ def upload_page(
             "max_size_mb": settings.MAX_UPLOAD_SIZE_MB,
             "videos": service.list_all(),
             "running_jobs": running_jobs,
+            "categories": category_service.list_categories(),
         },
     )
 
@@ -253,6 +257,68 @@ def process_training_clip(
     thread = threading.Thread(
         target=_run_training_process,
         args=(video_id, job_id, actual_score),
+        daemon=True,
+    )
+    thread.start()
+    return {"job_id": job_id, "status": "running"}
+
+
+def _run_ai_process(
+    video_id: int,
+    job_id: int,
+    category_text: str,
+    scan_visual: bool,
+    content_brief: str | None = None,
+) -> None:
+    """Run AI Discovery pipeline in background thread with its own DB session."""
+    from app.db.session import SessionLocal
+    from app.services.ai_discovery_service import AIDiscoveryService
+    db = SessionLocal()
+    try:
+        service = AIDiscoveryService(db)
+        service.process_ai_video(
+            video_id,
+            job_id=job_id,
+            category_text=category_text,
+            scan_visual=scan_visual,
+            content_brief=content_brief,
+        )
+    except Exception as e:
+        logger.error("Background AI process failed: %s", e, exc_info=e)
+        db.rollback()
+        try:
+            service = AIDiscoveryService(db)
+            job = service.job_service.get(job_id)
+            if job.status != "cancelled":
+                step = job.current_step or "ai_curate"
+                service.job_service.finish_step(job_id, step, success=False, error=str(e))
+        except Exception:
+            pass
+    finally:
+        db.close()
+
+
+@router.post("/videos/{video_id}/process-ai")
+def process_video_ai(
+    video_id: int,
+    req: AIProcessRequest | None = None,
+    service: "AIDiscoveryService" = Depends(get_ai_discovery_service),
+) -> dict:
+    """Start background AI Discovery curation pipeline."""
+    import threading
+
+    if req is None:
+        req = AIProcessRequest()
+
+    job_id = service.create_job(
+        video_id,
+        category_text=req.category_text,
+        scan_visual=req.scan_visual,
+        content_brief=req.content_brief,
+    )
+    thread = threading.Thread(
+        target=_run_ai_process,
+        args=(video_id, job_id, req.category_text, req.scan_visual, req.content_brief),
         daemon=True,
     )
     thread.start()

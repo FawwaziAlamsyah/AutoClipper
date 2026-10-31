@@ -18,6 +18,15 @@ class CandidateRepository(PostgresRepository[CandidateModel]):
             .all()
         )
 
+    def get_by_video(self, video_id: int) -> list[CandidateModel]:
+        """Get all candidates for a video ordered by final_score descending."""
+        return list(
+            self.db.query(CandidateModel)
+            .filter(CandidateModel.video_id == video_id)
+            .order_by(CandidateModel.final_score.desc())
+            .all()
+        )
+
     def update_status(self, candidate_id: int, status: str) -> CandidateModel | None:
         """Update candidate status (candidate/selected/rejected)."""
         candidate = self.get(candidate_id)
@@ -29,13 +38,14 @@ class CandidateRepository(PostgresRepository[CandidateModel]):
         return candidate
 
     def get_training_examples(self, category_id: int) -> list[CandidateModel]:
-        """Get training examples for one category only."""
+        """Get training examples for one category only (exclude AI-curated clips without analyzer features)."""
         return list(
             self.db.query(CandidateModel)
             .filter(
                 CandidateModel.is_training_example == True,  # noqa: E712
                 CandidateModel.actual_score.isnot(None),
                 CandidateModel.category_id == category_id,
+                CandidateModel.source != "ai",
             )
             .all()
         )

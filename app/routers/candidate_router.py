@@ -100,6 +100,14 @@ def candidates_by_video(
             "start_time": int(c.start_time),
             "end_time": int(c.end_time),
             "final_score": c.final_score,
+            "score_breakdown": c.score_breakdown or {},
+            "hook_text": c.hook_text,
+            "hook_moment_start": c.hook_moment_start,
+            "hook_moment_end": c.hook_moment_end,
+            "hook_type": c.hook_type,
+            "hook_confidence": c.hook_confidence,
+            "hook_caption": c.hook_caption,
+            "source": c.source or "scoring",
             "status": c.status,
             "label_source": c.label_source,
             "actual_score": c.actual_score,
@@ -274,14 +282,15 @@ def uncategorize_candidate(
 def dislike_candidate(
     request: Request,
     candidate_id: int,
+    category_id: int | None = None,
     service: CandidateService = Depends(get_candidate_service),
     category_service: CategoryService = Depends(get_category_service),
 ) -> HTMLResponse:
-    """Tandai candidate sebagai clip jelek (bukan data training)."""
+    """Tandai candidate sebagai clip jelek / data training negatif."""
     try:
-        candidate = service.mark_as_disliked(candidate_id)
-    except ValueError:
-        raise NotFoundException(f"Candidate {candidate_id} tidak ditemukan")
+        candidate = service.mark_as_disliked(candidate_id, category_id=category_id)
+    except ValueError as e:
+        raise NotFoundException(str(e))
     categories = category_service.list_categories()
     return templates.TemplateResponse(
         request=request,
@@ -340,5 +349,6 @@ def _to_detail(c) -> CandidateDetail:
         score_breakdown=c.score_breakdown or {},
         hook_text=c.hook_text,
         status=c.status,
+        source=c.source or "scoring",
         created_at=c.created_at,
     )

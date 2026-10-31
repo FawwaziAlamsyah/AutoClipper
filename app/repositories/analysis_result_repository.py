@@ -23,18 +23,23 @@ class AnalysisResultRepository(PostgresRepository[AnalysisResultModel]):
         start_time: float,
         end_time: float,
     ) -> list[AnalysisResultModel]:
-        """Get analysis results for a specific job window (exact start/end match).
+        """Get analysis results for a specific job window.
 
-        Dipakai oleh trainer.py untuk membangun feature vector per candidate —
-        start/end dari analysis_results selalu sama persis dengan window
-        candidate karena analysis_service membuat keduanya dari sumber yang sama.
+        Mendukung toleransi float precision (0.15 detik) dan menyertakan analisis
+        global (start_time is None) agar selaras 1:1 dengan cand_analysis pada ScoreEngine.
         """
+        from sqlalchemy import and_, func, or_
         return list(
             self.db.query(AnalysisResultModel)
             .filter(
                 AnalysisResultModel.job_id == job_id,
-                AnalysisResultModel.start_time == start_time,
-                AnalysisResultModel.end_time == end_time,
+                or_(
+                    and_(
+                        func.abs(AnalysisResultModel.start_time - start_time) < 0.15,
+                        func.abs(AnalysisResultModel.end_time - end_time) < 0.15,
+                    ),
+                    AnalysisResultModel.start_time.is_(None),
+                ),
             )
             .all()
         )

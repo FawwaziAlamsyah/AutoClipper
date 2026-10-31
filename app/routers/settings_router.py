@@ -101,6 +101,7 @@ def settings_save(
     # LLM Settings (opsional bila form dikirim parsial atau dari modul lain)
     llm_provider: str | None = Form(None),
     gemini_model: str = Form("gemini-flash-latest"),
+    gemini_curator_model: str | None = Form(None),
     gemini_api_key: str | None = Form(None),
     router9_model: str | None = Form(None),
     router9_base_url: str | None = Form(None),
@@ -118,6 +119,7 @@ def settings_save(
         save_llm_config(
             active_provider=llm_provider,
             gemini_model=gemini_model,
+            gemini_curator_model=gemini_curator_model,
             gemini_api_key=gemini_api_key,
             router9_model=router9_model,
             router9_base_url=router9_base_url,
@@ -160,4 +162,4 @@ def settings_test_llm(
         f'<div class="alert {alert_class} py-2 px-3 small mt-2 mb-0" role="alert">'
         f'<strong>{icon}</strong> {msg}'
         f'</div>'
-    )
+    )

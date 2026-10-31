@@ -129,3 +129,8 @@ def get_instagram_publish_service(db: Session = Depends(get_db)):
 def get_instagram_post_service(db: Session = Depends(get_db)):
     from app.services.instagram_post_service import InstagramPostService
     return InstagramPostService(db)
+
+
+def get_ai_discovery_service(db: Session = Depends(get_db)):
+    from app.services.ai_discovery_service import AIDiscoveryService
+    return AIDiscoveryService(db)

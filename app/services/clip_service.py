@@ -225,25 +225,41 @@ class ClipService:
             # Cari nama kategori untuk konteks LLM
             category_name = candidate.category.name if candidate.category else None
 
-            finder = HookMomentFinder()
-            hook_moment, skip_reason = finder.find(segs_in_window, category_name, audio_spikes=audio_spikes)
-
-            if hook_moment is None:
-                logger.info(
-                    "Auto Hook skip candidate %d: %s (segments in window: %d, api_key_set: %s)",
-                    candidate.id, skip_reason, len(segs_in_window), bool(finder.api_key),
+            # Jika candidate sudah memiliki hook_moment_start dari AI Discovery, pakai langsung tanpa LLM call ulang
+            if (
+                isinstance(getattr(candidate, "hook_moment_start", None), (int, float))
+                and isinstance(getattr(candidate, "hook_moment_end", None), (int, float))
+                and effective_start <= candidate.hook_moment_start <= effective_end
+            ):
+                from app.ai_modules.hook_analysis.hook_moment_finder import HookMoment
+                hook_moment = HookMoment(
+                    hook_moment_start=candidate.hook_moment_start,
+                    hook_moment_end=candidate.hook_moment_end,
+                    hook_type=candidate.hook_type or "shock",
+                    hook_confidence=candidate.hook_confidence or 0.8,
+                    hook_caption=candidate.hook_caption or candidate.hook_text or "MOMEN TAK TERDUGA!",
                 )
-                clip.hook_skip_reason = skip_reason
-                self.db.commit()
-                return
+                logger.info("Auto Hook: Pakai hook yang sudah disiapkan AI Discovery untuk candidate %d", candidate.id)
+            else:
+                finder = HookMomentFinder()
+                hook_moment, skip_reason = finder.find(segs_in_window, category_name, audio_spikes=audio_spikes)
 
-            # Simpan hasil ke candidate (untuk ditampilkan di tab Hook UI)
-            candidate.hook_moment_start = hook_moment.hook_moment_start
-            candidate.hook_moment_end   = hook_moment.hook_moment_end
-            candidate.hook_type         = hook_moment.hook_type
-            candidate.hook_confidence   = hook_moment.hook_confidence
-            candidate.hook_caption      = hook_moment.hook_caption
-            self.db.commit()
+                if hook_moment is None:
+                    logger.info(
+                        "Auto Hook skip candidate %d: %s (segments in window: %d, api_key_set: %s)",
+                        candidate.id, skip_reason, len(segs_in_window), bool(finder.api_key),
+                    )
+                    clip.hook_skip_reason = skip_reason
+                    self.db.commit()
+                    return
+
+                # Simpan hasil ke candidate (untuk ditampilkan di tab Hook UI)
+                candidate.hook_moment_start = hook_moment.hook_moment_start
+                candidate.hook_moment_end   = hook_moment.hook_moment_end
+                candidate.hook_type         = hook_moment.hook_type
+                candidate.hook_confidence   = hook_moment.hook_confidence
+                candidate.hook_caption      = hook_moment.hook_caption
+                self.db.commit()
 
             # Compose cold-open
             norm_ratio, norm_layout = self._resolve_aspect_and_layout(clip.aspect_ratio, layout)

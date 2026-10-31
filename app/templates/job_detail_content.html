@@ -20,9 +20,24 @@
         <span class="text-muted small"><i class="bi bi-check2-circle me-1 text-success"></i>{{ status.completed_steps }} / {{ status.total_steps }} steps completed</span>
       </div>
       {% if status.error_message %}<div class="alert alert-danger mt-3 mb-0">{{ status.error_message }}</div>{% endif %}
+      {% if status.ai_content_brief %}
+      <div class="mt-3 p-2 rounded bg-black bg-opacity-50 border border-secondary border-opacity-50 small">
+        <div class="fw-semibold text-info mb-1"><i class="bi bi-file-earmark-text me-1"></i>Campaign Content Brief:</div>
+        <div class="text-white-50" style="white-space: pre-wrap;">{{ status.ai_content_brief }}</div>
+      </div>
+      {% endif %}
     </div>
-    <button class="btn btn-sm btn-warning"
-            onclick="cancelJob(this, {{ status.job_id }})">{{ t("job.cancel") }}</button>
+    <div class="d-flex gap-2 align-items-center">
+      {% if status.status == 'failed' %}
+      <button class="btn btn-sm btn-primary"
+              hx-post="/jobs/{{ status.job_id }}/retry"
+              hx-target="#main-content">
+        <i class="bi bi-arrow-clockwise me-1"></i> Retry
+      </button>
+      {% endif %}
+      <button class="btn btn-sm btn-warning"
+              onclick="cancelJob(this, {{ status.job_id }})">{{ t("job.cancel") }}</button>
+    </div>
   </div>
 
   <!-- Progress bar diupdate via htmx polling -->

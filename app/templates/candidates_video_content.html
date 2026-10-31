@@ -23,11 +23,27 @@
 </div>
 
 {% if candidates %}
-<div class="sec-h mb-3">
-  <h4 class="mb-0 fs-5 fw-semibold">{{ candidates | length }} candidates</h4>
+{% set ai_candidates = candidates | selectattr('source', 'equalto', 'ai') | list %}
+{% set scoring_candidates = candidates | rejectattr('source', 'equalto', 'ai') | list %}
+
+<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3 pb-2 border-bottom border-secondary border-opacity-25">
+  <div class="d-flex align-items-center gap-2">
+    <button class="btn btn-sm btn-primary active filter-source-btn" data-filter="all" onclick="filterCandidates('all')">
+      Semua ({{ candidates | length }})
+    </button>
+    <button class="btn btn-sm btn-outline-secondary filter-source-btn" data-filter="ai" onclick="filterCandidates('ai')" style="border-color: #a855f7;">
+      🤖 AI Curated ({{ ai_candidates | length }})
+    </button>
+    <button class="btn btn-sm btn-outline-secondary filter-source-btn" data-filter="scoring" onclick="filterCandidates('scoring')">
+      📊 Scoring ({{ scoring_candidates | length }})
+    </button>
+  </div>
+  <div class="text-muted small">
+    Sorted by Final Score / Confidence
+  </div>
 </div>
 
-<div class="row g-4">
+<div class="row g-4" id="candidatesGrid">
   {% for candidate in candidates %}
   {% include "_candidate_row.html" %}
   {% endfor %}
@@ -43,14 +59,44 @@
 {% endif %}
 
 <script>
+function filterCandidates(source) {
+  document.querySelectorAll('.filter-source-btn').forEach(btn => {
+    if (btn.dataset.filter === source) {
+      btn.classList.add('btn-primary', 'active');
+      btn.classList.remove('btn-outline-secondary');
+    } else {
+      btn.classList.remove('btn-primary', 'active');
+      btn.classList.add('btn-outline-secondary');
+    }
+  });
+
+  document.querySelectorAll('.candidate-card-col').forEach(col => {
+    const colSource = col.dataset.source || 'scoring';
+    if (source === 'all' || colSource === source) {
+      col.classList.remove('d-none');
+    } else {
+      col.classList.add('d-none');
+    }
+  });
+}
+
 function submitCategorize(candidateId) {
   const select = document.getElementById('category-select-' + candidateId);
-  const categoryId = select.value;
+  const categoryId = select ? select.value : '';
   if (!categoryId) {
     alert('Please select a category first.');
     return;
   }
   doRatingAction(candidateId, `/candidates/${candidateId}/categorize?category_id=${categoryId}`, 'POST');
+}
+
+function submitDislike(candidateId) {
+  const select = document.getElementById('category-select-' + candidateId);
+  const categoryId = select ? select.value : '';
+  const url = categoryId
+    ? `/candidates/${candidateId}/dislike?category_id=${categoryId}`
+    : `/candidates/${candidateId}/dislike`;
+  doRatingAction(candidateId, url, 'POST');
 }
 
 async function doRatingAction(candidateId, url, method) {

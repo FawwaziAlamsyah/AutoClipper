@@ -79,7 +79,12 @@
       <div class="alert alert-danger d-none" id="downloadError"></div>
       <div class="alert alert-success d-none" id="downloadSuccess"></div>
 
-      <button class="btn btn-dark w-100 mt-auto" id="downloadBtn">{{ t("upload.downloadBtn") }}</button>
+      <div class="d-flex gap-2 mt-auto">
+        <button class="btn btn-dark flex-grow-1" id="downloadBtn">{{ t("upload.downloadBtn") }}</button>
+        <button class="btn btn-primary flex-grow-1 fw-semibold" id="downloadAiBtn" style="background: linear-gradient(135deg, #6366f1, #a855f7); border: none;">
+          <i class="bi bi-robot me-1"></i> Download & AI Analys
+        </button>
+      </div>
     </div>
   </div>
 </div>
@@ -170,6 +175,7 @@
               </button>
               {% else %}
               <button class="btn btn-sm btn-outline-success process-btn" data-video-id="{{ video.id }}">{{ t("cand.process") }}</button>
+              <button class="btn btn-sm btn-primary process-ai-btn" data-video-id="{{ video.id }}" style="background: linear-gradient(135deg, #6366f1, #a855f7); border: none;" title="Analisis Penuh Momen Viral via AI">🤖 AI Analys</button>
               {% endif %}
               {% if video.is_archived %}
               <span class="badge bg-warning text-dark">📦 Archived</span>
@@ -183,6 +189,82 @@
         {% endfor %}
       </tbody>
     </table>
+  </div>
+</div>
+
+
+<!-- Modal AI Analys Setup -->
+<div class="modal fade" id="aiAnalysModal" tabindex="-1" aria-labelledby="aiAnalysModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content bg-dark text-white border-secondary">
+      <div class="modal-header border-secondary">
+        <h5 class="modal-title d-flex align-items-center gap-2" id="aiAnalysModalLabel">
+          <i class="bi bi-robot text-primary"></i> <span>Download & AI Analys</span>
+        </h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div class="mb-3">
+          <label for="aiCategoryInput" class="form-label fw-semibold">
+            Kategori Video <span class="text-danger">*</span>
+          </label>
+          <input type="text"
+                 id="aiCategoryInput"
+                 class="form-control bg-black text-white border-secondary"
+                 list="existingCategoriesList"
+                 placeholder="Contoh: Podcast debat, Gaming horror lucu, Sepak bola highlight, Motivasi..."
+                 autocomplete="off">
+          <datalist id="existingCategoriesList">
+            {% if categories %}
+            {% for cat in categories %}
+            <option value="{{ cat.name }}">
+            {% endfor %}
+            {% endif %}
+          </datalist>
+          <div class="form-text text-muted">
+            Tulis kategori konten ini. AI akan menyesuaikan strategi pencarian momen klip yang paling berpotensi viral.
+          </div>
+        </div>
+
+        <div class="p-3 rounded bg-black bg-opacity-50 border border-secondary border-opacity-50 mt-3">
+          <div class="form-check form-switch d-flex align-items-center justify-content-between p-0 m-0">
+            <div>
+              <label class="form-check-label fw-semibold mb-0" for="aiScanVisualToggle" style="cursor: pointer;">
+                Scan Visual (Storyboard Frame)
+              </label>
+              <div class="small text-muted mt-1 pe-2">
+                Analisis aksi visual, reaksi gameplay, dan ekspresi. Matikan jika video obrolan/podcast biasa agar hemat kuota AI.
+              </div>
+            </div>
+            <input class="form-check-input ms-2 fs-5" type="checkbox" role="switch" id="aiScanVisualToggle" checked style="cursor: pointer;">
+          </div>
+        </div>
+
+        <div class="mb-2 mt-3">
+          <label for="aiContentBriefInput" class="form-label fw-semibold d-flex justify-content-between align-items-center mb-1">
+            <span><i class="bi bi-file-earmark-text text-info me-1"></i> Content Brief / Campaign Guidelines</span>
+            <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle small fw-normal">Opsional</span>
+          </label>
+          <textarea id="aiContentBriefInput"
+                    class="form-control bg-black text-white border-secondary small"
+                    rows="4"
+                    placeholder="Contoh brief campaign clipper:
+- Harus clip facecam serta gameplay ketika bermain, pastikan overlay facecam diclip.
+- Momen promo brand tertentu (ShopeePay Games, WDP RP1, dll).
+- Momen lucu talent Nadhil, Celink, Wasawho, Xxknjt, Reza saat bermain.
+(Kosongkan jika ingin kurasi viral umum tanpa brief khusus)"></textarea>
+          <div class="form-text text-muted small">
+            Jika diisi, AI akan memprioritaskan klip yang memenuhi syarat campaign ini sambil tetap menjaga potensi viral.
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer border-secondary">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Batal</button>
+        <button type="button" class="btn btn-primary fw-semibold px-4" id="confirmAiAnalysBtn" style="background: linear-gradient(135deg, #6366f1, #a855f7); border: none;">
+          <i class="bi bi-play-fill me-1"></i> Mulai AI Analys
+        </button>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -299,7 +381,7 @@ function initUploadPage() {
     const statusBadge = `<span class="badge bg-${v.status==='ready'?'success':(v.status==='uploading'?'warning':'secondary')}">${esc(v.status)}</span>`;
     const actions = v.status==='uploading'
       ? `<button class="btn btn-sm btn-outline-secondary process-btn" data-video-id="${v.id}" data-uploading="1" disabled><span class="spinner-border spinner-border-sm me-1"></span>{{ t("upload.uploading") }}</button>`
-      : `<button class="btn btn-sm btn-success process-btn" data-video-id="${v.id}">{{ t("cand.process") }}</button>`;
+      : `<button class="btn btn-sm btn-success process-btn" data-video-id="${v.id}">{{ t("cand.process") }}</button><button class="btn btn-sm btn-primary process-ai-btn" data-video-id="${v.id}" style="background: linear-gradient(135deg, #6366f1, #a855f7); border: none;">🤖 AI Analys</button>`;
     const archiveBtn = v.is_archived
       ? `<span class="badge bg-warning text-dark">📦 Archived</span>`
       : ``;
@@ -422,11 +504,201 @@ function initUploadPage() {
     });
   }
 
+  
+  let pendingTargetVideoId = null;
+  let aiModalInstance = null;
+
+  function getAiModal() {
+    const el = document.getElementById('aiAnalysModal');
+    if (!el) return null;
+    if (!aiModalInstance) {
+      aiModalInstance = new bootstrap.Modal(el);
+    }
+    return aiModalInstance;
+  }
+
+  function openAiModal(videoId = null) {
+    pendingTargetVideoId = videoId;
+    const catInput = document.getElementById('aiCategoryInput');
+    if (catInput && !catInput.value) {
+      catInput.value = '';
+    }
+    const briefInput = document.getElementById('aiContentBriefInput');
+    if (briefInput && !pendingTargetVideoId) {
+      briefInput.value = '';
+    }
+    const modal = getAiModal();
+    if (modal) modal.show();
+  }
+
+  document.getElementById('downloadAiBtn')?.addEventListener('click', () => {
+    const urlInput = document.getElementById('videoUrl');
+    const errDiv = document.getElementById('downloadError');
+    const url = urlInput ? urlInput.value.trim() : '';
+    if (!url) {
+      showAlert(errDiv, __t('upload.jsUrlEmpty'), false);
+      return;
+    }
+    openAiModal(null);
+  });
+
+  document.getElementById('confirmAiAnalysBtn')?.addEventListener('click', async () => {
+    const catInput = document.getElementById('aiCategoryInput');
+    const scanVisToggle = document.getElementById('aiScanVisualToggle');
+    const briefInput = document.getElementById('aiContentBriefInput');
+    const category = catInput ? catInput.value.trim() : '';
+    const scanVisual = scanVisToggle ? scanVisToggle.checked : true;
+    const contentBrief = briefInput ? briefInput.value.trim() : '';
+
+    if (!category) {
+      alert('Silakan isi kategori video terlebih dahulu agar AI dapat menyesuaikan kurasi viral!');
+      catInput?.focus();
+      return;
+    }
+
+    const modal = getAiModal();
+    if (modal) modal.hide();
+
+    if (pendingTargetVideoId !== null) {
+      // Dijalankan langsung untuk video yang sudah ada di tabel
+      startAiProcess(pendingTargetVideoId, category, scanVisual, contentBrief || null);
+    } else {
+      // Dijalankan bersamaan dengan download URL YouTube
+      const urlInput = document.getElementById('videoUrl');
+      const btn = document.getElementById('downloadAiBtn');
+      const errDiv = document.getElementById('downloadError');
+      const succDiv = document.getElementById('downloadSuccess');
+      const spinner = document.getElementById('downloadSpinner');
+      errDiv.classList.add('d-none'); succDiv.classList.add('d-none');
+      const url = urlInput.value.trim();
+      if (!url) { showAlert(errDiv, __t('upload.jsUrlEmpty'), false); return; }
+
+      sessionStorage.setItem('pendingAiProcess', JSON.stringify({
+        category,
+        scanVisual,
+        contentBrief: contentBrief || null,
+      }));
+      btn.disabled = true; spinner.classList.remove('d-none');
+
+      try {
+        const res = await fetch('/upload/download', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url }),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          btn.disabled = false;
+          spinner.classList.add('d-none');
+          showAlert(errDiv, data.detail || __t('upload.jsFailDownload'), false);
+          sessionStorage.removeItem('pendingAiProcess');
+          return;
+        }
+        sessionStorage.setItem('activeDownloadId', data.download_id);
+        await _runDownloadPolling(data.download_id);
+      } catch (e) {
+        btn.disabled = false;
+        spinner.classList.add('d-none');
+        showAlert(errDiv, __t('upload.jsSystemError'), false);
+        sessionStorage.removeItem('pendingAiProcess');
+      }
+    }
+  });
+
+  async function startAiProcess(videoId, category, scanVisual, contentBrief = null) {
+    const rowEl = document.getElementById(`video-row-${videoId}`);
+    const procBtn = rowEl?.querySelector('.process-btn');
+    const aiBtn = rowEl?.querySelector('.process-ai-btn');
+
+    if (procBtn) procBtn.disabled = true;
+    if (aiBtn) {
+      aiBtn.disabled = true;
+      aiBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>AI: starting...';
+    }
+
+    try {
+      const payload = {
+        category_text: category,
+        scan_visual: scanVisual,
+      };
+      if (contentBrief) {
+        payload.content_brief = contentBrief;
+      }
+      const res = await fetch(`/upload/videos/${videoId}/process-ai`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        alert(data.detail || 'Gagal memulai AI Discovery process.');
+        if (procBtn) procBtn.disabled = false;
+        if (aiBtn) { aiBtn.disabled = false; aiBtn.innerHTML = '🤖 AI Analys'; }
+        return;
+      }
+
+      const jobId = data.job_id;
+      if (aiBtn) {
+        aiBtn.dataset.jobId = jobId;
+        const cell = aiBtn.parentNode;
+        let cancelBtn = cell.querySelector('.cancel-btn');
+        if (!cancelBtn) {
+          cancelBtn = document.createElement('button');
+          cancelBtn.className = 'btn btn-sm btn-warning cancel-btn';
+          cancelBtn.textContent = 'Cancel';
+          cancelBtn.addEventListener('click', () => cancelJob(cancelBtn));
+          cell.appendChild(cancelBtn);
+        }
+        cancelBtn.dataset.jobId = jobId;
+        cancelBtn.disabled = false;
+      }
+
+      const done = await pollJob(jobId, (step, pct) => {
+        if (aiBtn) {
+          aiBtn.innerHTML = `<span class="spinner-border spinner-border-sm me-1"></span>AI: ${step}${pct != null ? ` (${pct}%)` : ''}`;
+          aiBtn.title = `AI Analys step: ${step}`;
+        }
+      });
+
+      const cancelBtn = rowEl?.querySelector('.cancel-btn');
+      cancelBtn?.remove();
+      if (procBtn) procBtn.disabled = false;
+      if (aiBtn) {
+        aiBtn.disabled = false;
+        aiBtn.innerHTML = '🤖 AI Analys';
+        delete aiBtn.dataset.jobId;
+      }
+
+      if (done === 'completed') {
+        const b = rowEl?.querySelector('td:nth-child(3) .badge');
+        if (b) { b.textContent = 'ready'; b.className = 'badge bg-success'; }
+        const viewLink = `<a href="/candidates/video/${videoId}" class="alert-link ms-2">Lihat Hasil Candidates →</a>`;
+        const succDiv = document.getElementById('downloadSuccess');
+        if (succDiv) {
+          succDiv.innerHTML = `<strong>Sukses!</strong> AI Analys telah selesai memilih kandidat klip viral. ${viewLink}`;
+          succDiv.className = 'alert alert-success';
+        } else {
+          alert('AI Analys selesai! Silakan buka menu Candidates untuk melihat klip.');
+        }
+      } else if (done === 'cancelled') {
+        // user cancelled
+      } else {
+        alert(`AI Analys Gagal:\n${done}\n\nAnda dapat mengganti model atau provider di Settings, lalu klik Retry di halaman Job.`);
+      }
+    } catch (e) {
+      if (procBtn) procBtn.disabled = false;
+      if (aiBtn) { aiBtn.disabled = false; aiBtn.innerHTML = '🤖 AI Analys'; }
+      alert('Terjadi kesalahan saat memproses AI Analys: ' + e.message);
+    }
+  }
+
   function bindRowActions(row) {
     const procBtn = row.querySelector('.process-btn');
     const cancelBtn = row.querySelector('.cancel-btn');
     const hardDelBtn = row.querySelector('.hard-delete-btn');
     if (procBtn) procBtn.addEventListener('click', () => processVideo(procBtn));
+    const aiBtn = row.querySelector('.process-ai-btn');
+    if (aiBtn) aiBtn.addEventListener('click', () => openAiModal(aiBtn.dataset.videoId));
     if (cancelBtn) cancelBtn.addEventListener('click', () => cancelJob(cancelBtn));
     if (hardDelBtn) hardDelBtn.addEventListener('click', () => hardDeleteVideo(hardDelBtn));
   }
@@ -598,11 +870,23 @@ function initUploadPage() {
         const pr=await fetch(`/upload/download/${dlId}`); const pd=await pr.json();
         if(pd.status==='finished'){
           bar.style.width='100%'; pctEl.textContent='100%';
-          btn.disabled=false; btn.textContent='Download & Import';
+          btn.disabled=false; btn.textContent='Download';
+          const dlAiBtn = document.getElementById('downloadAiBtn');
+          if (dlAiBtn) dlAiBtn.disabled = false;
           spinner.classList.add('d-none');
           showAlert(succDiv,`Video downloaded successfully! ID: ${pd.video.id}`,true);
           addRow(pd.video); if(urlInput) urlInput.value='';
           sessionStorage.removeItem('activeDownloadId');
+
+          // Cek apakah download ini dipicu oleh tombol 'Download & AI Analys'
+          const pendingAi = sessionStorage.getItem('pendingAiProcess');
+          if (pendingAi) {
+            sessionStorage.removeItem('pendingAiProcess');
+            try {
+              const aiOpts = JSON.parse(pendingAi);
+              startAiProcess(pd.video.id, aiOpts.category, aiOpts.scanVisual, aiOpts.contentBrief || null);
+            } catch (e) {}
+          }
           return;
         }
         if(pd.status==='error'){

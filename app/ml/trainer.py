@@ -57,18 +57,45 @@ class ModelTrainer:
             sample_weight.append(LABEL_SOURCE_WEIGHTS.get(cand.label_source, 0.5))
             label_sources.append(cand.label_source)
 
-        X_train, X_val, y_train, y_val, w_train, w_val = train_test_split(
-            X, y, sample_weight, test_size=0.2, random_state=42
-        )
+        # Variance Guard: pastikan label target tidak seragam (Var(y) > 0)
+        distinct_y = set(y)
+        if len(distinct_y) < 2:
+            val = y[0] if y else 0.0
+            raise ValueError(
+                f"Data training kategori ini tidak memiliki variasi nilai (semua bernilai {val:.1f}). "
+                "Minimal dibutuhkan kombinasi klip disukai (Like / skor tinggi) dan klip ditolak "
+                "(Dislike / skor rendah) atau impor data performa riil agar model dapat belajar membedakan kualitas klip."
+            )
 
+        import numpy as np
+        from sklearn.model_selection import KFold
+
+        X_arr = np.array(X)
+        y_arr = np.array(y)
+        w_arr = np.array(sample_weight)
+
+        n_samples = len(X_arr)
+        # 5-fold CV untuk n >= 25; split adaptif untuk 20 <= n < 25
+        n_splits = 5 if n_samples >= 25 else min(5, max(2, n_samples // 4))
+
+        kf = KFold(n_splits=n_splits, shuffle=True, random_state=42)
+        val_predictions = np.zeros(n_samples)
+
+        for train_idx, val_idx in kf.split(X_arr):
+            fold_model = GradientBoostingRegressor(
+                n_estimators=100, max_depth=3, learning_rate=0.05, random_state=42
+            )
+            fold_model.fit(X_arr[train_idx], y_arr[train_idx], sample_weight=w_arr[train_idx])
+            val_predictions[val_idx] = fold_model.predict(X_arr[val_idx])
+
+        mae = float(mean_absolute_error(y_arr, val_predictions))
+        r2 = float(r2_score(y_arr, val_predictions))
+
+        # Latih model produksi final menggunakan seluruh dataset
         model = GradientBoostingRegressor(
             n_estimators=100, max_depth=3, learning_rate=0.05, random_state=42
         )
-        model.fit(X_train, y_train, sample_weight=w_train)
-
-        y_pred = model.predict(X_val)
-        mae = mean_absolute_error(y_val, y_pred)
-        r2 = r2_score(y_val, y_pred)
+        model.fit(X_arr, y_arr, sample_weight=w_arr)
 
         category_dir = Path(f"data/models/category_{category_id}")
         versioned_dir = category_dir / "versions"
@@ -87,7 +114,7 @@ class ModelTrainer:
             sample_count=len(candidates),
             real_performance_count=label_sources.count("real_performance"),
             user_liked_count=label_sources.count("user_liked"),
-            auto_rejected_count=0,
+            auto_rejected_count=label_sources.count("user_disliked"),
             val_mae=round(mae, 3),
             val_r2=round(r2, 3),
             feature_importance=feature_importance,

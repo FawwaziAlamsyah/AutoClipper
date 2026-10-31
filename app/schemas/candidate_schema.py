@@ -18,6 +18,7 @@ class CandidateDetail(BaseModel):
     score_breakdown: dict[str, Any] = {}
     hook_text: str | None = None
     status: str
+    source: str = "scoring"
     created_at: datetime
 
     model_config = {"from_attributes": True}

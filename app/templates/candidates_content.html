@@ -16,11 +16,10 @@
   </div>
 
   {% if summaries %}
-  <div class="row-wrap">
-    <button class="arrow l" data-d="-1" type="button" aria-label="Scroll left">‹</button>
-    <div class="row-scroller">
-      {% for s in summaries %}
-      <article class="card video-card">
+  <div class="row g-4" id="candidatesVideoGrid">
+    {% for s in summaries %}
+    <div class="col-12 col-sm-6 col-lg-4 col-xl-3">
+      <article class="card video-card h-100">
         <div class="thumb g-{{ (s.video.id % 6) + 1 }}">
           <i></i>
           <img src="/preview/videos/{{ s.video.id }}/thumbnail" alt="{{ s.video.original_filename }}" loading="lazy" onerror="this.remove()">
@@ -30,7 +29,7 @@
           </span>
           {% endif %}
         </div>
-        <div class="card-body">
+        <div class="card-body d-flex flex-column">
           <div class="d-flex justify-content-between align-items-start mb-2">
             <h6 class="card-title mb-0 text-truncate me-2" title="{{ s.video.original_filename }}">
               {{ s.video.original_filename }}
@@ -69,9 +68,8 @@
           </a>
         </div>
       </article>
-      {% endfor %}
     </div>
-    <button class="arrow r" data-d="1" type="button" aria-label="Scroll right">›</button>
+    {% endfor %}
   </div>
 
   {% else %}

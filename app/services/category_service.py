@@ -54,5 +54,9 @@ class CategoryService:
         model_dir = Path(f"data/models/category_{category_id}")
         if model_dir.exists():
             shutil.rmtree(model_dir)
+
+        from app.models.training_run_model import TrainingRunModel
+        self.db.query(TrainingRunModel).filter(TrainingRunModel.category_id == category_id).delete(synchronize_session=False)
+
         self.repo.delete(category_id)
         logger.info("Kategori %d dihapus beserta model terlatihnya", category_id)

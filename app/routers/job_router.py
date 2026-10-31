@@ -103,3 +103,51 @@ def cancel_job(
 def get_job_status(job_id: int, service: JobService = Depends(get_job_service)) -> dict:
     """Return job status with per-step progress."""
     return service.get_status(job_id)
+
+
+
+@router.post("/{job_id}/retry")
+def retry_job(
+    request: Request,
+    job_id: int,
+    service: JobService = Depends(get_job_service),
+):
+    """Retry a failed job (especially ai_discovery)."""
+    import threading
+    job = service.get(job_id)
+    if job.job_type == "ai_discovery":
+        from app.routers.video_router import _run_ai_process
+        job.status = "pending"
+        job.error_message = None
+        for step in job.steps:
+            if step.status == "failed":
+                step.status = "pending"
+                step.error_message = None
+        service.db.commit()
+
+        thread = threading.Thread(
+            target=_run_ai_process,
+            args=(
+                job.video_id,
+                job.id,
+                job.ai_category_text or "",
+                job.ai_scan_visual if job.ai_scan_visual is not None else True,
+                job.ai_content_brief,
+            ),
+            daemon=True,
+        )
+        thread.start()
+
+    if request.headers.get("HX-Request"):
+        status = service.get_status(job_id)
+        return templates.TemplateResponse(
+            request=request,
+            name="job_detail_content.html",
+            context={
+                "request": request,
+                "app_name": settings.APP_NAME,
+                "status": status,
+                "steps": status["steps"],
+            },
+        )
+    return {"job_id": job.id, "status": job.status}

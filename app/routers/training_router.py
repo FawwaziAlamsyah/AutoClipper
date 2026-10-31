@@ -286,15 +286,28 @@ def delete_training_run(
         except Exception as e:
             logger.warning("Gagal hapus file model %s: %s", run.model_file_path, e)
 
-    if run.is_active:
-        active_path = Path(f"data/models/category_{run.category_id}/score_model.pkl")
-        if active_path.exists():
-            try:
-                active_path.unlink()
-            except Exception as e:
-                logger.warning("Gagal hapus active model %s: %s", active_path, e)
+    was_active = run.is_active
+    cat_id = run.category_id
 
     repo.delete(run_id)
+
+    if was_active:
+        active_path = Path(f"data/models/category_{cat_id}/score_model.pkl")
+        remaining = repo.get_all(cat_id)
+        if remaining:
+            new_active = remaining[0]
+            repo.set_active(new_active.id)
+            if new_active.model_file_path and Path(new_active.model_file_path).exists():
+                active_path.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy(new_active.model_file_path, active_path)
+                logger.info("Training run %d dipromosikan jadi model aktif menggantikan run %d", new_active.id, run_id)
+        else:
+            if active_path.exists():
+                try:
+                    active_path.unlink()
+                except Exception as e:
+                    logger.warning("Gagal hapus active model %s: %s", active_path, e)
+
     logger.info("Training run %d dihapus", run_id)
     return {"ok": True, "deleted_id": run_id}
 

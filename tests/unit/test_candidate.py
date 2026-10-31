@@ -217,3 +217,80 @@ def test_get_archived_video_summaries_only_archived() -> None:
     assert summaries[0]["video"] is video_archived
     assert summaries[0]["liked"] == 1
 
+
+
+def test_mark_as_disliked_with_category() -> None:
+    """mark_as_disliked should set actual_score, is_training_example=True and category_id."""
+    mock_db = MagicMock()
+    service = CandidateService(mock_db)
+
+    mock_cand = MagicMock()
+    mock_cand.id = 10
+    mock_cand.category_id = None
+    mock_cand.video = None
+    mock_cand.job = None
+
+    mock_repo = MagicMock()
+    mock_repo.get.return_value = mock_cand
+    service.candidate_repo = mock_repo
+
+    mock_cat = MagicMock()
+    mock_cat.id = 66
+    mock_db.query.return_value.filter.return_value.first.return_value = mock_cat
+
+    res = service.mark_as_disliked(10, category_id=66)
+
+    assert res.label_source == "user_disliked"
+    assert res.actual_score == 2.0
+    assert res.is_training_example is True
+    assert res.category_id == 66
+    mock_db.commit.assert_called()
+
+
+def test_mark_as_disliked_inherits_job_category() -> None:
+    """mark_as_disliked should inherit category_id from candidate.job if not provided."""
+    mock_db = MagicMock()
+    service = CandidateService(mock_db)
+
+    mock_job = MagicMock()
+    mock_job.category_id = 99
+
+    mock_cand = MagicMock()
+    mock_cand.id = 11
+    mock_cand.category_id = None
+    mock_cand.video = None
+    mock_cand.job = mock_job
+
+    mock_repo = MagicMock()
+    mock_repo.get.return_value = mock_cand
+    service.candidate_repo = mock_repo
+
+    res = service.mark_as_disliked(11)
+
+    assert res.label_source == "user_disliked"
+    assert res.actual_score == 2.0
+    assert res.is_training_example is True
+    assert res.category_id == 99
+
+
+def test_unmark_disliked() -> None:
+    """unmark_disliked should reset label_source, actual_score, and is_training_example."""
+    mock_db = MagicMock()
+    service = CandidateService(mock_db)
+
+    mock_cand = MagicMock()
+    mock_cand.id = 12
+    mock_cand.label_source = "user_disliked"
+    mock_cand.actual_score = 2.0
+    mock_cand.is_training_example = True
+
+    mock_repo = MagicMock()
+    mock_repo.get.return_value = mock_cand
+    service.candidate_repo = mock_repo
+
+    res = service.unmark_disliked(12)
+
+    assert res.label_source is None
+    assert res.actual_score is None
+    assert res.is_training_example is False
+    mock_db.commit.assert_called()

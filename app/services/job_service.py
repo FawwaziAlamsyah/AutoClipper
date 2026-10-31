@@ -15,6 +15,7 @@ logger = logging.getLogger(__name__)
 # Step pipeline utama — hanya ini yang di-seed pending saat job dibuat.
 # Step opsional (generate/subtitle/export) dibuat via ensure_step saat dijalankan.
 PIPELINE_STEPS = ("extract", "transcribe", "analyze", "score", "complete")
+AI_DISCOVERY_STEPS = ("extract", "transcribe", "signals", "storyboard", "ai_curate", "complete")
 
 # Sub-step analyzer yang di-seed saat tahap analyze dimulai.
 # Nama step = analyzer_type di registry (harus match agar start_step/finish_step
@@ -59,7 +60,8 @@ class JobService:
         # Seed SEMUA pipeline + analyzer steps sekali, sebelum pipeline jalan.
         # Dulu analyzer steps di-seed di tengah analyze -> total step naik 5->12,
         # progress UI drop (mis. 20% -> 17%). Sekarang denominator statis monotonic.
-        for name in PIPELINE_STEPS + ANALYZER_STEPS:
+        steps_to_seed = AI_DISCOVERY_STEPS if job_type == "ai_discovery" else (PIPELINE_STEPS + ANALYZER_STEPS)
+        for name in steps_to_seed:
             self.step_repo.add(JobStepModel(job_id=job.id, step_name=name, status="pending"))
 
         logger.info("Created job %d for video %d", job.id, video_id)
@@ -121,7 +123,7 @@ class JobService:
             job.started_at = datetime.now(UTC)
         self.db.commit()
 
-        step = self._get_step(job_id, step_name)
+        step = self.ensure_step(job_id, step_name)
         # Step yang sudah success TIDAK dibuka ulang (extract/transcribe bisa
         # di-start ganda dari process_service + transcript_service). Kalau
         # dibuka ulang, progress turun karena step sukses jadi running lagi.
@@ -158,7 +160,7 @@ class JobService:
 
     def finish_step(self, job_id: int, step_name: str, success: bool = True, error: str | None = None) -> JobStepModel:
         """Mark a step finished (success or failed)."""
-        step = self._get_step(job_id, step_name)
+        step = self.ensure_step(job_id, step_name)
         now = datetime.now(UTC)
         step.finished_at = now
         step.status = "success" if success else "failed"
@@ -278,6 +280,7 @@ class JobService:
         return {
             "job_id": job.id,
             "status": job.status,
+            "job_type": job.job_type,
             "current_step": job.current_step,
             "started_at": job.started_at.isoformat() if job.started_at else None,
             "finished_at": job.finished_at.isoformat() if job.finished_at else None,
@@ -285,6 +288,9 @@ class JobService:
             "progress_percent": progress_percent,
             "total_steps": total,
             "completed_steps": completed,
+            "ai_category_text": job.ai_category_text,
+            "ai_scan_visual": job.ai_scan_visual,
+            "ai_content_brief": job.ai_content_brief,
             "steps": [
                 {
                     "step_name": s.step_name,

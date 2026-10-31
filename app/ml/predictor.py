@@ -27,6 +27,17 @@ def _load_model(category_id: int):
     cached = _model_cache.get(category_id)
     if cached is None or cached[1] != current_mtime:
         model = joblib.load(path)
+        # Proteksi kualitas model: tolak degenerate model yang seluruh feature_importances_ bernilai 0
+        import numpy as np
+        if hasattr(model, "feature_importances_"):
+            imp = getattr(model, "feature_importances_", None)
+            if imp is not None and len(imp) > 0 and np.all(np.array(imp) == 0.0):
+                logger.warning(
+                    "Score model kategori %d adalah degenerate model (seluruh feature importance bernilai 0.0). "
+                    "Model diabaikan dan sistem otomatis fallback ke weighted-sum viral trio.",
+                    category_id,
+                )
+                return None
         _model_cache[category_id] = (model, current_mtime)
         logger.info("Score model kategori %d dimuat ulang dari %s", category_id, path)
         return model

@@ -51,7 +51,7 @@
 <div class="d-flex justify-content-between align-items-center flex-wrap gap-3 mb-4">
   <div>
     <div class="d-flex align-items-center gap-2 mb-1">
-      <span class="badge bg-danger bg-opacity-25 text-danger border border-danger border-opacity-25 px-2 py-1 small">XGBoost Engine</span>
+      <span class="badge bg-danger bg-opacity-25 text-danger border border-danger border-opacity-25 px-2 py-1 small"><i class="bi bi-cpu me-1"></i>GBDT Regressor</span>
       <h2 class="mb-0 fw-bold">{{ t("train.title") }}</h2>
     </div>
     <p class="text-muted small mb-0">{{ t("train.desc") }}</p>
@@ -88,12 +88,19 @@
             </div>
             <span class="fw-bold text-white">{{ counts_by_source.real_performance or 0 }}</span>
           </div>
-          <div class="d-flex justify-content-between align-items-center">
+          <div class="d-flex justify-content-between align-items-center mb-2">
             <div class="d-flex align-items-center gap-2">
               <span class="badge bg-primary-subtle text-primary border border-primary-subtle">user_liked</span>
               <small class="text-muted">{{ t("train.fromCategory") }}</small>
             </div>
             <span class="fw-bold text-white">{{ counts_by_source.user_liked or 0 }}</span>
+          </div>
+          <div class="d-flex justify-content-between align-items-center">
+            <div class="d-flex align-items-center gap-2">
+              <span class="badge bg-danger-subtle text-danger border border-danger-subtle">user_disliked</span>
+              <small class="text-muted">Negative examples (score 2.0)</small>
+            </div>
+            <span class="fw-bold text-white">{{ counts_by_source.user_disliked or 0 }}</span>
           </div>
         </div>
       </div>
@@ -125,7 +132,7 @@
             <i class="bi bi-cpu text-danger fs-5"></i>
             <h5 class="mb-0 fw-semibold">{{ t("train.trainBtn") }}</h5>
           </div>
-          <span class="badge bg-danger bg-opacity-25 text-danger border border-danger border-opacity-25">XGBoost</span>
+          <span class="badge bg-danger bg-opacity-25 text-danger border border-danger border-opacity-25">GBDT</span>
         </div>
         <p class="text-muted small mb-4">
           Train a fine-tuned scoring model from all category samples. Each training run evaluates 5-fold cross-validation and records full telemetry metrics.
@@ -248,7 +255,7 @@
           <td><span class="badge bg-dark border border-secondary-subtle">{{ run.sample_count }}</span></td>
           <td><span class="badge bg-secondary-subtle text-secondary-emphasis">{{ run.val_mae }}</span></td>
           <td><span class="badge bg-info-subtle text-info">{{ run.val_r2 }}</span></td>
-          <td class="small text-muted">{{ run.real_performance_count }} actual / {{ run.user_liked_count }} category</td>
+          <td class="small text-muted">{{ run.real_performance_count }} actual / {{ run.user_liked_count }} liked{% if run.auto_rejected_count %} / {{ run.auto_rejected_count }} disliked{% endif %}</td>
           <td>
             {% if run.is_active %}
             <span class="badge bg-success-subtle text-success border border-success-subtle d-inline-flex align-items-center gap-1">
@@ -374,11 +381,20 @@ async function trainModel(btn) {
     const res = await fetch(`/training/train?category_id=${categoryId}`, { method: 'POST' });
     const data = await res.json();
     if (res.ok) {
-      if (typeof htmx !== 'undefined') {
-        htmx.ajax('GET', `/training/dashboard?category_id=${categoryId}`, { target: '#main-content', pushUrl: false });
-      } else {
-        window.location.reload();
-      }
+      resultDiv.innerHTML = `
+        <div class="alert alert-success small py-2 px-3 mb-0 mt-2 border-success border-opacity-50">
+          <div class="fw-bold"><i class="bi bi-check-circle-fill me-1"></i>Training Sukses (Run #${data.id})</div>
+          <div class="text-white-50">Sampel: ${data.sample_count} &bull; MAE: ${data.val_mae} &bull; R&sup2;: ${data.val_r2}</div>
+        </div>
+      `;
+      btn.innerHTML = '<i class="bi bi-check2-circle me-1"></i>Tersimpan';
+      setTimeout(() => {
+        if (typeof htmx !== 'undefined') {
+          htmx.ajax('GET', `/training/dashboard?category_id=${categoryId}`, { target: '#main-content', pushUrl: false });
+        } else {
+          window.location.reload();
+        }
+      }, 1000);
     } else {
       resultDiv.innerHTML = `<div class="alert alert-danger small mb-0 mt-2">${data.detail || 'Failed to train model.'}</div>`;
       btn.disabled = false;
